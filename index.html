@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- 모바일 반응형 필수. viewport 설정이 있어야 터치 300ms 지연도 사라진다 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0f172a" />
+    <meta
+      name="description"
+      content="오늘심박 HeartTune — 손가락을 카메라에 대고 심박수와 맥박 리듬을 확인하세요."
+    />
+    <title>오늘심박 · HeartTune</title>
+
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./icons/icon-192.png" type="image/png" />
+    <link rel="apple-touch-icon" href="./icons/icon-192.png" />
+    <link rel="stylesheet" href="./styles.css" />
+    <script type="module" src="./src/main.js"></script>
+  </head>
+  <body>
+    <!-- 플래시 미지원 기기를 위한 대체 광원 -->
+    <div id="lightSource" class="light-source" hidden></div>
+
+    <header class="app-bar">
+      <div class="brand">
+        <span class="brand-dot" aria-hidden="true"></span>
+        <span class="brand-name" data-i18n="app.name">오늘심박</span>
+      </div>
+      <div class="app-bar-actions">
+        <button id="langToggle" class="icon-btn" type="button" data-i18n-attr="aria-label:settings.language">
+          <span id="langLabel">EN</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="app-main">
+      <!-- ① 시작 -->
+      <section id="viewStart" class="view is-active">
+        <h1 class="title" data-i18n="start.title">심박수를 측정해 볼까요?</h1>
+
+        <div class="guide" role="list">
+          <p class="guide-item" role="listitem"><span class="guide-num">1</span><span data-i18n="start.guide1">휴대폰 후면 카메라에 검지를 살짝 대주세요</span></p>
+          <p class="guide-item" role="listitem"><span class="guide-num">2</span><span data-i18n="start.guide2">너무 세게 누르지 마세요</span></p>
+          <p class="guide-item" role="listitem"><span class="guide-num">3</span><span data-i18n="start.guide3">측정이 끝날 때까지 가만히 있어 주세요</span></p>
+        </div>
+
+        <fieldset class="duration-picker">
+          <legend data-i18n="start.duration">측정 시간</legend>
+          <div class="segmented" role="radiogroup">
+            <button type="button" class="seg" data-duration="15" role="radio" aria-checked="false" data-i18n="settings.duration15">15초</button>
+            <button type="button" class="seg is-selected" data-duration="30" role="radio" aria-checked="true" data-i18n="settings.duration30">30초</button>
+            <button type="button" class="seg" data-duration="60" role="radio" aria-checked="false" data-i18n="settings.duration60">60초</button>
+          </div>
+        </fieldset>
+
+        <button id="btnStart" class="btn btn-primary btn-lg" type="button" data-i18n="start.button">측정 시작</button>
+
+        <!-- 카메라 오류 안내: 임베드 뷰(iframe)는 권한 팝업 자체가 차단되므로
+             새 탭 열기 버튼을 반드시 제공해야 한다 -->
+        <div id="camError" class="cam-error" hidden>
+          <p id="camErrorText" class="cam-error-text"></p>
+          <div class="cam-error-actions">
+            <a id="btnOpenTab" class="btn btn-secondary" target="_blank" rel="noopener" data-i18n="error.openTab">새 탭에서 열기</a>
+            <button id="btnRetryCam" class="btn btn-primary" type="button" data-i18n="error.retry">다시 시도</button>
+          </div>
+        </div>
+
+        <p class="legal" data-i18n="legal.disclaimer">본 앱은 의료기기가 아니며, 측정 결과는 참고용 정보입니다.</p>
+      </section>
+
+      <!-- ② 측정 중 -->
+      <section id="viewMeasuring" class="view">
+        <div class="cam-wrap">
+          <!-- playsinline 필수: 없으면 iOS에서 전체화면으로 강제 전환됨 -->
+          <video id="video" class="cam" playsinline muted autoplay></video>
+          <canvas id="wave" class="wave" width="600" height="140"></canvas>
+        </div>
+
+        <div class="measure-status">
+          <p id="liveBpm" class="live-bpm" aria-live="polite">--</p>
+          <p id="liveUnit" class="live-unit" data-i18n="result.bpm">회/분</p>
+          <p id="statusText" class="status-text" data-i18n="measuring.stabilizing">안정화 중…</p>
+        </div>
+
+        <div class="progress">
+          <div id="progressBar" class="progress-bar" style="width: 0%"></div>
+        </div>
+        <p id="remainingText" class="remaining">--</p>
+
+        <button id="btnCancel" class="btn btn-ghost" type="button" data-i18n="measuring.cancel">취소</button>
+      </section>
+
+      <!-- ③ 결과 -->
+      <section id="viewResult" class="view">
+        <div id="resultCard" class="result-card" data-tone="normal">
+          <p class="result-bpm"><span id="resultBpm">--</span><small data-i18n="result.bpm">회/분</small></p>
+          <p id="resultTitle" class="result-title">--</p>
+          <p id="resultRhythm" class="result-rhythm">--</p>
+          <p id="resultDesc" class="result-desc">--</p>
+          <p id="resultMeta" class="result-meta">--</p>
+        </div>
+
+        <div class="result-actions">
+          <button id="btnSaveImage" class="btn btn-secondary" type="button" data-i18n="result.save">이미지로 저장</button>
+          <button id="btnAgain" class="btn btn-primary" type="button" data-i18n="result.again">다시 측정</button>
+        </div>
+
+        <p class="legal" data-i18n="legal.disclaimer">본 앱은 의료기기가 아니며, 측정 결과는 참고용 정보입니다.</p>
+      </section>
+
+      <!-- ④ 기록 -->
+      <section id="viewHistory" class="view">
+        <div class="history-head">
+          <h2 class="section-title" data-i18n="history.title">측정 기록</h2>
+          <button id="btnClearHistory" class="btn btn-small btn-ghost" type="button" data-i18n="history.clear">전체 삭제</button>
+        </div>
+        <canvas id="historyChart" class="history-chart" width="600" height="160"></canvas>
+        <ul id="historyList" class="history-list"></ul>
+        <p class="note" data-i18n="history.note">이 기록은 이 기기에만 저장됩니다</p>
+      </section>
+    </main>
+
+    <nav class="tab-bar" id="tabBar">
+      <button type="button" class="tab is-active" data-view="start">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-4.6-9.3-9A5.4 5.4 0 0 1 12 6.3 5.4 5.4 0 0 1 21.3 12C19 16.4 12 21 12 21z"/></svg>
+        <span data-i18n="start.button">측정</span>
+      </button>
+      <button type="button" class="tab" data-view="history">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l3-7 4 14 3-7h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span data-i18n="history.title">기록</span>
+      </button>
+    </nav>
+
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+    <!-- PWA 설치 안내 (iOS는 자동 프롬프트가 없어 수동 안내가 필요) -->
+    <div id="installBanner" class="install-banner" hidden>
+      <p data-i18n="pwa.installTitle">홈 화면에 추가하면 앱처럼 쓸 수 있어요</p>
+      <div class="install-actions">
+        <button id="btnInstallOk" class="btn btn-small btn-primary" type="button" data-i18n="pwa.installOk">추가 방법 보기</button>
+        <button id="btnInstallNo" class="btn btn-small btn-ghost" type="button" data-i18n="pwa.installNo">닫기</button>
+      </div>
+    </div>
+  </body>
+</html>

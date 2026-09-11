@@ -1,0 +1,85 @@
+{
+  "app": {
+    "name": "HeartTune",
+    "tagline": "Check your heart with one finger"
+  },
+  "start": {
+    "title": "Ready to measure your heart rate?",
+    "guide1": "Place your index finger gently on the rear camera",
+    "guide2": "Don't press too hard",
+    "guide3": "Hold still until the measurement ends",
+    "button": "Start",
+    "duration": "Duration",
+    "seconds": "sec"
+  },
+  "measuring": {
+    "placing": "Place your finger",
+    "stabilizing": "Stabilizing…",
+    "live": "Measuring… final value shown when done",
+    "remaining": "Time left",
+    "pressHarder": "Press a little firmer",
+    "tooBright": "Too bright here. Try again in the shade",
+    "holdStill": "Please hold still",
+    "cancel": "Cancel"
+  },
+  "result": {
+    "bpm": "bpm",
+    "brady": {
+      "title": "Your heart is beating slowly",
+      "desc": "Your heart rate is on the low side. This can be normal for athletes, but see a doctor if you feel dizzy or tired."
+    },
+    "normal": {
+      "title": "Within the normal range",
+      "desc": "Your resting heart rate is in the normal range."
+    },
+    "tachy": {
+      "title": "Your heart is beating fast",
+      "desc": "You may have just exercised or feel stressed. Try again in 5 minutes."
+    },
+    "rhythm": {
+      "ok": "Your rhythm looks steady",
+      "irregular": "Your rhythm looks uneven. Please consult a doctor",
+      "short": "Measurement was short — treat the rhythm as a rough guide"
+    },
+    "quality": {
+      "good": "Good signal quality",
+      "fair": "Fair signal quality",
+      "poor": "Weak signal — please measure again"
+    },
+    "save": "Save as image",
+    "share": "Share",
+    "again": "Measure again",
+    "saved": "Saved"
+  },
+  "history": {
+    "title": "History",
+    "empty": "No measurements yet",
+    "note": "Records are stored on this device only",
+    "clear": "Clear all",
+    "cleared": "History cleared",
+    "confirmClear": "Delete all measurement records?"
+  },
+  "settings": {
+    "language": "Language",
+    "duration15": "15 sec (quick)",
+    "duration30": "30 sec (recommended)",
+    "duration60": "60 sec (detailed)"
+  },
+  "legal": {
+    "disclaimer": "This app is not a medical device. Results are for reference only and do not replace a medical diagnosis.",
+    "privacy": "Camera images are processed on your device only and are never transmitted."
+  },
+  "error": {
+    "noCamera": "Camera unavailable. Please check browser permissions",
+    "denied": "Camera permission was not granted. If no prompt appeared, the embedded view is blocking it — tap [Open in new tab] to use a regular browser",
+    "notSecure": "The camera only works over HTTPS",
+    "failed": "Measurement failed. Please try again",
+    "openTab": "Open in new tab",
+    "retry": "Retry"
+  },
+  "pwa": {
+    "installTitle": "Add to your home screen to use it like an app",
+    "installOk": "How to add",
+    "installNo": "Close"
+  }
+}
