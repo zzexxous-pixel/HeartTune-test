@@ -20,7 +20,9 @@
     "pressHarder": "Press a little firmer",
     "tooBright": "Too bright here. Try again in the shade",
     "holdStill": "Please hold still",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "noFlash": "No flash available. Measure in a bright place",
+    "screenLight": "Screen light"
   },
   "result": {
     "bpm": "bpm",

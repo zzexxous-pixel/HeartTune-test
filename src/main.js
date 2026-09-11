@@ -43,6 +43,7 @@ function cacheEls() {
     'btnAgain', 'historyList', 'historyChart', 'btnClearHistory', 'toast',
     'tabBar', 'installBanner', 'btnInstallOk', 'btnInstallNo',
     'camError', 'camErrorText', 'camErrorUrl', 'btnOpenTab', 'btnRetryCam',
+    'btnScreenLight',
   ];
   for (const id of ids) els[id] = document.getElementById(id);
 }
@@ -92,8 +93,18 @@ async function startMeasurement() {
     return;
   }
 
+  // 플래시가 없으면 안내하고, 전면 카메라 기기면 화면 조명 토글을 노출한다
+  if (camera.lightMode !== 'torch') {
+    els.statusText.textContent = t('measuring.noFlash');
+  }
+  els.btnScreenLight.hidden = camera.facing !== 'user';
+  els.btnScreenLight.classList.remove('is-on');
+  els.btnScreenLight.setAttribute('aria-pressed', 'false');
+
   startTs = performance.now();
-  els.statusText.textContent = t('measuring.stabilizing');
+  if (camera.lightMode === 'torch') {
+    els.statusText.textContent = t('measuring.stabilizing');
+  }
 
   stopSampling = startSampling(camera, (s) => {
     samples.push({ t: s.t, green: s.green });
@@ -400,6 +411,14 @@ function bindEvents() {
   });
 
   els.btnRetryCam.addEventListener('click', startMeasurement);
+
+  // 화면 조명 토글 — 전면 카메라 기기에서만 노출되며 자동으로는 절대 안 켜진다
+  els.btnScreenLight.addEventListener('click', () => {
+    const on = !els.btnScreenLight.classList.contains('is-on');
+    els.btnScreenLight.classList.toggle('is-on', on);
+    els.btnScreenLight.setAttribute('aria-pressed', String(on));
+    camera?.setScreenLight(on);
+  });
   els.btnInstallOk.addEventListener('click', () => {
     const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
     toast(

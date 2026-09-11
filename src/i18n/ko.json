@@ -20,7 +20,9 @@
     "pressHarder": "손가락을 조금 더 꾹 눌러주세요",
     "tooBright": "주변이 너무 밝아요. 그늘에서 다시 시도해 주세요",
     "holdStill": "손가락을 가만히 있어 주세요",
-    "cancel": "취소"
+    "cancel": "취소",
+    "noFlash": "플래시가 없어요. 밝은 곳에서 손가락을 대주세요",
+    "screenLight": "화면 조명"
   },
   "result": {
     "bpm": "회/분",

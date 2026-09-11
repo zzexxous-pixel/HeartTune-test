@@ -581,14 +581,30 @@ button {
   margin-top: 0.75rem;
 }
 
-/* 플래시 미지원 기기의 대체 광원 */
+/* 화면 조명 스트립 — 전면 카메라(웹캠) 기기용, 사용자가 토글로 켠다.
+   ⚠️ 전체화면(inset:0)은 절대 금지: UI가 전부 가려져 "흰 화면 고장"으로 보인다
+   (2026-09-11 노트북 실사용 사고). 상단 스트립만 밝힌다. */
 .light-source {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 18%;
   background: #fff;
   z-index: 9999;
   pointer-events: none;
-  opacity: 0.95;
+  box-shadow: 0 0 40px 20px rgba(255, 255, 255, 0.85);
+}
+
+.light-row {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 0.5rem;
+}
+
+#btnScreenLight.is-on {
+  border-color: var(--warn);
+  color: var(--warn);
 }
 
 /* ==================================================================

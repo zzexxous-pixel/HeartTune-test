@@ -22,7 +22,7 @@ export class Camera {
     this.canvas.height = CANVAS_SIZE;
     this.ctx = this.canvas.getContext('2d', { willReadFrequently: true });
     this.torchOn = false;
-    this.lightSource = null;
+    this.facing = null; // 'environment' | 'user'
   }
 
   /** 카메라를 연다. 후면 → 전면 순으로 시도. */
@@ -38,6 +38,7 @@ export class Camera {
       throw err;
     }
 
+    let fellBack = false;
     // ① 후면 카메라 시도
     try {
       this.stream = await navigator.mediaDevices.getUserMedia({
@@ -53,6 +54,7 @@ export class Camera {
       // ② 전면(웹캠) 폴백
       try {
         this.stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        fellBack = true;
       } catch (e2) {
         const err = new Error(e2?.name === 'NotAllowedError' ? 'denied' : 'noCamera');
         err.code = err.message;
@@ -64,13 +66,25 @@ export class Camera {
     await this.video.play().catch(() => {});
     this.track = this.stream.getVideoTracks()[0] ?? null;
 
-    await this.enableTorch();
+    // 어떤 카메라가 열렸는지 기록 — 화면 조명 제공 여부를 결정하는 데 쓴다
+    const settings = this.track?.getSettings?.() ?? {};
+    this.facing = settings.facingMode || (fellBack ? 'user' : 'environment');
+
+    this.lightMode = await this.enableTorch();
     return this;
   }
 
   /**
-   * 플래시를 켠다. 미지원이면 화면을 흰색으로 채워 광원을 대신한다.
-   * @returns {Promise<'torch'|'screen'|'none'>} 실제로 사용된 광원
+   * 플래시를 켠다.
+   *
+   * ⚠️ 미지원이어도 화면을 자동으로 흰색으로 채우면 안 된다.
+   *    ① 전체화면 오버레이는 UI를 통째로 가려 "흰 화면 = 고장"으로 보인다
+   *       (실사용 사고: 노트북 테스트에서 전체화면 흰색 — 2026-09-11)
+   *    ② 후면 카메라 측정에서는 화면 빛이 카메라 반대편이라 광원 역할도 못 한다
+   *    → 자동 광원은 없다. 전면 카메라(웹캠 포함) 기기에서만 UI의
+   *      **사용자 토글**로 상단 조명 스트립을 켜게 한다 (setScreenLight).
+   *
+   * @returns {Promise<'torch'|'none'>}
    */
   async enableTorch() {
     try {
@@ -81,26 +95,19 @@ export class Camera {
         return 'torch';
       }
     } catch {
-      /* 제약 적용 실패 — 화면 광원으로 폴백 */
+      /* 제약 적용 실패 — 무시 */
     }
-    this.showScreenLight();
-    return this.lightSource ? 'screen' : 'none';
+    return 'none';
   }
 
-  showScreenLight() {
-    if (this.lightSource) return;
+  /**
+   * 화면 상단 조명 스트립 켜기/끄기 (사용자 선택 사항).
+   * 전체화면이 아니라 상단 스트립인 이유: 전면 카메라·웹캠은 화면 위쪽에
+   * 있으니 그 근처만 밝히면 충분하고, 나머지는 UI로 남겨야 한다.
+   */
+  setScreenLight(on) {
     const el = document.getElementById('lightSource');
-    if (el) {
-      el.hidden = false;
-      this.lightSource = el;
-    }
-  }
-
-  hideScreenLight() {
-    if (this.lightSource) {
-      this.lightSource.hidden = true;
-      this.lightSource = null;
-    }
+    if (el) el.hidden = !on;
   }
 
   /**
@@ -140,7 +147,7 @@ export class Camera {
       /* 무시 */
     }
     this.torchOn = false;
-    this.hideScreenLight();
+    this.setScreenLight(false);
     this.stream?.getTracks().forEach((t) => t.stop());
     this.stream = null;
     this.track = null;
