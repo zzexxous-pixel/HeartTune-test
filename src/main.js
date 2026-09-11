@@ -42,7 +42,7 @@ function cacheEls() {
     'resultTitle', 'resultRhythm', 'resultDesc', 'resultMeta', 'btnSaveImage',
     'btnAgain', 'historyList', 'historyChart', 'btnClearHistory', 'toast',
     'tabBar', 'installBanner', 'btnInstallOk', 'btnInstallNo',
-    'camError', 'camErrorText', 'btnOpenTab', 'btnRetryCam',
+    'camError', 'camErrorText', 'camErrorUrl', 'btnOpenTab', 'btnRetryCam',
   ];
   for (const id of ids) els[id] = document.getElementById(id);
 }
@@ -211,6 +211,7 @@ function cancelMeasurement() {
  */
 function showCameraError(code) {
   els.camErrorText.textContent = t(`error.${code}`);
+  els.camErrorUrl.textContent = location.href;
   els.btnOpenTab.href = location.href;
   els.camError.hidden = false;
   els.camError.scrollIntoView({ behavior: 'smooth', block: 'nearest' });

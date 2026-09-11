@@ -275,6 +275,18 @@ button {
   line-height: 1.6;
 }
 
+.cam-error-url {
+  display: block;
+  margin: 0 0 0.9rem;
+  padding: 0.5rem 0.6rem;
+  background: rgba(15, 23, 42, 0.6);
+  border-radius: 0.5rem;
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  word-break: break-all;
+  user-select: all; /* 길게 눌러 전체 선택·복사 쉽게 */
+}
+
 .cam-error-actions {
   display: flex;
   gap: 0.5rem;
