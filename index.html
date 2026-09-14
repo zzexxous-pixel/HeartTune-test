@@ -69,24 +69,40 @@
         <p class="legal" data-i18n="legal.disclaimer">본 앱은 의료기기가 아니며, 측정 결과는 참고용 정보입니다.</p>
       </section>
 
-      <!-- ② 측정 중 -->
+      <!-- ② 준비 + 측정 중
+           준비: 카메라 ON · 플래시 OFF · 접촉 확인 링 표시 (is-ready 클래스)
+           측정: 플래시 ON · 전체 파형 · 실시간 BPM -->
       <section id="viewMeasuring" class="view">
         <div class="cam-wrap">
           <!-- playsinline 필수: 없으면 iOS에서 전체화면으로 강제 전환됨 -->
           <video id="video" class="cam" playsinline muted autoplay></video>
           <canvas id="wave" class="wave" width="600" height="140"></canvas>
+
+          <!-- 준비 단계: 분석 영역(프레임 중앙 50%)을 보여주는 접촉 확인 링 -->
+          <div id="fingerRing" class="finger-ring" hidden aria-hidden="true"></div>
+
+          <!-- 자동 시작 카운트다운 (3·2·1) -->
+          <div id="countdown" class="countdown" hidden>3</div>
+
+          <!-- 손가락 이탈 시 일시정지 안내 -->
+          <div id="pauseOverlay" class="pause-overlay" hidden>
+            <p data-i18n="measuring.paused">일시정지 — 손가락을 다시 대주세요</p>
+          </div>
         </div>
 
         <div class="measure-status">
           <p id="liveBpm" class="live-bpm" aria-live="polite">--</p>
           <p id="liveUnit" class="live-unit" data-i18n="result.bpm">회/분</p>
-          <p id="statusText" class="status-text" data-i18n="measuring.stabilizing">안정화 중…</p>
+          <p id="statusText" class="status-text" data-i18n="measuring.ready">손가락을 뒷면 카메라 원 안에 살짝 대주세요</p>
         </div>
 
         <div class="progress">
           <div id="progressBar" class="progress-bar" style="width: 0%"></div>
         </div>
         <p id="remainingText" class="remaining">--</p>
+
+        <!-- 접촉 감지가 12초 이상 안 되면 노출되는 수동 시작 폴백 -->
+        <button id="btnManualStart" class="btn btn-secondary" type="button" hidden data-i18n="measuring.manualStart">직접 시작</button>
 
         <div class="light-row">
           <!-- 플래시가 없는 전면 카메라 기기(웹캠 등)에서만 노출되는

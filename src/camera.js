@@ -70,7 +70,9 @@ export class Camera {
     const settings = this.track?.getSettings?.() ?? {};
     this.facing = settings.facingMode || (fellBack ? 'user' : 'environment');
 
-    this.lightMode = await this.enableTorch();
+    // ⚠️ 플래시는 여기서 켜지 않는다 (2026-09-11 UX 개편).
+    //    준비 단계(카메라 미리보기 + 접촉 확인 링)에서는 플래시 OFF로 두고,
+    //    측정 개시 시점에 main.js가 enableTorch()를 호출해 점화한다.
     return this;
   }
 

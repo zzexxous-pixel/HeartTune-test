@@ -25,6 +25,11 @@
   box-sizing: border-box;
 }
 
+/* display 속성이 있는 클래스도 hidden 속성이 이기도록 — 오버레이 토글 안전장치 */
+[hidden] {
+  display: none !important;
+}
+
 html {
   /* 중장년 사용자 고려: 기본 글자를 크게 */
   font-size: clamp(16px, 4.2vw, 19px);
@@ -647,6 +652,9 @@ button {
 /* 다크모드를 강제하는 앱이므로 light 선호 설정도 무시하지 않도록 명시 */
 @media (prefers-reduced-motion: reduce) {
   .brand-dot {
+    animation: none;
+  }
+  .finger-ring {
     animation: none;
   }
   .view.is-active {

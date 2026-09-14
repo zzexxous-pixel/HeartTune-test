@@ -11,7 +11,7 @@
  * 카메라는 로컬 API이므로 인터넷 없이도 측정이 동작한다.
  */
 
-const CACHE = 'hearttune-v1';
+const CACHE = 'hearttune-v3';
 
 const ASSETS = [
   './',

@@ -21,6 +21,12 @@
     "tooBright": "Too bright here. Try again in the shade",
     "holdStill": "Please hold still",
     "cancel": "Cancel",
+    "ready": "Gently rest your finger inside the circle on the rear camera",
+    "detected": "Finger detected — starting soon",
+    "lost": "Looks like your finger moved away. Place it again",
+    "paused": "Paused — place your finger again",
+    "resuming": "Finger back — resuming",
+    "manualStart": "Not detected? Tap here to start anyway",
     "noFlash": "No flash available. Measure in a bright place",
     "screenLight": "Screen light"
   },

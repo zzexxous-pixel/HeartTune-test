@@ -6,7 +6,7 @@
   "description": "오늘심박 (HeartTune) — 카메라로 심박수를 측정하는 1페이지 웹앱",
   "scripts": {
     "start": "python3 -m http.server 8080 --bind 0.0.0.0",
-    "test": "node --test tests/"
+    "test": "node --test tests/dsp.test.js"
   },
   "keywords": ["ppg", "heart-rate", "rppg", "pwa", "i18n"],
   "license": "UNLICENSED"
