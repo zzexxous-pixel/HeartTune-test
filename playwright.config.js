@@ -22,7 +22,10 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
-  reporter: 'html',
+  // CI 에서는 실패 원인이 Actions 로그에 바로 보이도록 list 리포터를 함께 사용합니다.
+  reporter: process.env.CI
+    ? [['list'], ['html', { open: 'never' }]]
+    : 'html',
   use: {
     // CI 환경에서는 로컬 가상 서버(8080)를, 그 외에는 저장소 이름에 맞춘 GitHub Pages 주소를 자동 완성합니다.
     baseURL: useLocalServer
