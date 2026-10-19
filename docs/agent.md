@@ -147,16 +147,18 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
 
 | 항목 | 값 | 검증 명령 | 확인일 |
 |---|---|---|---|
-| 최신 `main` 커밋 | `57c5226` (PR #2 머지) | `git log --oneline -1` | 2026-10-19 |
-| DSP 단위·회귀 | **15 / 15 통과** | `npm run test:unit` | 2026-10-19 |
-| Playwright E2E | **5 / 5 통과** | `npm run test:e2e` | 2026-10-19 |
-| i18n 키 | **65개, ko/en 일치** | `npm run test:i18n` | 2026-10-19 |
-| dist 빌드 | **10개 파일**, 빌드 해시 `91282438` | `npm run build` | 2026-10-19 |
-| 워크플로 | 3개 (`ci`, `verify`, `promote-to-production`) | `ls .github/workflows` | 2026-10-19 |
-| ① Dev CI (main) | **전부 success** (검증 3 + 미리보기 배포 + 요약) | Actions 탭 | 2026-10-19 |
-| 개발 Pages Source | ⚠️ 아직 `legacy`(브랜치 배포) → **`GitHub Actions` 로 변경 필요** | `gh api repos/OWNER/HeartTune-test/pages --jq .build_type` | 2026-10-19 |
-| 운영 저장소 | ⚠️ **아직 앱 없음**(README만). ② 첫 이관 대기 | `gh api repos/OWNER/HeartTune/git/trees/main` | 2026-10-19 |
-| 실측(실제 카메라) 튜닝 | ❌ 미완 — 합성 신호 기준까지만 검증됨 | — | 2026-10-19 |
+| 최신 main 커밋 | 57c5226 (PR #2 머지) | git log --oneline -1 | 2026-10-19 |
+| DSP 단위·회귀 | 15 / 15 통과 | npm run test:unit | 2026-10-19 |
+| Playwright E2E | 5 / 5 통과 | npm run test:e2e | 2026-10-19 |
+| i18n 키 | 65개, ko/en 일치 | npm run test:i18n | 2026-10-19 |
+| dist 빌드 | 10개 파일, 빌드 해시 91282438 | npm run build | 2026-10-19 |
+| 워크플로 | ci / verify / promote-to-production | ls .github/workflows | 2026-10-19 |
+| ① Dev CI (main) | 전부 success | Actions 탭 | 2026-10-19 |
+| ② Promote | ✅ 첫 이관 성공 (Re-run 1회) | Actions → ② 실행 이력 | 2026-10-19 |
+| 운영 배포 | ✅ 서빙 중, 빌드 91282438 | 운영 URL 소스에서 meta hearttune-build 확인 | 2026-10-19 |
+| 개발 Pages Source | ⚠️ legacy → GitHub Actions 변경 필요 | gh api repos/OWNER/HeartTune-test/pages --jq .build_type | 2026-10-19 |
+| 운영 Pages Source | ✅ Deploy from a branch / main / (root) | gh api repos/OWNER/HeartTune/pages --jq .source | 2026-10-19 |
+| 실측(실제 카메라) 튜닝 | ❌ 미완 — 사용자 실기기 확인 대기 | — | 2026-10-19 |
 
 ### 최근 해결한 주요 이슈 (재발 방지용 요약)
 
@@ -176,14 +178,10 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
 
 | # | 우선 | 할 일 | 비고 |
 |---|---|---|---|
-| 1 | **P0** | 개발 Pages Source → `GitHub Actions` 변경 | **사용자 작업**. 에이전트는 변경 불가(403) |
-| 2 | **P0** | ② Promote 첫 실행 → 운영 첫 배포 | **사용자 작업**(dispatch 권한) |
-| 3 | P1 | 실제 카메라 신호로 DSP 튜닝 | 디버그 콘솔(제목 5연타) → CSV 내보내기 → 오프라인 재현 |
-| 4 | P1 | 15초 측정 시 리듬 판정 문구/노출 재검토 | 현재 "참고만 하세요" 고정 문구 |
-| 5 | P2 | 결과 이미지 공유 실제 카카오톡 검증(iOS/Android) | Web Share 미지원 폴백 확인 |
-| 6 | P2 | ESLint/Prettier 도입 검토 | 현재 `node --check` 기반 lint |
-| 7 | P2 | `ubuntu-latest` → Ubuntu 26 이전 대응(액션 버전 재점검) | 러너 공지 |
-| 8 | P3 | `old/` 폴더 정리(현재 추적 제외 상태로 잔존) | 원격에는 아직 존재 |
+| 1 | P0 | 개발 Pages Source → GitHub Actions (개발 미리보기 게이트) | 사용자 작업 |
+| 2 | P1 | 이관 ③(smoke) 로직 개선 커밋 반영 | 로컬에 수정본 있음(31f85ea) — 새 세션에서 PR |
+| 3 | P1 | 실기기(iOS/Android) 검증 결과 반영 | 첫 실사용 테스트 |
+| 4 | P1 | 실제 카메라 신호로 DSP 튜닝 | 디버그 콘솔 CSV 활용 |
 
 **완료 표시 규칙**: 끝난 항목은 지우지 말고 `✅ 완료(날짜)` 로 바꿔 아래 "8. 세션 로그"로 옮긴다.
 
