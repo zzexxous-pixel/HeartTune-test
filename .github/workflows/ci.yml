@@ -1,0 +1,69 @@
+# =============================================================================
+# ci.yml — ① 개발(HeartTune-test) 커밋 검증 워크플로
+#
+#   하는 일         : 커밋/PR을 받아서 테스트만 수행합니다. (운영 반영 없음)
+#   실행 시점       : main 브랜치 push, main 대상 PR, 수동 실행
+#   결과 확인 위치  : GitHub → Actions → "① Dev CI (HeartTune-test)"
+#   개발 화면 확인  : https://zzexxous-pixel.github.io/HeartTune-test/
+#                    (main 브랜치 Pages 자동 배포 — 커밋 후 1~2분 내 갱신)
+#
+#   ⚠️ 이 워크플로는 운영 저장소(HeartTune)에 절대 배포하지 않습니다.
+#      운영 반영은 promote-to-production.yml 을 수동으로 실행해야만 일어납니다.
+# =============================================================================
+name: ① Dev CI (HeartTune-test)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# 같은 브랜치에 연속 커밋하면 이전 실행은 취소하고 마지막 것만 봅니다.
+concurrency:
+  group: dev-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: '개발 검증'
+    uses: ./.github/workflows/verify.yml
+
+  report:
+    name: '결과 요약'
+    needs: verify
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Write job summary
+        env:
+          RESULT: ${{ needs.verify.result }}
+          DEV_URL: https://${{ github.repository_owner }}.github.io/HeartTune-test/
+          SHA: ${{ github.sha }}
+          REF: ${{ github.ref_name }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          {
+            echo "## ① 개발 검증 결과"
+            echo ""
+            echo "| 항목 | 값 |"
+            echo "| :--- | :--- |"
+            echo "| 결과 | **${RESULT}** |"
+            echo "| 브랜치 | \`${REF}\` |"
+            echo "| 커밋 | \`${SHA}\` |"
+            echo "| 트리거 | \`${EVENT}\` |"
+            echo ""
+            echo "### 다음 단계"
+            echo "- 개발 화면 확인: ${DEV_URL}"
+            echo "- 화면 확인 후 운영에 반영하려면 **Actions → ② Promote to Production (HeartTune) → Run workflow** 를 실행하고 \`PROMOTE\` 를 입력하세요."
+            echo ""
+            if [ "${RESULT}" != "success" ]; then
+              echo "> ❌ 검증이 실패했습니다. 위 실행의 실패 단계를 확인한 뒤 다시 커밋하세요."
+              echo "> 운영 이관은 검증을 통과해야만 가능합니다."
+            else
+              echo "> ✅ 검증을 통과했습니다. 개발 Pages 화면을 확인한 뒤 수동으로 운영 이관을 진행하세요."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

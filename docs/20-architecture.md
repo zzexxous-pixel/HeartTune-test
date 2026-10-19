@@ -36,22 +36,29 @@ src/
 | **`HeartTune-test`** | 개발·테스트 | `main` (개발) |
 | **`HeartTune`** | 운영 (실서비스) | `main` (배포) |
 
-**배포 흐름 (GitHub Actions)**
+**배포 흐름 (GitHub Actions) — 검증과 이관을 분리 (2026-10-19 개정)**
 ```
 HeartTune-test (main)
-      │  push
-      ▼
-  ① CI: lint + 테스트 + i18n 키 일치 검증 + 빌드
-      │  통과 시
-      ▼
-  ② 릴리스 트리거 (수동 workflow_dispatch 또는 태그)
+      │  push  ──▶ ① Dev CI (ci.yml)
+      │             lint + i18n + DSP 단위 + E2E + dist 빌드
+      │             ⇒ 운영 배포 없음
       │
-      ▼
-HeartTune (main) ← 크로스 리포 배포 (deploy key / PAT 사용)
+      ├─▶ 개발 Pages 자동 배포 (branch: main)
+      │   https://zzexxous-pixel.github.io/HeartTune-test/   ← 화면 직접 확인
       │
+      │  사람이 판단 후 수동 실행  ──▶ ② Promote to Production (promote-to-production.yml)
+      │                                ⓪ PROMOTE 확인
+      │                                ① 동일 검증 재수행 (verify.yml 재사용)
+      │                                ② 검증 통과한 dist/ 만 크로스 리포 push (PAT)
+      │                                ③ 운영 URL 스모크 테스트
       ▼
-  ③ 정적 호스팅 자동 배포 (GitHub Pages 등)
+HeartTune (main) → GitHub Pages 자동 배포
+      https://zzexxous-pixel.github.io/HeartTune/
 ```
+
+- 검증 정의는 `.github/workflows/verify.yml` **한 곳**에만 두고 두 워크플로가 `workflow_call` 로 공유한다.
+- 운영 반영 트리거는 `workflow_dispatch` **단독**이다. `push`/태그로는 배포되지 않는다.
+- 운영 이관은 `production` environment 로 기록되며, 필요 시 필수 리뷰어를 붙여 승인 게이트를 추가할 수 있다.
 
 **보안 주의**
 - 크로스 리포 push에는 **fine-grained PAT** 또는 **deploy key** 필요 → GitHub Secrets(`ACTIONS_DEPLOY_KEY`)에 저장, 코드에 절대 하드코딩 금지

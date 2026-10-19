@@ -14,7 +14,7 @@
 | 앱 이름 (영문) | **HeartTune** |
 | 스토어 제목 (EN) | **HeartTune - Heart Rate Monitor** (30자 / 제한 30자 — **딱 맞음, 여유 없음**) |
 | 상표 | "오늘심박" ✅ 안전 · **"HeartTune" ✅ 동일 상표 없음** (키프리스, 2026-09-11 사용자 확인) |
-| 저장소 | **운영 `HeartTune`** / **개발 `HeartTune-test`** (GitHub Actions로 test → 운영 자동 반영) |
+| 저장소 | **운영 `HeartTune`** / **개발 `HeartTune-test`** (개발 커밋은 CI 검증만, 운영 반영은 **수동 이관** — `docs/40-deployment-guide.md`) |
 | 형태 | **1페이지 웹앱** (SPA, 화면 전환 없음) |
 | 핵심 기능 | 카메라로 심박 측정 + 정상 / 부정맥 / 빈맥 등 간편 판정 |
 | 측정 방식 | **손가락 PPG** (후면 카메라 + 플래시). 얼굴 rPPG는 **보류**(향후 검토) |

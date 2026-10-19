@@ -1,0 +1,106 @@
+# =============================================================================
+# verify.yml — 검증 전용 재사용 워크플로 (Reusable Workflow)
+#
+#   · 직접 트리거되지 않습니다. 아래 두 워크플로가 "호출"해서 사용합니다.
+#       1) ci.yml                      : 개발 저장소에 커밋할 때마다 검증
+#       2) promote-to-production.yml   : 운영으로 이관하기 직전에 동일하게 검증
+#
+#   · 검증 항목은 두 곳에서 완전히 동일합니다(한 곳만 고치면 양쪽에 반영).
+#       ① 구문/모듈 lint  ② i18n ko·en 키 일치  ③ DSP 단위·회귀 테스트
+#       ④ Playwright E2E   ⑤ 운영 배포 산출물(dist/) 빌드 + 업로드
+# =============================================================================
+name: Verify (reusable)
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  # ── 검증 ①: 정적 검사 + 단위 테스트 (가장 빠른 피드백) ────────────────────
+  static-and-unit:
+    name: '검증 ① lint · i18n · DSP 단위테스트'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: '1) 구문·모듈 lint'
+        run: npm run lint
+
+      - name: '2) i18n 한·영 키 집합 일치 검증'
+        run: npm run test:i18n
+
+      - name: '3) DSP 알고리즘 단위·회귀 테스트'
+        run: npm run test:unit
+
+  # ── 검증 ②: E2E (실제 브라우저) ──────────────────────────────────────────
+  e2e:
+    name: '검증 ② Playwright E2E'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: '4) Run E2E tests'
+        run: npm run test:e2e
+
+      - name: Upload Playwright report (실패 시)
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
+  # ── 검증 ③: 운영 배포 산출물 빌드 ────────────────────────────────────────
+  #   이 아티팩트가 운영 저장소(HeartTune)로 그대로 전달됩니다.
+  build:
+    name: '검증 ③ 운영 산출물 빌드'
+    needs: static-and-unit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+
+      - name: '5) Build dist/ (상대경로 검증 포함)'
+        run: npm run build
+
+      - name: Upload production artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: hearttune-production-dist
+          path: dist/
+          include-hidden-files: true
+          retention-days: 7
