@@ -87,4 +87,4 @@ jobs:
           publish_branch: main
           publish_dir: ./dist
           force_orphan: true
-          commit_message: ${{ inputs.release_note || format('release: deploy {0} from HeartTune-test ({1})', github.ref_name, github.sha) }}
+          commit_message: "${{ inputs.release_note || format('release: deploy {0} from HeartTune-test ({1})', github.ref_name, github.sha) }}"
