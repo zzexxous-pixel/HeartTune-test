@@ -61,7 +61,15 @@
 **Settings → Pages → Build and deployment → Source = `GitHub Actions`**
 
 - 이 설정이어야 **테스트를 통과한 산출물만** 개발 화면에 배포됩니다.
-- `Deploy from a branch` 로 두면 커밋할 때마다(테스트 실패와 무관하게) 화면이 바뀝니다. 이 경우 `deploy-dev-preview` 잡이 실패로 표시됩니다.
+- `Deploy from a branch` 로 두면 커밋할 때마다(테스트 실패와 무관하게) 화면이 바뀝니다.
+  이 경우 `① Dev CI` 실행 화면에 **경고(annotation)** 가 표시됩니다: "Pages 설정 변경 필요".
+- 웹 UI에서 바꾸기 어려우면 아래 한 줄로도 됩니다(저장소 관리자 권한 PAT 필요):
+
+```bash
+gh api -X PUT repos/<OWNER>/HeartTune-test/pages -f build_type=workflow
+```
+
+- 확인: `gh api repos/<OWNER>/HeartTune-test/pages --jq .build_type` → `workflow` 이면 정상
 - 운영 저장소(`HeartTune`)는 그대로 **Deploy from a branch / `main` / `(root)`** 를 사용합니다.
 
 ### 2-2. 운영 저장소 쓰기 권한 PAT
