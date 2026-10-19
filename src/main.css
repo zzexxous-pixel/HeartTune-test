@@ -1241,3 +1241,234 @@ body.resizing-debug * {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* 접근성 확대 및 측정 상태별 링 크기 */
+:root {
+  --ring-size: max(250px, min(92vw, 60dvh, 400px));
+}
+
+body.is-measuring {
+  --ring-size: max(210px, min(74vw, 40dvh, 300px));
+}
+
+body.is-measuring.waveform-off {
+  --ring-size: max(240px, min(88vw, 52dvh, 360px));
+}
+
+body.has-result {
+  --ring-size: max(190px, min(76vw, 32dvh, 280px));
+}
+
+.app-header {
+  padding: 0 6px 0 2px;
+}
+
+.menu-btn {
+  color: var(--text-main);
+}
+
+.brand-trigger {
+  flex: 1 1 auto;
+  gap: 8px;
+  padding-left: 2px;
+}
+
+.brand-heart {
+  font-size: 1.4rem;
+}
+
+.brand-title {
+  font-size: 1.46rem;
+}
+
+.btn-ghost {
+  font-size: 1.08rem;
+}
+
+.progress-ring-bg,
+.progress-ring-bar {
+  stroke-width: 18;
+}
+
+.bpm-value {
+  font-size: max(76px, calc(var(--ring-size) * 0.37));
+}
+
+.bpm-unit {
+  font-size: 1.22rem;
+}
+
+.heart-icon {
+  font-size: 1.75rem;
+}
+
+.timer-badge {
+  font-size: 1.16rem;
+  padding: 3px 16px;
+}
+
+.stage-guide-text {
+  width: 100%;
+  min-height: 3em;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: #E8F0FB;
+  font-size: 1.16rem;
+  line-height: 1.35;
+}
+
+.waveform-box {
+  max-width: 460px;
+}
+
+#waveformCanvas {
+  height: 64px;
+}
+
+.result-title-row {
+  font-size: 1.26rem;
+}
+
+.result-desc {
+  font-size: 1.02rem;
+}
+
+.result-short-note {
+  font-size: 0.95rem;
+}
+
+.btn-details {
+  font-size: 1rem;
+  min-height: 48px;
+  padding: 0 18px;
+}
+
+.result-legal {
+  font-size: 0.84rem;
+}
+
+.cta-bar {
+  gap: 10px;
+  padding: 8px 16px calc(8px + env(safe-area-inset-bottom, 0px));
+}
+
+.cta-primary,
+.cta-secondary {
+  min-height: 60px;
+  border-radius: 14px;
+}
+
+.cta-primary {
+  font-size: clamp(1.06rem, 4.8vw, 1.3rem);
+}
+
+.cta-secondary {
+  font-size: clamp(0.92rem, 3.9vw, 1.04rem);
+}
+
+.toast {
+  font-size: 1rem;
+}
+
+.sheet h2 {
+  font-size: 1.3rem;
+}
+
+.config-label {
+  font-size: 1.02rem;
+}
+
+.dur-main {
+  font-size: 1.18rem;
+}
+
+.dur-sub {
+  font-size: 0.84rem;
+}
+
+.segmented button {
+  font-size: 1.05rem;
+}
+
+.setting-label {
+  font-size: 1.1rem;
+}
+
+.setting-hint {
+  font-size: 0.94rem;
+}
+
+.menu-row {
+  min-height: 62px;
+  font-size: 1.12rem;
+}
+
+.sheet-note {
+  font-size: 0.92rem;
+}
+
+.metric-pill-label {
+  font-size: 0.9rem;
+}
+
+.metric-pill-val {
+  font-size: 1.24rem;
+}
+
+.history-bpm {
+  font-size: 1.72rem;
+}
+
+.trend-summary-text {
+  font-size: 1.1rem;
+}
+
+.guide-card h3 {
+  font-size: 1.2rem;
+}
+
+.guide-card p {
+  font-size: 1.02rem;
+}
+
+.legal-text {
+  font-size: 1.04rem;
+}
+
+.switch.is-idle .switch-track {
+  opacity: 0.5;
+}
+
+@media (max-height: 680px) {
+  .stage-guide-text {
+    font-size: 1.06rem;
+    min-height: 2.6em;
+    padding: 8px 12px;
+  }
+
+  .result-legal {
+    font-size: 0.8rem;
+  }
+}
+
+@media (max-height: 600px) {
+  :root {
+    --ring-size: max(236px, min(90vw, 52dvh, 300px));
+  }
+
+  body.is-measuring {
+    --ring-size: max(196px, min(70vw, 40dvh, 250px));
+  }
+
+  body.is-measuring.waveform-off {
+    --ring-size: max(220px, min(86vw, 48dvh, 280px));
+  }
+
+  body.has-result {
+    --ring-size: max(170px, min(64vw, 27dvh, 220px));
+  }
+
+  .result-legal {
+    font-size: 0.8rem;
+  }
+}

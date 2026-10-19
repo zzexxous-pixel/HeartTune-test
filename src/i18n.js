@@ -30,7 +30,7 @@ export const dictionaries = {
     'measure.config.cameraRear': '후면 카메라',
     'measure.config.cameraFront': '전면 카메라',
     'measure.config.waveform': '측정 중 파형 보기',
-    'measure.config.screenLightHint': '전면 카메라일 때 화면 밝기를 높여 조명으로 사용합니다.',
+    'measure.config.screenLightHint': '전면 카메라일 때만 켜집니다. 후면 카메라는 플래시를 사용합니다.',
 
     'measure.status.readyTitle': '검지를 후면 카메라와 플래시에 가볍게 대주세요',
     'measure.status.stabilizing': '신호 영점을 맞추고 있어요 (5초 내 첫 수치 표시)',
@@ -123,7 +123,7 @@ export const dictionaries = {
     'measure.config.cameraRear': 'Rear camera',
     'measure.config.cameraFront': 'Front camera',
     'measure.config.waveform': 'Show waveform while measuring',
-    'measure.config.screenLightHint': 'For the front camera, the screen brightens to act as a light.',
+    'measure.config.screenLightHint': 'Works with the front camera only. The rear camera uses the flash.',
 
     'measure.status.readyTitle': 'Gently cover the rear camera and flash with your index finger',
     'measure.status.stabilizing': 'Calibrating signal (First reading appears within 5s)',

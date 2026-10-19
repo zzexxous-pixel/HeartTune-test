@@ -57,29 +57,35 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     await expect(page.locator('#btnPrimaryMeasure')).toHaveText('Start Measure');
   });
 
-  test('3. 설정 시트의 화면 조명 토글 및 시트 열기/닫기 검증', async ({ page }) => {
+  test('3. 화면 조명 스위치(기본 ON·전면 전용)', async ({ page }) => {
     await page.goto('./');
 
     const settingsSheet = page.locator('#settingsSheet');
-    await expect(settingsSheet).not.toHaveClass(/open/);
-
     await page.locator('#btnSettings').click();
     await expect(settingsSheet).toHaveClass(/open/);
 
     const lightStrip = page.locator('#screenLightStrip');
     const lightBtn = page.locator('#btnScreenLight');
-
+    await expect(lightBtn).toHaveAttribute('aria-checked', 'true');
+    await expect(lightBtn).toHaveClass(/is-idle/);
     await expect(lightStrip).not.toHaveClass(/active/);
 
-    await lightBtn.click();
+    await page.locator('.cam-btn[data-facing="user"]').click();
+    await expect(lightBtn).not.toHaveClass(/is-idle/);
     await expect(lightStrip).toHaveClass(/active/);
-    await expect(lightBtn).toContainText('조명 켜짐');
-    await expect(lightBtn).toHaveAttribute('aria-pressed', 'true');
 
-    await lightBtn.click();
+    await page.locator('.cam-btn[data-facing="environment"]').click();
+    await expect(lightBtn).toHaveClass(/is-idle/);
     await expect(lightStrip).not.toHaveClass(/active/);
 
-    // 닫기 버튼으로 시트 닫기
+    await lightBtn.click();
+    await expect(lightBtn).toHaveAttribute('aria-checked', 'false');
+    await page.locator('.cam-btn[data-facing="user"]').click();
+    await expect(lightStrip).not.toHaveClass(/active/);
+    await lightBtn.click();
+    await expect(lightBtn).toHaveAttribute('aria-checked', 'true');
+    await expect(lightStrip).toHaveClass(/active/);
+
     await settingsSheet.locator('[data-sheet-close]').click();
     await expect(settingsSheet).not.toHaveClass(/open/);
   });
@@ -205,7 +211,9 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     await page.locator('#btnSettings').click();
     await expect(page.locator('#settingsSheet')).toHaveClass(/open/);
     await expect(page.locator('.cam-btn[data-facing="environment"]')).toHaveAttribute('aria-pressed', 'true');
-    await expect(page.locator('#btnWaveformToggle')).toHaveAttribute('aria-checked', 'false');
+    await expect(page.locator('#btnWaveformToggle')).toHaveAttribute('aria-checked', 'true');
+    await expect(page.locator('#btnScreenLight')).toHaveAttribute('aria-checked', 'true');
+    await expect(page.locator('#waveformBox')).toBeHidden();
     await page.locator('#settingsSheet [data-sheet-close]').click();
 
     // 페이지 진입 시 카메라 미리보기가 자동으로 켜진다 (측정 시작 전 손가락 위치 조정).

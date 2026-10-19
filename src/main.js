@@ -42,14 +42,14 @@ const state = {
   rawSamples: [],
   frameHandle: null,
   usingRVFC: false,
-  screenLightOn: false,
+  screenLightOn: true,
   simMode: 'camera',
   syntheticPrebuffer: null,
   lastResult: null,
   stealthClicks: 0,
   stealthTimer: null,
   facingMode: 'environment',
-  showWaveform: false,
+  showWaveform: true,
   cameraState: 'idle', // idle | starting | ready | error
   previewToken: 0,
 
@@ -246,11 +246,10 @@ function syncConfigUI() {
   syncCameraButtons();
   syncLangButtons();
   els.btnWaveformToggle.setAttribute('aria-checked', String(state.showWaveform));
-  els.waveformBox.hidden = !state.showWaveform;
-  els.btnScreenLight.textContent = state.screenLightOn
-    ? t('app.header.screenLightOn')
-    : t('app.header.screenLight');
-  els.btnScreenLight.setAttribute('aria-pressed', String(state.screenLightOn));
+  els.waveformBox.hidden = !(state.showWaveform && state.isMeasuring);
+  document.body.classList.toggle('waveform-off', !state.showWaveform);
+  els.btnScreenLight.setAttribute('aria-checked', String(state.screenLightOn));
+  applyScreenLight();
 }
 
 function setConfigBusy(busy) {
@@ -291,9 +290,15 @@ function applyTranslations() {
   document.body.classList.add('i18n-ready');
 }
 
+function applyScreenLight() {
+  const available = state.facingMode === 'user' && state.simMode === 'camera';
+  const active = Boolean(state.screenLightOn) && available;
+  els.screenLightStrip.classList.toggle('active', active);
+  els.btnScreenLight.classList.toggle('is-idle', !available);
+}
+
 function setScreenLight(enabled) {
   state.screenLightOn = Boolean(enabled);
-  els.screenLightStrip.classList.toggle('active', state.screenLightOn);
   syncConfigUI();
   logDebug(`Screen light Strip: ${state.screenLightOn ? 'ON' : 'OFF'}`);
 }
@@ -578,6 +583,8 @@ async function startMeasurement() {
   }
 
   state.isMeasuring = true;
+  document.body.classList.add('is-measuring');
+  syncConfigUI();
   state.startTimeMs = performance.now();
   state.lastSampleMs = state.startTimeMs;
   setConfigBusy(true);
@@ -607,6 +614,8 @@ function stopFrameLoop() {
 function cancelMeasurement() {
   state.isMeasuring = false;
   state.isStarting = false;
+  document.body.classList.remove('is-measuring');
+  syncConfigUI();
   stopFrameLoop();
   camera.setTorch(false).catch(() => {});
   setConfigBusy(false);
@@ -623,6 +632,8 @@ function cancelMeasurement() {
 
 function finishMeasurement() {
   state.isMeasuring = false;
+  document.body.classList.remove('is-measuring');
+  syncConfigUI();
   stopFrameLoop();
   camera.setTorch(false).catch(() => {});
   setConfigBusy(false);
@@ -795,6 +806,7 @@ async function switchCamera(facing) {
   state.facingMode = facing;
   camera.setFacing(facing);
   syncCameraButtons();
+  applyScreenLight();
   logDebug(`Camera facing switched to: ${facing}`);
 
   if (state.simMode !== 'camera') return;
@@ -924,6 +936,7 @@ els.simPresetBtns.forEach((btn) => {
   btn.addEventListener('click', () => {
     state.simMode = btn.getAttribute('data-sim');
     els.simPresetBtns.forEach((b) => b.classList.toggle('active', b === btn));
+    applyScreenLight();
     logDebug(`Simulation mode switched to: ${state.simMode}`);
 
     if (state.simMode !== 'camera') {
