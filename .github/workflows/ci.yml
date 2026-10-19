@@ -80,6 +80,19 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v5
 
+      - name: Pages 설정 확인 (게이트가 실제로 동작하는지)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          build_type=$(curl -sS -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/pages" \
+            | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{console.log(JSON.parse(s).build_type||'unknown')}catch(e){console.log('unknown')}})")
+          echo "Pages build_type: ${build_type}"
+          if [ "${build_type}" != "workflow" ]; then
+            echo "::warning title=Pages 설정 변경 필요::Settings → Pages → Source 를 'GitHub Actions' 로 바꿔야 테스트를 통과한 커밋만 개발 화면에 배포됩니다. (현재 '${build_type}' = 브랜치 배포라 모든 커밋이 화면에 반영)"
+          fi
+
       - name: 안내 (Pages 설정이 Branch 로 되어 있는 경우)
         if: failure()
         run: |
