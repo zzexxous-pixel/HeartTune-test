@@ -5,8 +5,8 @@
 > 5~7절(현재 상태 / 할 일 / 미결정)을 확인하고 작업을 시작하세요.
 > 대화 기록은 사라져도 이 문서와 저장소(코드·PR·커밋)는 남습니다. **여기가 유일한 기억입니다.**
 
-- 최종 갱신: 2026-10-19 (KST)
-- 갱신자: Arena 에이전트 세션 (PR #1, #2)
+- 최종 갱신: 2026-10-19 (KST) — 이관 ③ 스모크 개선 반영
+- 갱신자: Arena 에이전트 세션 `arena/f50fd973-hearttune-test` (이전 PR #1, #2 → Promote 첫 성공)
 - 저장소: `zzexxous-pixel/HeartTune-test` (개발) / `zzexxous-pixel/HeartTune` (운영)
 
 ---
@@ -23,7 +23,7 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
 
 그 다음 읽기 순서:
 
-1. `docs/40-deployment-guide.md` — **배포/CI 구조(가장 중요)**
+1. `docs/40-deployment-guide.md` — **배포/CI 구조(가장 중요)** — 특히 **8-1절(이관 ③ 개선)** 필독
 2. `docs/20-architecture.md` §5-9 — **파일 구조와 책임 경계**
 3. `docs/30-algorithm-dsp.md` — **신호처리 설계와 왜 그렇게 했는지**
 4. `docs/10-spec.md`, `docs/00-brand-concept.md` — **제품 원칙과 금지 표현**
@@ -99,10 +99,10 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
    │  사람이 화면 확인 후 판단
    ▼
 ② Promote to Production (promote-to-production.yml)  ← workflow_dispatch 전용
-   ⓠ confirm=PROMOTE 검사
-   ⓘ 동일 검증 재수행 (verify.yml)
-   ⓙ 통과한 dist/ 만 HeartTune(main) 으로 push (PAT)
-   ⓚ 운영 URL 스모크 테스트 (200 + "오늘심박" + 자산 200)
+   ⓪ confirm=PROMOTE 검사
+   ① 동일 검증 재수행 (verify.yml)
+   ② 통과한 dist/ 만 HeartTune(main) 으로 push (PAT)
+   ③ 운영 URL 스모크 테스트 (기대 빌드 해시 + 자산 9종 + 구버전 판별, 10분 폴링/timeout 20분)
    ▼
 [운영] HeartTune (main) → https://zzexxous-pixel.github.io/HeartTune/
 ```
@@ -147,15 +147,16 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
 
 | 항목 | 값 | 검증 명령 | 확인일 |
 |---|---|---|---|
-| 최신 main 커밋 | 57c5226 (PR #2 머지) | git log --oneline -1 | 2026-10-19 |
+| 최신 main 커밋 | 1213748 (main) — smoke 개선은 `arena/f50fd973-hearttune-test` 브랜치에서 PR 대기 | git log --oneline -10 | 2026-10-19 |
 | DSP 단위·회귀 | 15 / 15 통과 | npm run test:unit | 2026-10-19 |
 | Playwright E2E | 5 / 5 통과 | npm run test:e2e | 2026-10-19 |
 | i18n 키 | 65개, ko/en 일치 | npm run test:i18n | 2026-10-19 |
 | dist 빌드 | 10개 파일, 빌드 해시 91282438 | npm run build | 2026-10-19 |
-| 워크플로 | ci / verify / promote-to-production | ls .github/workflows | 2026-10-19 |
+| 워크플로 | ci / verify / promote-to-production — **smoke 개선 반영(8-1절)** | ls .github/workflows | 2026-10-19 |
 | ① Dev CI (main) | 전부 success | Actions 탭 | 2026-10-19 |
-| ② Promote | ✅ 첫 이관 성공 (Re-run 1회) | Actions → ② 실행 이력 | 2026-10-19 |
-| 운영 배포 | ✅ 서빙 중, 빌드 91282438 | 운영 URL 소스에서 meta hearttune-build 확인 | 2026-10-19 |
+| ② Promote | ✅ 첫 이관 성공 (Re-run 1회로 성공) | Actions → ② 실행 이력 | 2026-10-19 |
+| 운영 배포 | ✅ 서빙 중 — https://zzexxous-pixel.github.io/HeartTune/ · 빌드 91282438 (`<meta name="hearttune-build" content="91282438">` 확인) | 운영 URL 소스에서 meta hearttune-build 확인 | 2026-10-19 |
+| 이관 ③ 로직 | ✅ 개선 완료 — 빌드 해시 판정 / 10분 폴링·진단 로그 / 자산 9종 재시도 / `createCameraController` 구버전 판별 / Summary Re-run 안내 / timeout-minutes 20 | docs/40-deployment-guide.md 8-1절, promote-to-production.yml | 2026-10-19 |
 | 개발 Pages Source | ⚠️ legacy → GitHub Actions 변경 필요 | gh api repos/OWNER/HeartTune-test/pages --jq .build_type | 2026-10-19 |
 | 운영 Pages Source | ✅ Deploy from a branch / main / (root) | gh api repos/OWNER/HeartTune/pages --jq .source | 2026-10-19 |
 | 실측(실제 카메라) 튜닝 | ❌ 미완 — 사용자 실기기 확인 대기 | — | 2026-10-19 |
@@ -169,6 +170,8 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
 2. **CI 실패 원인 불투명** → E2E는 `list` 리포터 + 실패 로그를 Step Summary/PR 코멘트로 게시.
 3. **불필요한 다운로드** → `npx --yes serve` 제거, `scripts/serve.js`(의존성 0) 사용.
 4. **캐시 수동 관리** → 빌드 해시로 `CACHE_NAME` 자동 교체.
+5. **이관 ③ 스모크 불안정 (2026-10-19 개선)** — "오늘심박" 문구 판정은 이전 빌드와 구분 불가 + Pages 전파 지연으로 5분 폴링 부족 + 자산 일시 404 + 구버전 서빙 미감지.
+   → 빌드 해시(`hearttune-build` 메타) 판정 / 10분 폴링·현재 빌드/README 진단 로그 / 자산 9종 각 1분 재시도 / `src/main.js` 내 `createCameraController`로 구버전 판별 / 실패 시 Summary에 "이관 ②는 이미 완료됐을 수 있음 + Re-run failed jobs 안내" / timeout 20분. 상세는 `docs/40-deployment-guide.md` 8-1절.
 
 ---
 
@@ -178,9 +181,9 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
 
 | # | 우선 | 할 일 | 비고 |
 |---|---|---|---|
-| 1 | P0 | 개발 Pages Source → GitHub Actions (개발 미리보기 게이트) | 사용자 작업 |
-| 2 | P1 | 이관 ③(smoke) 로직 개선 커밋 반영 | 로컬에 수정본 있음(31f85ea) — 새 세션에서 PR |
-| 3 | P1 | 실기기(iOS/Android) 검증 결과 반영 | 첫 실사용 테스트 |
+| 1 | P0 | 개발 Pages Source → GitHub Actions (개발 미리보기 게이트) | 사용자 작업 — Settings → Pages → Source 변경 필요 |
+| 2 | P1 | 이관 ③(smoke) 로직 개선 커밋 반영 | ✅ 완료(2026-10-19) — 빌드 해시 판정 / 10분 폴링·진단 로그 / 자산 9종(각 1분 재시도) / `createCameraController` 구버전 판별 / Summary Re-run 안내 / timeout 20분 → `promote-to-production.yml` 반영, `docs/40-deployment-guide.md` 8-1절 정리. PR 후 ② 재실행 시 안정성 검증 대기 |
+| 3 | P1 | 실기기(iOS/Android) 검증 결과 반영 | 첫 실사용 테스트 — 운영 빌드 91282438 서빙 중 |
 | 4 | P1 | 실제 카메라 신호로 DSP 튜닝 | 디버그 콘솔 CSV 활용 |
 
 **완료 표시 규칙**: 끝난 항목은 지우지 말고 `✅ 완료(날짜)` 로 바꿔 아래 "8. 세션 로그"로 옮긴다.
@@ -218,6 +221,7 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
 - 새 파일은 `sw.js ASSETS` + `build-dist.js RUNTIME_FILES` **둘 다** 등록. 하나만 하면 오프라인/배포에서 404.
 - 개발 저장소 Pages가 `legacy`면 **테스트 실패 커밋도 화면에 배포**된다. `build_type` 확인.
 - 운영 저장소는 반대로 **브랜치 배포**를 써야 한다(설정을 개발/운영 혼동 주의).
+- **이관 ③(스모크) 실패 시**: 운영 저장소에 `release: ...` 커밋이 이미 생겼다면 이관 ②는 성공한 것 — Pages 전파 지연이므로 **Re-run failed jobs**로 ③만 재실행하면 된다(전체 재실행 불필요). 로그의 "현재 서빙 빌드 / README 감지"와 Summary 안내를 확인하라(8-1절).
 
 ### DSP
 - 단위 테스트는 **합성 신호**다. 합성 생성기의 중첩파 진폭(1.4)은 실제와 다를 수 있으므로, 실측 튜닝 시 지표를 그대로 신뢰하지 말 것.
@@ -261,7 +265,8 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
 | 2026-10-19 | Pages 설정 경고 어노테이션 추가 + 문서 갱신 | 완료 | PR #2, `82c67de` |
 | 2026-10-19 | 개발 화면 시뮬레이션 렌더링 확인 → 카메라 선택 빈칸 등 UI 결함 7건 수정 | 완료 | `d78b29f` |
 | 2026-10-19 | 운영 첫 이관 대기 (Pages 설정 + ② 실행은 사용자 작업) | **대기** | — |
-|  |  |  |  |
+| 2026-10-19 | ② Promote 첫 이관 성공 (Re-run 1회) — 운영 https://zzexxous-pixel.github.io/HeartTune/ 빌드 91282438 서빙 중 | ✅ 완료 | Actions 실행 이력, HeartTune `release: main from HeartTune-test (91282438)` |
+| 2026-10-19 | 이관 ③(smoke) 로직 개선 — 빌드 해시 판정 / 10분 폴링·진단 로그 / 자산 9종 재시도 / `createCameraController` 구버전 판별 / Summary Re-run 안내 / timeout 20분 | ✅ 완료(로컬) — `promote-to-production.yml` 반영, `docs/40-deployment-guide.md` 8-1절 정리, 로컬 검증(lint/i18n/unit/build) 통과, `agent.md` 5·6·10절 갱신 | `arena/f50fd973-hearttune-test` 브랜치 (PR 대기) |
 
 > **로그 규칙**: 최신이 아래. 항목이 20개를 넘으면 오래된 것은 `docs/changelog-archive.md` 로 옮긴다.
 
