@@ -126,7 +126,7 @@ E2E가 실패하면 **실패 로그가 PR 코멘트로 자동 게시**됩니다.
 | 이관 ⓪ 확인 | `confirm == PROMOTE` 검사 | 아무 것도 배포되지 않음 |
 | 이관 ① 소스 재검증 | 개발 CI와 **완전히 동일한** 검증 | 운영 반영 중단 |
 | 이관 ② 운영 저장소 반영 | `dist/` → `HeartTune`의 `main` push (PAT) | 운영 반영 중단 |
-| 이관 ③ 운영 배포 확인 | 운영 URL의 **기대 빌드 해시**(`<meta name="hearttune-build">`) + **모든 자산(9종) 내용에 동일 해시 포함 여부**로 신/구버전 판별(시간 의존 없음) — **최대 10분 폴링, 잡 타임아웃 20분** | 실패 표시. **Summary 안내 확인 → Re-run failed jobs로 ③만 재실행** (8-1절) |
+| 이관 ③ 운영 배포 확인 | 운영 URL의 **기대 빌드 해시**(`<meta name="hearttune-build">`) + **모든 자산(10종) 내용에 동일 해시 포함 여부**로 신/구버전 판별(시간 의존 없음) — **최대 10분 폴링, 잡 타임아웃 20분** | 실패 표시. **Summary 안내 확인 → Re-run failed jobs로 ③만 재실행** (8-1절) |
 
 ### 결과 확인
 
@@ -245,7 +245,7 @@ npm run serve          # http://localhost:8080
 | 판정 기준이 `오늘심박` 문자열 → 이전 빌드도 같은 문구를 포함하므로 **새 빌드 반영 여부를 구분할 수 없음** | **판정 기준을 `dist/index.html`의 `<meta name="hearttune-build" content="해시">`로 변경**. 기대 해시는 빌드 산출물에서 추출하고, 운영 응답에 같은 해시가 나타날 때만 성공으로 본다. |
 | 최대 5분(30회×10초) 폴링 → Pages 브랜치 배포는 push 후 **수 분 지연**될 수 있어 타임아웃 | **최대 10분 폴링(60회×10초), 잡 `timeout-minutes: 20`** 으로 연장. 매 시도마다 "현재 서빙 중인 빌드 해시"를 로그에 출력해 진행 상황을 알 수 있다. |
 | 실패 시 "무엇이 서빙 중인지" 알 수 없음 → 원인 파악 불가 | **실패 시 현재 서빙 중인 빌드 해시와 페이지 크기/헤드를 로그에 출력**. `README` 문자열이 감지되면 "Pages가 아직 README를 서빙 중"임을 명시 — 운영 저장소 push는 됐지만 Pages 빌드가 끝나지 않은 상태. |
-| 자산 검증 4종 한 번 체크 → CDN/Pages 전파 지연으로 **일시 404가 실패로 처리** | **자산 9종 전부 검증 + 각각 최대 1분 재시도(6회×10초)**. 대상: `src/main.css`, `src/main.js`, `src/dsp.js`, `src/i18n.js`, `src/features/camera.js`, `src/features/storage.js`, `src/features/share.js`, `sw.js`, `manifest.webmanifest` ( `RUNTIME_FILES` + `main.css`/`manifest` 포함). |
+| 자산 검증 4종 한 번 체크 → CDN/Pages 전파 지연으로 **일시 404가 실패로 처리** | **자산 10종 전부 검증 + 각각 최대 1분 재시도(6회×10초)**. 대상: `src/main.css`, `src/main.js`, `src/dsp.js`, `src/i18n.js`, `src/features/camera.js`, `src/features/sheets.js`, `src/features/storage.js`, `src/features/share.js`, `sw.js`, `manifest.webmanifest` ( `RUNTIME_FILES` + `main.css`/`manifest` 포함). |
 | 파일명은 같지만 **내용이 다른 구버전**이 캐시/지연으로 서빙될 수 있음(시간/`Last-Modified`로는 구분 불가) | **빌드 시 모든 자산에 동일 해시 주입(JS/CSS/sw.js는 `/* hearttune-build: 해시 */`, manifest는 `_build` 필드, index.html은 meta, sw.js는 CACHE_NAME)** → 스모크가 각 파일 내용에 기대 해시가 포함됐는지로 판별. 함수명 같은 1회용 마커가 아니라 매 빌드 해시로 지속 가능. |
 | ③ 실패 시 "이관 전체가 실패한 것처럼" 보여 사용자 혼란 → 운영 저장소 커밋은 이미 된 상태 | **실패 시 Summary에 안내 추가**: "이관 ②(운영 저장소 반영)는 이미 완료됐을 수 있음 — HeartTune 커밋 이력 확인 → Pages 지연이면 **Actions → 해당 실행 → Re-run failed jobs**로 ③만 재실행". 전체 워크플로를 다시 돌릴 필요가 없다. |
 
@@ -264,7 +264,7 @@ for 1..60 (10초 간격, 10분):
   없으면 현재 서빙 해시/README 여부를 로그에 남기고 대기
 → 실패 시 현재 서빙 빌드/README/페이지 헤드를 에러 로그로 출력
 
-자산 9종 각각 (src/main.css, src/main.js, src/dsp.js, src/i18n.js, src/features/*.js 3종, sw.js, manifest.webmanifest):
+자산 10종 각각 (src/main.css, src/main.js, src/dsp.js, src/i18n.js, src/features/*.js 4종, sw.js, manifest.webmanifest):
   for 1..6 (10초 간격, 1분):
     PROD_URL + asset 을 no-cache로 GET
     → HTTP 200 이고 응답 본문에 기대 해시(91282438)가 포함되면 통과
@@ -288,6 +288,6 @@ for 1..60 (10초 간격, 10분):
 - ✅ i18n **65키** ko/en 일치
 - ✅ 빌드·경로 검증 통과, Service Worker 캐시 버전 자동화 (빌드 91282438)
 - ✅ **개발/운영 분리 완료 — ② Promote 첫 이관 성공 (Re-run 1회)**, 운영 서빙 중: https://zzexxous-pixel.github.io/HeartTune/ (빌드 91282438, `hearttune-build` 메타로 확인)
-- ✅ **이관 ③ 스모크 로직 개선 완료 (2026-10-19, 지속 체계)** — 빌드 해시 판정 / 10분 폴링 + 진단 로그 / 자산 9종 각각 1분 재시도 + 내용에 해시 포함 여부로 구버전 판별(모든 자산에 `hearttune-build` 주입) / Summary Re-run 안내 / timeout 20분 (8-1절)
+- ✅ **이관 ③ 스모크 로직 개선 완료 (2026-10-19, 지속 체계)** — 빌드 해시 판정 / 10분 폴링 + 진단 로그 / 자산 10종 각각 1분 재시도 + 내용에 해시 포함 여부로 구버전 판별(모든 자산에 `hearttune-build` 주입) / Summary Re-run 안내 / timeout 20분 (8-1절)
 - ⚠️ **개발 저장소 Pages Source 를 `GitHub Actions` 로 변경해야** 미리보기 게이트가 동작합니다 (2-1)
 - ⚠️ 실측(실제 카메라) 신호 검증은 아직 합성 신호 수준입니다 — 디버그 콘솔 CSV 로 실측 튜닝 필요

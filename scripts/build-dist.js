@@ -26,6 +26,7 @@ const RUNTIME_FILES = [
   'src/dsp.js',
   'src/i18n.js',
   'src/features/camera.js',
+  'src/features/sheets.js',
   'src/features/share.js',
   'src/features/storage.js'
 ];

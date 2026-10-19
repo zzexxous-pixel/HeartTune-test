@@ -17,7 +17,7 @@
 ## 5-2. i18n 구조 (다국어 확장 전제)
 ```
 src/i18n.js
-  └ dictionaries = { ko: {...}, en: {...} }   ← 현재 구현 (키 62개)
+  └ dictionaries = { ko: {...}, en: {...} }   ← 현재 구현 (키 81개)
     t('key') 로더 · 언어 감지(navigator.language, 기본 ko) · 전환 · localStorage 저장
     validateI18nKeyParity()  ← ko/en 키 집합 일치 검증 (CI 필수 통과 항목)
 
@@ -69,7 +69,7 @@ HeartTune (main) → GitHub Pages 자동 배포
 - [x] i18n **키 집합 일치** 검증 (누락 시 실패)
 - [x] 구문·모듈 lint (ESLint/Prettier 미도입 — `node --check` 기반)
 - [x] 신호처리 단위 테스트 15개 (합성 PPG → BPM 회귀, 하모닉 혼동, 리듬 판정)
-- [x] Playwright E2E 5개 (렌더링·i18n·측정 플로우·디버그 샌드박스)
+- [x] Playwright E2E 7개 (원스크린·i18n·시트·측정 플로우·기본값·디버그 리사이즈)
 - [x] 빌드 산출물 생성 + 경로/자산 검증 + 캐시 버전 자동화
 
 ## 5-5. 배포 호스팅 — ✅ 확정: GitHub Pages
@@ -170,14 +170,15 @@ HeartTune (main) → GitHub Pages 자동 배포
 이제 마크업만 남기고 역할별로 분리했다.
 
 ```
-index.html                 ← 마크업만 (약 250줄)
+index.html                 ← 마크업만 (약 400줄, 원스크린 + 바텀시트 6종)
 src/
-  main.css                 ← 스타일 전체 (약 745줄)
-  main.js                  ← UI·네비게이션·측정 오케스트레이션
+  main.css                 ← 원스크린 레이아웃·시트·디버그 리사이즈
+  main.js                  ← 앱 상태·이벤트·측정 오케스트레이션·시트 연결
   dsp.js                   ← 신호처리 순수 로직 (DOM 비의존 → Node 테스트 가능)
-  i18n.js                  ← ko/en 사전
+  i18n.js                  ← ko/en 사전 (브라우저 언어 자동 감지)
   features/
-    camera.js              ← getUserMedia·torch·장치 목록
+    camera.js              ← getUserMedia·torch·전/후면 전환·진입 미리보기
+    sheets.js              ← 바텀시트 열기/닫기·포커스 트랩·ESC
     storage.js             ← 측정 이력·캘리브레이션 (localStorage 키 관리)
     share.js               ← 결과 이미지 캔버스 렌더 + Web Share/다운로드
 scripts/

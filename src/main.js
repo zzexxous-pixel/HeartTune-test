@@ -21,9 +21,12 @@ import {
   saveCalibrationSample
 } from './features/storage.js';
 import { createCameraController } from './features/camera.js';
+import { createSheetController } from './features/sheets.js';
 import { shareResultAsImage } from './features/share.js';
 
 const RING_CIRCUMFERENCE = 2 * Math.PI * 106;
+const DEBUG_MIN_HEIGHT = 200;
+const DEBUG_MAX_RATIO = 0.8;
 
 // 기저 심박수/필터 대역 학습값은 features/storage.js 가 관리합니다.
 const initialBaseline = loadCalibrationBaseline();
@@ -31,6 +34,7 @@ const initialBaseline = loadCalibrationBaseline();
 // 애플리케이션 상태
 const state = {
   isMeasuring: false,
+  isStarting: false,
   durationSec: 30,
   startTimeMs: 0,
   lastSampleMs: 0,
@@ -44,6 +48,10 @@ const state = {
   lastResult: null,
   stealthClicks: 0,
   stealthTimer: null,
+  facingMode: 'environment',
+  showWaveform: false,
+  cameraState: 'idle', // idle | starting | ready | error
+  previewToken: 0,
 
   // 적응형 캘리브레이션 & 수동 샌드박스 상태
   priorBpm: initialBaseline.priorBpm,
@@ -63,16 +71,15 @@ const state = {
 const els = {
   screenLightStrip: document.getElementById('screenLightStrip'),
   appTitleTrigger: document.getElementById('appTitleTrigger'),
-  btnScreenLight: document.getElementById('btnScreenLight'),
+  btnMenu: document.getElementById('btnMenu'),
+  btnSettings: document.getElementById('btnSettings'),
   btnLangToggle: document.getElementById('btnLangToggle'),
-  tabBtns: document.querySelectorAll('.tab-btn'),
-  panels: {
-    measure: document.getElementById('panelMeasure'),
-    history: document.getElementById('panelHistory'),
-    guide: document.getElementById('panelGuide')
-  },
+  btnScreenLight: document.getElementById('btnScreenLight'),
+  btnWaveformToggle: document.getElementById('btnWaveformToggle'),
+  waveformBox: document.getElementById('waveformBox'),
   durBtns: document.querySelectorAll('.dur-btn'),
-  cameraSelect: document.getElementById('cameraSelect'),
+  camBtns: document.querySelectorAll('.cam-btn'),
+  langBtns: document.querySelectorAll('.lang-btn'),
   liveAlertBox: document.getElementById('liveAlertBox'),
   stageGuideText: document.getElementById('stageGuideText'),
   progressRingBar: document.getElementById('progressRingBar'),
@@ -93,13 +100,25 @@ const els = {
   resultTitle: document.getElementById('resultTitle'),
   resultDesc: document.getElementById('resultDesc'),
   resultShortNote: document.getElementById('resultShortNote'),
+  btnDetails: document.getElementById('btnDetails'),
   btnPrimaryMeasure: document.getElementById('btnPrimaryMeasure'),
   btnShareImage: document.getElementById('btnShareImage'),
   btnClearHistory: document.getElementById('btnClearHistory'),
   trendSummaryText: document.getElementById('trendSummaryText'),
   trendCanvas: document.getElementById('trendCanvas'),
   historyList: document.getElementById('historyList'),
+  menuHistory: document.getElementById('menuHistory'),
+  menuGuide: document.getElementById('menuGuide'),
+  menuLegal: document.getElementById('menuLegal'),
+  sheetBackdrop: document.getElementById('sheetBackdrop'),
+  settingsSheet: document.getElementById('settingsSheet'),
+  menuSheet: document.getElementById('menuSheet'),
+  historySheet: document.getElementById('historySheet'),
+  guideSheet: document.getElementById('guideSheet'),
+  legalSheet: document.getElementById('legalSheet'),
+  detailsSheet: document.getElementById('detailsSheet'),
   debugConsole: document.getElementById('debugConsole'),
+  debugResizeHandle: document.getElementById('debugResizeHandle'),
   btnCloseDebug: document.getElementById('btnCloseDebug'),
   simPresetBtns: document.querySelectorAll('.sim-preset'),
   lblFilterMode: document.getElementById('lblFilterMode'),
@@ -115,6 +134,8 @@ const els = {
 const samplingCtx = els.samplingCanvas.getContext('2d', { willReadFrequently: true });
 const waveCtx = els.waveformCanvas.getContext('2d');
 
+let toastTimer = null;
+
 function logDebug(msg) {
   const timeStr = new Date().toLocaleTimeString('ko-KR', { hour12: false });
   const line = document.createElement('div');
@@ -125,29 +146,34 @@ function logDebug(msg) {
   }
 }
 
-// 카메라 제어(스트림/토치/장치 목록)는 features/camera.js 로 분리
+function showAlert(msg, durationMs = 4500) {
+  els.liveAlertBox.textContent = msg;
+  els.liveAlertBox.classList.add('visible');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(hideAlert, durationMs);
+}
+
+function hideAlert() {
+  els.liveAlertBox.classList.remove('visible');
+  els.liveAlertBox.textContent = '';
+  clearTimeout(toastTimer);
+  toastTimer = null;
+}
+
+// 카메라 제어(스트림/토치/전면·후면 전환)는 features/camera.js 로 분리
 const camera = createCameraController({
   videoEl: els.cameraVideo,
-  selectEl: els.cameraSelect,
   log: (msg) => logDebug(msg),
   onNoTorch: () => showAlert(t('error.webcam.notice'))
 });
 
-/**
- * 프레임 콜백과 카메라 스트림을 함께 정리한다.
- * (rVFC 와 rAF 중 어떤 방식으로 예약됐는지에 따라 취소 API 가 다르다)
- */
-function stopCameraAndFrames() {
-  if (state.frameHandle) {
-    if (state.usingRVFC && els.cameraVideo.cancelVideoFrameCallback) {
-      els.cameraVideo.cancelVideoFrameCallback(state.frameHandle);
-    } else {
-      cancelAnimationFrame(state.frameHandle);
-    }
-    state.frameHandle = null;
-  }
-  camera.stop();
-}
+// 바텀시트(설정·메뉴·이력·안내·법적 고지·상세)는 features/sheets.js 가 관리
+const sheets = createSheetController({
+  backdrop: els.sheetBackdrop,
+  onOpen: (sheet) => logDebug(`Sheet opened: ${sheet.id}`),
+  onClose: (sheet) => logDebug(`Sheet closed: ${sheet.id}`),
+  log: () => {}
+});
 
 function playTone(freq = 520, durationMs = 120) {
   try {
@@ -179,24 +205,87 @@ function updateCalibBannerUI() {
   }
 }
 
+function updateIdleGuide() {
+  if (state.isMeasuring) return;
+  if (state.lastResult) {
+    els.stageGuideText.textContent = t('measure.status.completed');
+    return;
+  }
+  if (state.cameraState === 'starting') {
+    els.stageGuideText.textContent = t('measure.status.cameraStarting');
+    return;
+  }
+  if (state.cameraState === 'error') {
+    els.stageGuideText.textContent = t('measure.status.cameraUnavailable');
+    return;
+  }
+  els.stageGuideText.textContent = t('measure.status.readyTitle');
+}
+
+function syncCameraButtons() {
+  els.camBtns.forEach((btn) => {
+    const active = btn.getAttribute('data-facing') === state.facingMode;
+    btn.classList.toggle('active', active);
+    btn.setAttribute('aria-pressed', String(active));
+  });
+}
+
+function syncLangButtons() {
+  const lang = getLang();
+  els.langBtns.forEach((btn) => {
+    const active = btn.getAttribute('data-lang') === lang;
+    btn.classList.toggle('active', active);
+    btn.setAttribute('aria-pressed', String(active));
+  });
+}
+
+function syncConfigUI() {
+  els.durBtns.forEach((btn) => {
+    btn.classList.toggle('active', Number(btn.getAttribute('data-duration')) === state.durationSec);
+  });
+  syncCameraButtons();
+  syncLangButtons();
+  els.btnWaveformToggle.setAttribute('aria-checked', String(state.showWaveform));
+  els.waveformBox.hidden = !state.showWaveform;
+  els.btnScreenLight.textContent = state.screenLightOn
+    ? t('app.header.screenLightOn')
+    : t('app.header.screenLight');
+  els.btnScreenLight.setAttribute('aria-pressed', String(state.screenLightOn));
+}
+
+function setConfigBusy(busy) {
+  els.durBtns.forEach((btn) => {
+    btn.disabled = busy;
+  });
+  els.camBtns.forEach((btn) => {
+    btn.disabled = busy;
+  });
+  els.btnWaveformToggle.disabled = busy;
+}
+
 function applyTranslations() {
   document.documentElement.lang = getLang();
   document.querySelectorAll('[data-i18n]').forEach((el) => {
     const key = el.getAttribute('data-i18n');
     el.textContent = t(key);
   });
-  els.btnScreenLight.textContent = state.screenLightOn
-    ? t('app.header.screenLightOn')
-    : t('app.header.screenLight');
+  document.querySelectorAll('[data-i18n-aria]').forEach((el) => {
+    el.setAttribute('aria-label', t(el.getAttribute('data-i18n-aria')));
+  });
 
   if (state.isMeasuring) {
     els.btnPrimaryMeasure.textContent = t('measure.cta.stop');
+    els.stageGuideText.textContent = t('measure.status.measuringLive');
   } else if (state.lastResult) {
     els.btnPrimaryMeasure.textContent = t('measure.cta.remeasure');
     renderResultBanner(state.lastResult);
+    updateIdleGuide();
   } else {
     els.btnPrimaryMeasure.textContent = t('measure.cta.start');
+    updateIdleGuide();
   }
+
+  syncConfigUI();
   updateCalibBannerUI();
   renderHistory();
   document.body.classList.add('i18n-ready');
@@ -205,23 +294,11 @@ function applyTranslations() {
 function setScreenLight(enabled) {
   state.screenLightOn = Boolean(enabled);
   els.screenLightStrip.classList.toggle('active', state.screenLightOn);
-  els.btnScreenLight.textContent = state.screenLightOn
-    ? t('app.header.screenLightOn')
-    : t('app.header.screenLight');
+  syncConfigUI();
   logDebug(`Screen light Strip: ${state.screenLightOn ? 'ON' : 'OFF'}`);
 }
 
 window.camera = { setScreenLight };
-
-function showAlert(msg) {
-  els.liveAlertBox.textContent = msg;
-  els.liveAlertBox.classList.add('visible');
-}
-
-function hideAlert() {
-  els.liveAlertBox.textContent = '';
-  els.liveAlertBox.classList.remove('visible');
-}
 
 function formatTimer(secLeft) {
   const s = Math.max(0, Math.ceil(secLeft));
@@ -348,7 +425,7 @@ function onFrameTick() {
       state.rawSamples.push({ t: now, v: simVal });
     }
 
-    drawLiveWaveform();
+    if (state.showWaveform) drawLiveWaveform();
   }
 
   const remainingSec = Math.max(0, state.durationSec - elapsedSec);
@@ -398,11 +475,51 @@ function onFrameTick() {
   scheduleNextFrame();
 }
 
+/**
+ * 페이지 진입 시 카메라만 켜 둔다(토치 OFF).
+ * 손가락 위치를 미리 잡을 수 있고, 측정 시작 시 토치만 켜면 된다.
+ */
+async function openIdleCamera() {
+  if (state.isMeasuring || state.isStarting) return;
+  if (state.simMode !== 'camera') return;
+  if (camera.isOpen) {
+    state.cameraState = 'ready';
+    updateIdleGuide();
+    return;
+  }
+
+  const token = ++state.previewToken;
+  state.cameraState = 'starting';
+  updateIdleGuide();
+
+  try {
+    await camera.open({ torch: false, notifyNoTorch: false });
+    if (token !== state.previewToken) {
+      // 그 사이 시뮬레이션 모드로 바뀌었거나 화면이 숨겨진 경우에만 스트림을 정리한다.
+      if (state.simMode !== 'camera' || document.hidden) camera.stop();
+      return;
+    }
+    state.cameraState = 'ready';
+    logDebug('Preview camera opened (torch off).');
+  } catch (err) {
+    if (token !== state.previewToken) return;
+    state.cameraState = 'error';
+    logDebug(`Idle camera error: ${err.name} - ${err.message}`);
+    if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+      showAlert(t('error.camera.denied'), 6000);
+    } else {
+      showAlert(t('error.camera.notFound'), 6000);
+    }
+  }
+  updateIdleGuide();
+}
+
 async function startMeasurement() {
   if (state.isMeasuring) {
     cancelMeasurement();
     return;
   }
+  if (state.isStarting) return;
 
   const base = loadCalibrationBaseline();
   state.priorBpm = base.priorBpm;
@@ -417,28 +534,44 @@ async function startMeasurement() {
   state.rawSamples = [];
   state.lastAdaptiveTickSec = 0;
   state.lastResult = null;
-  els.resultBanner.classList.remove('visible');
-  els.btnShareImage.style.display = 'none';
+  document.body.classList.remove('has-result');
+  els.resultBanner.className = 'result-banner';
+  els.resultShortNote.hidden = true;
+  els.btnShareImage.hidden = true;
   els.bpmNumber.textContent = '--';
   els.metricQuality.textContent = '--';
   els.metricBeats.textContent = '0';
   els.metricCv.textContent = '--';
+  els.timerBadge.textContent = formatTimer(state.durationSec);
   updateProgressRing(0);
   updateCalibBannerUI();
 
   if (state.simMode === 'camera') {
+    state.isStarting = true;
+    els.btnPrimaryMeasure.disabled = true;
+    // 진행 중인 미리보기 열기와 경합하지 않도록 토큰을 올려 둔다.
+    state.previewToken++;
+    state.cameraState = 'starting';
+    updateIdleGuide();
     try {
-      const { torchEnabled } = await camera.open();
+      const { torchEnabled } = await camera.open({ torch: true, notifyNoTorch: true });
+      state.cameraState = 'ready';
       if (torchEnabled) hideAlert();
     } catch (err) {
       logDebug(`Camera open error: ${err.name} - ${err.message}`);
+      state.cameraState = 'error';
       if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-        showAlert(t('error.camera.denied'));
+        showAlert(t('error.camera.denied'), 6000);
       } else {
-        showAlert(t('error.camera.notFound'));
+        showAlert(t('error.camera.notFound'), 6000);
       }
+      state.isStarting = false;
+      els.btnPrimaryMeasure.disabled = false;
+      updateIdleGuide();
       return;
     }
+    state.isStarting = false;
+    els.btnPrimaryMeasure.disabled = false;
   } else {
     prepareSimulationSignal();
     hideAlert();
@@ -447,9 +580,11 @@ async function startMeasurement() {
   state.isMeasuring = true;
   state.startTimeMs = performance.now();
   state.lastSampleMs = state.startTimeMs;
+  setConfigBusy(true);
   els.heartBeatIcon.classList.add('beating');
   els.btnPrimaryMeasure.classList.add('measuring');
   els.btnPrimaryMeasure.textContent = t('measure.cta.stop');
+  els.btnShareImage.hidden = true;
   playTone(480, 100);
   logDebug(
     `Measurement started (${state.durationSec}s, mode=${state.simMode}, priorBPM=${state.priorBpm})`
@@ -458,9 +593,24 @@ async function startMeasurement() {
   scheduleNextFrame();
 }
 
+function stopFrameLoop() {
+  if (state.frameHandle) {
+    if (state.usingRVFC && els.cameraVideo.cancelVideoFrameCallback) {
+      els.cameraVideo.cancelVideoFrameCallback(state.frameHandle);
+    } else {
+      cancelAnimationFrame(state.frameHandle);
+    }
+    state.frameHandle = null;
+  }
+}
+
 function cancelMeasurement() {
   state.isMeasuring = false;
-  stopCameraAndFrames();
+  state.isStarting = false;
+  stopFrameLoop();
+  camera.setTorch(false).catch(() => {});
+  setConfigBusy(false);
+  els.btnPrimaryMeasure.disabled = false;
   els.heartBeatIcon.classList.remove('beating');
   els.btnPrimaryMeasure.classList.remove('measuring');
   els.btnPrimaryMeasure.textContent = t('measure.cta.start');
@@ -473,7 +623,9 @@ function cancelMeasurement() {
 
 function finishMeasurement() {
   state.isMeasuring = false;
-  stopCameraAndFrames();
+  stopFrameLoop();
+  camera.setTorch(false).catch(() => {});
+  setConfigBusy(false);
   els.heartBeatIcon.classList.remove('beating');
   els.btnPrimaryMeasure.classList.remove('measuring');
   els.btnPrimaryMeasure.textContent = t('measure.cta.remeasure');
@@ -510,6 +662,7 @@ function finishMeasurement() {
   };
 
   state.lastResult = record;
+  document.body.classList.add('has-result');
   els.bpmNumber.textContent = formatNumber(record.bpm);
   els.metricQuality.textContent = `${record.quality}%`;
   els.metricBeats.textContent = String(record.beatCount);
@@ -519,7 +672,7 @@ function finishMeasurement() {
   updateCalibBannerUI();
   renderResultBanner(record);
   saveRecordToHistory(record);
-  els.btnShareImage.style.display = 'inline-flex';
+  els.btnShareImage.hidden = false;
   logDebug(
     `Measurement completed: BPM=${record.bpm}, status=${record.status}, CV=${record.cv}, saved to 30-run baseline.`
   );
@@ -527,10 +680,10 @@ function finishMeasurement() {
 
 // 결과 배지 아이콘: 이모지는 기기/폰트에 따라 다르게 보이거나 사라질 수 있어 SVG 로 고정한다.
 // (색만으로 상태를 전달하지 않는다는 원칙 — 색 + 아이콘 + 문구를 함께 사용)
-const SVG_CHECK = '<svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="currentColor"/><path d="M6.8 12.4l3.4 3.4 7-7.2" fill="none" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-const SVG_DOWN = '<svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="currentColor"/><path d="M12 6.5v11M7.5 13l4.5 4.5 4.5-4.5" fill="none" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-const SVG_UP = '<svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="currentColor"/><path d="M12 17.5v-11M7.5 11L12 6.5 16.5 11" fill="none" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-const SVG_ALERT = '<svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="currentColor"/><path d="M12 6.8v7.4" fill="none" stroke="#FFFFFF" stroke-width="2.8" stroke-linecap="round"/><circle cx="12" cy="17.6" r="1.6" fill="#FFFFFF"/></svg>';
+const SVG_CHECK = '<svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="currentColor"/><path d="M6.8 12.4l3.4 3.4 7-7.2" fill="none" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const SVG_DOWN = '<svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="currentColor"/><path d="M12 6.5v11M7.5 13l4.5 4.5 4.5-4.5" fill="none" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const SVG_UP = '<svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="currentColor"/><path d="M12 17.5v-11M7.5 11L12 6.5 16.5 11" fill="none" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const SVG_ALERT = '<svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="currentColor"/><path d="M12 6.8v7.4" fill="none" stroke="#FFFFFF" stroke-width="2.8" stroke-linecap="round"/><circle cx="12" cy="17.6" r="1.6" fill="#FFFFFF"/></svg>';
 
 const RESULT_ICONS = {
   normal: SVG_CHECK,
@@ -544,10 +697,8 @@ function renderResultBanner(record) {
   els.resultIcon.innerHTML = RESULT_ICONS[record.status] || RESULT_ICONS.normal;
   els.resultTitle.textContent = t(`result.${record.status}.title`);
   els.resultDesc.textContent = t(`result.${record.status}.desc`);
-  els.resultShortNote.style.display = record.isShortMeasurement ? 'block' : 'none';
+  els.resultShortNote.hidden = !record.isShortMeasurement;
 }
-
-
 
 function saveRecordToHistory(record) {
   try {
@@ -592,8 +743,8 @@ function renderHistory() {
     const statusTitle = t(`result.${item.status}.title`);
     li.innerHTML = `
       <div>
-        <div style="font-weight:800; font-size:1.05rem;">${statusTitle}</div>
-        <div style="font-size:0.88rem; color:var(--text-sub);">${formatDateTime(item.timestamp)} · ${item.duration}s · CV ${item.cv}</div>
+        <div style="font-weight:800; font-size:1.02rem;">${statusTitle}</div>
+        <div style="font-size:0.86rem; color:var(--text-sub);">${formatDateTime(item.timestamp)} · ${item.duration}s · CV ${item.cv}</div>
       </div>
       <div class="history-bpm">${formatNumber(item.bpm)}<span class="unit">${t('measure.unit.bpm')}</span></div>
     `;
@@ -636,7 +787,41 @@ function drawTrendChart(records) {
   });
 }
 
-// 이벤트 바인딩 (5-7절 원칙: click 이벤트 일원화)
+async function switchCamera(facing) {
+  if (state.isMeasuring || state.isStarting) return;
+  if (facing !== 'environment' && facing !== 'user') return;
+  if (state.facingMode === facing) return;
+
+  state.facingMode = facing;
+  camera.setFacing(facing);
+  syncCameraButtons();
+  logDebug(`Camera facing switched to: ${facing}`);
+
+  if (state.simMode !== 'camera') return;
+
+  const token = ++state.previewToken;
+  state.cameraState = 'starting';
+  updateIdleGuide();
+  try {
+    await camera.open({ torch: false, notifyNoTorch: false });
+    if (token === state.previewToken) state.cameraState = 'ready';
+  } catch (err) {
+    if (token === state.previewToken) {
+      state.cameraState = 'error';
+      showAlert(
+        err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError'
+          ? t('error.camera.denied')
+          : t('error.camera.notFound'),
+        6000
+      );
+    }
+  }
+  updateIdleGuide();
+}
+
+/* --------------------------------------------------------------------------
+   이벤트 바인딩 (5-7절 원칙: click 이벤트 일원화)
+   -------------------------------------------------------------------------- */
 els.btnPrimaryMeasure.addEventListener('click', () => {
   startMeasurement();
 });
@@ -651,22 +836,48 @@ els.btnLangToggle.addEventListener('click', () => {
   applyTranslations();
 });
 
+els.langBtns.forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const lang = btn.getAttribute('data-lang');
+    if (!lang || lang === getLang()) return;
+    setLang(lang);
+    applyTranslations();
+  });
+});
+
 els.btnScreenLight.addEventListener('click', () => {
   setScreenLight(!state.screenLightOn);
 });
 
-els.tabBtns.forEach((btn) => {
-  btn.addEventListener('click', () => {
-    const targetTab = btn.getAttribute('data-tab');
-    els.tabBtns.forEach((b) => {
-      const isMatch = b === btn;
-      b.classList.toggle('active', isMatch);
-      b.setAttribute('aria-selected', String(isMatch));
-    });
-    Object.entries(els.panels).forEach(([key, panel]) => {
-      panel.classList.toggle('active', key === targetTab);
-    });
-  });
+els.btnWaveformToggle.addEventListener('click', () => {
+  state.showWaveform = !state.showWaveform;
+  syncConfigUI();
+});
+
+els.btnSettings.addEventListener('click', () => {
+  syncConfigUI();
+  sheets.open(els.settingsSheet, els.btnSettings);
+});
+
+els.btnMenu.addEventListener('click', () => {
+  sheets.open(els.menuSheet, els.btnMenu);
+});
+
+els.menuHistory.addEventListener('click', () => {
+  renderHistory();
+  sheets.open(els.historySheet, els.btnMenu);
+});
+
+els.menuGuide.addEventListener('click', () => {
+  sheets.open(els.guideSheet, els.btnMenu);
+});
+
+els.menuLegal.addEventListener('click', () => {
+  sheets.open(els.legalSheet, els.btnMenu);
+});
+
+els.btnDetails.addEventListener('click', () => {
+  sheets.open(els.detailsSheet, els.btnDetails);
 });
 
 els.durBtns.forEach((btn) => {
@@ -675,6 +886,12 @@ els.durBtns.forEach((btn) => {
     state.durationSec = Number(btn.getAttribute('data-duration'));
     els.durBtns.forEach((b) => b.classList.toggle('active', b === btn));
     els.timerBadge.textContent = formatTimer(state.durationSec);
+  });
+});
+
+els.camBtns.forEach((btn) => {
+  btn.addEventListener('click', () => {
+    switchCamera(btn.getAttribute('data-facing'));
   });
 });
 
@@ -708,6 +925,14 @@ els.simPresetBtns.forEach((btn) => {
     state.simMode = btn.getAttribute('data-sim');
     els.simPresetBtns.forEach((b) => b.classList.toggle('active', b === btn));
     logDebug(`Simulation mode switched to: ${state.simMode}`);
+
+    if (state.simMode !== 'camera') {
+      state.previewToken++;
+      camera.stop();
+      state.cameraState = 'idle';
+    } else if (!state.isMeasuring) {
+      openIdleCamera();
+    }
   });
 });
 
@@ -756,11 +981,80 @@ els.btnExportCsv.addEventListener('click', () => {
   logDebug(`Exported ${state.rawSamples.length} raw samples to CSV.`);
 });
 
+/* --------------------------------------------------------------------------
+   디버그 콘솔 크기 조절 — 상단 경계 드래그 (--debug-height)
+   -------------------------------------------------------------------------- */
+function setDebugHeight(heightPx) {
+  const max = window.innerHeight * DEBUG_MAX_RATIO;
+  const clamped = Math.min(max, Math.max(DEBUG_MIN_HEIGHT, heightPx));
+  document.documentElement.style.setProperty('--debug-height', `${Math.round(clamped)}px`);
+}
+
+let debugDrag = null;
+
+els.debugResizeHandle.addEventListener('pointerdown', (event) => {
+  if (event.button !== 0 && event.pointerType === 'mouse') return;
+  event.preventDefault();
+  debugDrag = { pointerId: event.pointerId };
+  if (els.debugResizeHandle.setPointerCapture) {
+    try {
+      els.debugResizeHandle.setPointerCapture(event.pointerId);
+    } catch (_) {
+      // 무시
+    }
+  }
+  document.body.classList.add('resizing-debug');
+});
+
+els.debugResizeHandle.addEventListener('pointermove', (event) => {
+  if (!debugDrag) return;
+  setDebugHeight(window.innerHeight - event.clientY);
+});
+
+function endDebugDrag() {
+  if (!debugDrag) return;
+  debugDrag = null;
+  document.body.classList.remove('resizing-debug');
+}
+
+els.debugResizeHandle.addEventListener('pointerup', endDebugDrag);
+els.debugResizeHandle.addEventListener('pointercancel', endDebugDrag);
+els.debugResizeHandle.addEventListener('lostpointercapture', endDebugDrag);
+
+els.debugResizeHandle.addEventListener('keydown', (event) => {
+  if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+  event.preventDefault();
+  const current = els.debugConsole.getBoundingClientRect().height;
+  setDebugHeight(current + (event.key === 'ArrowUp' ? 24 : -24));
+});
+
+window.addEventListener('resize', () => {
+  const current = els.debugConsole.getBoundingClientRect().height;
+  if (current > 0) setDebugHeight(current);
+});
+
+// 화면이 가려지면 카메라/프레임을 정리하고, 돌아오면 미리보기를 다시 켠다.
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    if (state.isMeasuring) cancelMeasurement();
+    state.previewToken++;
+    stopFrameLoop();
+    camera.stop();
+    state.cameraState = 'idle';
+  } else if (!state.isMeasuring) {
+    openIdleCamera();
+  }
+});
+
 function initApp() {
   const parity = validateI18nKeyParity();
   logDebug(`i18n parity check: valid=${parity.valid} (${parity.totalKeys} keys)`);
   applyTranslations();
-  camera.populateCameraList();
+  sheets.bind();
+  syncConfigUI();
+
+  // 페이지 진입 즉시 카메라 미리보기 시작 → 측정 전에 손가락 위치를 잡을 수 있다.
+  openIdleCamera();
 
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
     navigator.serviceWorker.register('./sw.js').catch((err) => {
