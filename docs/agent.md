@@ -156,7 +156,7 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
 | ① Dev CI (main) | 전부 success | Actions 탭 | 2026-10-19 |
 | ② Promote | ✅ 첫 이관 성공 (Re-run 1회로 성공) | Actions → ② 실행 이력 | 2026-10-19 |
 | 운영 배포 | ✅ 서빙 중 — https://zzexxous-pixel.github.io/HeartTune/ · 빌드 91282438 (`<meta name="hearttune-build" content="91282438">` 확인) | 운영 URL 소스에서 meta hearttune-build 확인 | 2026-10-19 |
-| 이관 ③ 로직 | ✅ 개선 완료 — 빌드 해시 판정 / 10분 폴링·진단 로그 / 자산 9종 재시도 / `createCameraController` 구버전 판별 / Summary Re-run 안내 / timeout-minutes 20 | docs/40-deployment-guide.md 8-1절, promote-to-production.yml | 2026-10-19 |
+| 이관 ③ 로직 | ✅ 개선 완료(지속 체계) — 빌드 해시 판정 / 10분 폴링·진단 로그 / 자산 9종 각 1분 재시도 + 내용 해시 검증(모든 자산에 `hearttune-build` 주입, 시간 미의존) / Summary Re-run 안내 / timeout-minutes 20 | `scripts/build-dist.js`·`promote-to-production.yml`·docs/40 8-1절 | 2026-10-19 |
 | 개발 Pages Source | ⚠️ legacy → GitHub Actions 변경 필요 | gh api repos/OWNER/HeartTune-test/pages --jq .build_type | 2026-10-19 |
 | 운영 Pages Source | ✅ Deploy from a branch / main / (root) | gh api repos/OWNER/HeartTune/pages --jq .source | 2026-10-19 |
 | 실측(실제 카메라) 튜닝 | ❌ 미완 — 사용자 실기기 확인 대기 | — | 2026-10-19 |
@@ -170,8 +170,8 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
 2. **CI 실패 원인 불투명** → E2E는 `list` 리포터 + 실패 로그를 Step Summary/PR 코멘트로 게시.
 3. **불필요한 다운로드** → `npx --yes serve` 제거, `scripts/serve.js`(의존성 0) 사용.
 4. **캐시 수동 관리** → 빌드 해시로 `CACHE_NAME` 자동 교체.
-5. **이관 ③ 스모크 불안정 (2026-10-19 개선)** — "오늘심박" 문구 판정은 이전 빌드와 구분 불가 + Pages 전파 지연으로 5분 폴링 부족 + 자산 일시 404 + 구버전 서빙 미감지.
-   → 빌드 해시(`hearttune-build` 메타) 판정 / 10분 폴링·현재 빌드/README 진단 로그 / 자산 9종 각 1분 재시도 / `src/main.js` 내 `createCameraController`로 구버전 판별 / 실패 시 Summary에 "이관 ②는 이미 완료됐을 수 있음 + Re-run failed jobs 안내" / timeout 20분. 상세는 `docs/40-deployment-guide.md` 8-1절.
+5. **이관 ③ 스모크 불안정 (2026-10-19 개선 → 2026-10-19 지속 체계)** — "오늘심박" 문구 판정은 이전 빌드와 구분 불가 + Pages 전파 지연으로 5분 폴링 부족 + 자산 일시 404 + 구버전 서빙 미감지(시간/Last-Modified로는 구분 불가).
+   → 빌드 해시(`hearttune-build` 메타) 판정 / 10분 폴링·현재 빌드/README 진단 로그 / 자산 9종 각 1분 재시도 + **모든 자산 내용에 동일 해시 주입으로 신/구버전 판별**(`build-dist.js`가 JS/CSS/sw.js에 `/* hearttune-build: 해시 */`, manifest에 `_build` 필드 주입) / 실패 시 Summary에 "이관 ②는 이미 완료됐을 수 있음 + Re-run failed jobs 안내" / timeout 20분. 상세는 `docs/40-deployment-guide.md` 8-1절.
 
 ---
 
@@ -182,7 +182,7 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
 | # | 우선 | 할 일 | 비고 |
 |---|---|---|---|
 | 1 | P0 | 개발 Pages Source → GitHub Actions (개발 미리보기 게이트) | 사용자 작업 — Settings → Pages → Source 변경 필요 |
-| 2 | P1 | 이관 ③(smoke) 로직 개선 커밋 반영 | ✅ 완료(2026-10-19) — 빌드 해시 판정 / 10분 폴링·진단 로그 / 자산 9종(각 1분 재시도) / `createCameraController` 구버전 판별 / Summary Re-run 안내 / timeout 20분 → `promote-to-production.yml` 반영, `docs/40-deployment-guide.md` 8-1절 정리. PR 후 ② 재실행 시 안정성 검증 대기 |
+| 2 | P1 | 이관 ③(smoke) 로직 개선 커밋 반영 | ✅ 완료(2026-10-19) — **지속 체계**: 빌드 해시 판정 / 10분 폴링·진단 로그 / 자산 9종(각 1분 재시도) + 모든 자산 내용에 `hearttune-build` 해시 주입(`build-dist.js`)으로 신/구버전 판별(시간 미의존) / Summary Re-run 안내 / timeout 20분 → `promote-to-production.yml`·`build-dist.js`·`docs/40` 8-1절 정리. PR 후 ② 재실행 시 안정성 검증 대기 |
 | 3 | P1 | 실기기(iOS/Android) 검증 결과 반영 | 첫 실사용 테스트 — 운영 빌드 91282438 서빙 중 |
 | 4 | P1 | 실제 카메라 신호로 DSP 튜닝 | 디버그 콘솔 CSV 활용 |
 
@@ -267,6 +267,7 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
 | 2026-10-19 | 운영 첫 이관 대기 (Pages 설정 + ② 실행은 사용자 작업) | **대기** | — |
 | 2026-10-19 | ② Promote 첫 이관 성공 (Re-run 1회) — 운영 https://zzexxous-pixel.github.io/HeartTune/ 빌드 91282438 서빙 중 | ✅ 완료 | Actions 실행 이력, HeartTune `release: main from HeartTune-test (91282438)` |
 | 2026-10-19 | 이관 ③(smoke) 로직 개선 — 빌드 해시 판정 / 10분 폴링·진단 로그 / 자산 9종 재시도 / `createCameraController` 구버전 판별 / Summary Re-run 안내 / timeout 20분 | ✅ 완료(로컬) — `promote-to-production.yml` 반영, `docs/40-deployment-guide.md` 8-1절 정리, 로컬 검증(lint/i18n/unit/build) 통과, `agent.md` 5·6·10절 갱신 | `arena/f50fd973-hearttune-test` 브랜치 (PR 대기) |
+| 2026-10-19 | 이관 ③ 지속 체계로 전환 — `createCameraController` 1회용 마커 제거 → 모든 자산에 빌드 해시 주입(`build-dist.js`) + 내용 기반 검증으로 교체 (시간 미의존) | ✅ 완료(로컬) — `scripts/build-dist.js` 모든 자산에 `hearttune-build` 주입·`manifest._build` 추가, `promote-to-production.yml` 자산 해시 검증으로 교체, `docs/40`·`agent.md` 갱신, 빌드 91282438 재검증 통과 | `arena/f50fd973-hearttune-test` 브랜치 |
 
 > **로그 규칙**: 최신이 아래. 항목이 20개를 넘으면 오래된 것은 `docs/changelog-archive.md` 로 옮긴다.
 

@@ -172,11 +172,19 @@ jobs:
             exit 1
           fi
 
-      - name: Verify runtime assets (9종, 각 1분 재시도)
+      - name: Verify runtime assets (9종, 각 1분 재시도 + 빌드 해시 지속 검증)
         env:
           PROD_URL: ${{ env.PROD_URL }}
         run: |
           set -u
+          # 기대 빌드 해시 = dist/index.html meta (모든 자산에 동일 해시가 주입되어 있음)
+          expected=$(grep -o 'hearttune-build[^>]*content="[^"]*"' ./dist/index.html | sed -E 's/.*content="([^"]*)".*/\1/' || true)
+          if [ -z "${expected}" ]; then
+            echo "::error::dist/index.html 에서 기대 빌드 해시를 찾지 못했습니다."
+            exit 1
+          fi
+          echo "기대 빌드 해시(자산 검증용): ${expected}"
+          echo "검증 방식: HTTP 200 + 응답 본문에 빌드 해시(${expected}) 포함 여부 (내용 기반, 시간 의존 없음)"
           failed=0
           assets=(
             "src/main.css"
@@ -194,45 +202,36 @@ jobs:
           for asset in "${assets[@]}"; do
             ok_asset=0
             for attempt in $(seq 1 6); do
-              code=$(curl -sS -L -o /dev/null -w '%{http_code}' \
+              code=$(curl -sS -L -o /tmp/asset_check.tmp -w '%{http_code}' \
                        -H 'Cache-Control: no-cache' "${PROD_URL}${asset}?v=${GITHUB_RUN_ID}-${attempt}" || echo "000")
               echo "${asset} (시도 ${attempt}/6) → HTTP ${code}"
               if [ "${code}" = "200" ]; then
-                ok_asset=1
-                break
+                # 내용 기반 검증: 모든 자산은 빌드 해시를 포함해야 함 (JS/CSS는 주석, sw.js는 CACHE_NAME, manifest는 _build 필드)
+                if grep -q "${expected}" /tmp/asset_check.tmp 2>/dev/null; then
+                  echo "  ✅ ${asset} 에서 빌드 해시 ${expected} 확인 — 신버전"
+                  ok_asset=1
+                  break
+                else
+                  echo "  ⚠️ ${asset} 200이지만 빌드 해시(${expected}) 없음 — 구버전 캐시/Pages 지연 가능성"
+                  echo "     head 미리보기:"
+                  head -c 180 /tmp/asset_check.tmp 2>/dev/null | tr '\n' ' ' | cut -c1-160 || true
+                  echo ""
+                fi
               fi
               if [ "${attempt}" -lt 6 ]; then
                 sleep 10
               fi
             done
             if [ "${ok_asset}" != "1" ]; then
-              echo "::error::${asset} 자산이 60초 내 200을 반환하지 않았습니다."
+              echo "::error::${asset} 자산이 60초 내 기대 빌드(${expected})를 서빙하지 않았습니다. (200이어도 내용이 구버전이면 실패)"
               failed=1
             fi
           done
           if [ "${failed}" != "0" ]; then
-            echo "::error title=런타임 자산 누락::운영 저장소에 일부 파일이 없습니다. HeartTune 저장소 main 브랜치와 Pages 빌드 상태를 확인하세요."
+            echo "::error title=런타임 자산 누락/구버전::운영 저장소에 일부 파일이 없거나 구버전을 서빙 중입니다. HeartTune 저장소 main 브랜치와 Pages 빌드 상태를 확인하세요."
             exit 1
           fi
-          echo "✅ 모든 자산(9종) 200 확인"
-
-      - name: Detect stale deployment (createCameraController 확인)
-        env:
-          PROD_URL: ${{ env.PROD_URL }}
-        run: |
-          set -u
-          echo "src/main.js 에서 createCameraController 존재 여부로 구버전 배포 판별"
-          curl -sS -L -H 'Cache-Control: no-cache' "${PROD_URL}src/main.js?check=${GITHUB_RUN_ID}" -o /tmp/live_main.js || true
-          if grep -q "createCameraController" /tmp/live_main.js 2>/dev/null; then
-            echo "✅ src/main.js 에 createCameraController 존재 — 신버전 확인"
-          else
-            echo "::error title=구버전 배포 감지::운영에서 서빙 중인 src/main.js 에 createCameraController가 없습니다. 이전 빌드가 계속 서빙 중이거나 Pages 빌드가 아직 반영되지 않았을 수 있습니다."
-            echo "--- live src/main.js 헤드 (100줄) ---"
-            head -n 100 /tmp/live_main.js 2>/dev/null || echo "(파일 없음)"
-            echo "--- HTTP 상태 재확인 ---"
-            curl -sS -L -o /dev/null -w "HTTP %{http_code} for src/main.js\n" -H 'Cache-Control: no-cache' "${PROD_URL}src/main.js" || true
-            exit 1
-          fi
+          echo "✅ 모든 자산(9종) 200 + 빌드 해시 확인"
 
       - name: Compare served index.html with built artifact
         continue-on-error: true

@@ -6,7 +6,8 @@
  *  2) 모든 파일 내용으로 빌드 해시(8자)를 계산
  *  3) Service Worker 캐시 이름을 해시로 자동 교체 → 배포할 때마다 캐시가 자동 무효화
  *  4) index.html 에 <meta name="hearttune-build"> 삽입 → 라이브 화면에서 빌드 식별 가능
- *  5) 절대경로(/...) 사용 금지 + 참조된 로컬 자산 누락 검사 (GitHub Pages 하위 경로 호환)
+ *  5) 모든 텍스트 자산(JS/CSS/manifest/sw.js)에 빌드 해시 주입 → 운영 스모크가 내용으로 신/구버전 판별 가능
+ *  6) 절대경로(/...) 사용 금지 + 참조된 로컬 자산 누락 검사 (GitHub Pages 하위 경로 호환)
  */
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -65,9 +66,9 @@ function computeBuildHash() {
 function verifyRelativePaths(htmlContent) {
   // GitHub Pages 하위 경로(/HeartTune/) 호환을 위해 루트 절대경로 참조 차단
   const forbiddenPatterns = [
-    /href=["']\/(?!\/)/,
-    /src=["']\/(?!\/)/,
-    /register\(\s*["']\/(?!\/)/
+    /href=[\"']\/(?!\/)/,
+    /src=[\"']\/(?!\/)/,
+    /register\(\s*[\"']\/(?!\/)/
   ];
   for (const regex of forbiddenPatterns) {
     if (regex.test(htmlContent)) {
@@ -79,7 +80,7 @@ function verifyRelativePaths(htmlContent) {
 /** index.html 이 참조하는 로컬 자산이 dist 에 실제로 존재하는지 확인한다. */
 function verifyReferencedAssets(indexHtml) {
   const refs = new Set();
-  const attrPattern = /(?:href|src)=["'](\.\/[^"'?#]+)["']/g;
+  const attrPattern = /(?:href|src)=[\"'](\.\/[^\"'?#]+)[\"']/g;
   let match;
   while ((match = attrPattern.exec(indexHtml)) !== null) {
     refs.add(match[1].replace(/^\.\//, ''));
@@ -121,12 +122,54 @@ function injectBuildVersion(buildHash) {
   );
 }
 
+/**
+ * 모든 텍스트 자산에 빌드 해시를 주입해 지속 가능한 스모크 체계를 만든다.
+ * - JS/CSS/sw.js: 맨 앞에 /* hearttune-build: <해시> *\/ 주석
+ * - manifest.webmanifest: JSON에 _build 필드 추가 (PWA가 무시하는 커스텀 필드)
+ * 이렇게 하면 운영에서 서빙 중인 각 파일이 기대 빌드를 포함하는지로 신/구버전을 판별할 수 있다.
+ * 파일 시간(Last-Modified)이나 1회용 심볼(createCameraController) 대신 내용 기반 판별로 지속 가능.
+ */
+function injectBuildHashIntoAssets(buildHash) {
+  const textAssets = [
+    'src/main.css',
+    'src/main.js',
+    'src/dsp.js',
+    'src/i18n.js',
+    'src/features/camera.js',
+    'src/features/storage.js',
+    'src/features/share.js',
+    'sw.js'
+  ];
+
+  const marker = `hearttune-build: ${buildHash}`;
+  for (const relPath of textAssets) {
+    const filePath = path.join(DIST_DIR, relPath);
+    let content = fs.readFileSync(filePath, 'utf8');
+    if (!content.includes(marker)) {
+      content = `/* ${marker} */\n` + content;
+      fs.writeFileSync(filePath, content, 'utf8');
+    }
+  }
+
+  // manifest.webmanifest는 JSON이므로 주석을 쓸 수 없어 필드로 주입
+  const manifestPath = path.join(DIST_DIR, 'manifest.webmanifest');
+  try {
+    const raw = fs.readFileSync(manifestPath, 'utf8');
+    const data = JSON.parse(raw);
+    data._build = buildHash;
+    fs.writeFileSync(manifestPath, JSON.stringify(data, null, 2) + '\n', 'utf8');
+  } catch (e) {
+    console.warn(`[build-dist] manifest 주입 실패 (무시): ${e.message}`);
+  }
+}
+
 function build() {
   ensureCleanDir(DIST_DIR);
   copyRuntimeFiles();
 
   const buildHash = computeBuildHash();
   injectBuildVersion(buildHash);
+  injectBuildHashIntoAssets(buildHash);
 
   const indexHtml = fs.readFileSync(path.join(DIST_DIR, 'index.html'), 'utf8');
   verifyRelativePaths(indexHtml);
