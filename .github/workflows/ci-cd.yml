@@ -1,0 +1,90 @@
+name: HeartTune CI & Cross-Repo Release
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      release_note:
+        description: '운영 저장소(HeartTune) 배포 커밋 메시지'
+        required: false
+        default: 'chore(release): sync verified production build from HeartTune-test'
+
+jobs:
+  # ① CI: Lint + i18n 키 일치 검증 + DSP 단위 테스트 + Playwright E2E + 빌드 산출물 생성
+  verify-and-build:
+    name: CI Verification & Clean Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout HeartTune-test
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Step 1 - Syntax & Module Lint Check
+        run: npm run lint
+
+      - name: Step 2 - i18n Key Set Parity Verification (ko vs en)
+        run: npm run test:i18n
+
+      - name: Step 3 - DSP Algorithm Unit & Regression Tests
+        run: npm run test:unit
+
+      - name: Step 4 - Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Step 5 - Run Playwright E2E Tests
+        run: npm run test:e2e
+
+      - name: Step 6 - Build Clean Production Artifact (dist/)
+        run: npm run build
+
+      - name: Upload Production Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hearttune-production-dist
+          path: dist/
+          include-hidden-files: true
+          retention-days: 7
+
+  # ② & ③ CD: 태그(v*) 푸시 또는 수동 트리거(workflow_dispatch) 시 운영 HeartTune(main)으로 배포
+  deploy-to-production:
+    name: Deploy to Public HeartTune Repo
+    needs: verify-and-build
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Download Verified Production Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: hearttune-production-dist
+          path: ./dist
+
+ - name: Deploy dist/ to HeartTune (main) via PAT
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          personal_token: ${{ secrets.ACTIONS_DEPLOY_PAT }}
+          external_repository: ${{ github.repository_owner }}/HeartTune
+          publish_branch: main
+          publish_dir: ./dist
+          force_orphan: true
+          commit_message: ${{ inputs.release_note || format('release: deploy {0} from HeartTune-test ({1})', github.ref_name, github.sha) }}

@@ -1,34 +1,25 @@
 {
-  "name": "오늘심박 - 심박수 측정기",
+  "name": "오늘심박 - 심박수 측정기 (HeartTune)",
   "short_name": "오늘심박",
-  "description": "손가락을 카메라에 대고 심박수와 맥박 리듬을 확인하세요. HeartTune heart rate monitor.",
-  "lang": "ko",
-  "dir": "ltr",
+  "description": "스마트폰 카메라로 30초 만에 심박수와 맥박 리듬을 확인하는 간편 심박수 측정기",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#0f172a",
-  "theme_color": "#0f172a",
-  "categories": ["health", "fitness", "lifestyle"],
+  "background_color": "#F4F7FB",
+  "theme_color": "#0F4C81",
   "icons": [
     {
-      "src": "./icons/icon-192.png",
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='42' fill='%230F4C81'/><path d='M96 150 C96 150 36 108 36 68 C36 44 56 30 76 30 C88 30 96 38 96 48 C96 38 104 30 116 30 C136 30 156 44 156 68 C156 108 96 150 96 150 Z' fill='%23FF4D6D'/></svg>",
       "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any"
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
     },
     {
-      "src": "./icons/icon-512.png",
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='112' fill='%230F4C81'/><path d='M256 400 C256 400 96 288 96 180 C96 116 148 80 202 80 C234 80 256 100 256 128 C256 100 278 80 310 80 C364 80 416 116 416 180 C416 288 256 400 256 400 Z' fill='%23FF4D6D'/></svg>",
       "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "./icons/icon-maskable-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
     }
   ]
 }

@@ -1,13 +1,19 @@
 {
-  "name": "hearttune",
-  "version": "0.1.0",
+  "name": "hearttune-test",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "오늘심박 (HeartTune) — 카메라로 심박수를 측정하는 1페이지 웹앱",
+  "description": "오늘심박 (HeartTune) — PPG 심박수 측정 웹앱 개발 및 CI/CD 저장소",
   "scripts": {
-    "start": "python3 -m http.server 8080 --bind 0.0.0.0",
-    "test": "node --test tests/"
+    "lint": "node --check src/dsp.js && node --check src/i18n.js && node --check sw.js && node --check tests/dsp.test.js",
+    "test:i18n": "node --input-type=module -e \"import { validateI18nKeyParity } from './src/i18n.js'; const res = validateI18nKeyParity(); if (!res.valid) { console.error('i18n Key Parity Failed:', res); process.exit(1); } console.log('i18n Key Parity OK (' + res.totalKeys + ' keys)');\"",
+    "test:unit": "node --test tests/dsp.test.js",
+    "test:e2e": "playwright test",
+    "build": "node scripts/build-dist.js",
+    "serve": "npx --yes http-server . -p 4173 -c-1 --silent"
   },
-  "keywords": ["ppg", "heart-rate", "rppg", "pwa", "i18n"],
-  "license": "UNLICENSED"
+  "devDependencies": {
+    "@playwright/test": "^1.48.0",
+    "http-server": "^14.1.1"
+  }
 }

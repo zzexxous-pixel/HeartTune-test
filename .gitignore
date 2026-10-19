@@ -1,2 +1,19 @@
+# 1. 빌드 산출물 및 임시 백업 폴더 제외
+dist/
+old/
+
+# 2. Node.js 패키지 의존성 제외
 node_modules/
+
+# 3. Playwright E2E 테스트 결과물 및 캐시 제외
+playwright-report/
+test-results/
+blob-report/
+playwright/.cache/
+
+# 4. 디버그 샌드박스에서 다운로드한 실측 CSV 데이터 실수 커밋 방지
+*.csv
+
+# 5. OS 및 에디터 임시 파일 제외
 .DS_Store
+Thumbs.db
