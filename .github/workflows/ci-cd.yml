@@ -79,7 +79,7 @@ jobs:
           name: hearttune-production-dist
           path: ./dist
 
- - name: Deploy dist/ to HeartTune (main) via PAT
+      - name: Deploy dist/ to HeartTune (main) via PAT
         uses: peaceiris/actions-gh-pages@v4
         with:
           personal_token: ${{ secrets.ACTIONS_DEPLOY_PAT }}
