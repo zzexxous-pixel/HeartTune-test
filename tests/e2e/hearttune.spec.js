@@ -5,8 +5,17 @@
  */
 import { test, expect } from '@playwright/test';
 
+/** 문서가 실제로 스크롤되지 않는지(원스크린) 확인한다. */
+async function expectNoPageScroll(page) {
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollHeight - window.innerHeight
+  );
+  expect(overflow).toBeLessThanOrEqual(1);
+}
+
 test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
-  test('1. 초기 렌더링, FOUC 방지 클래스, 중장년 타깃 최소 버튼 크기(48px) 및 비의료기기 법적 고지 확인', async ({ page }) => {
+  test('1. 원스크린 렌더링, FOUC 방지, 48px CTA, 스크롤 없음 확인', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 667 });
     // GitHub Pages 하위 경로(/HeartTune-test/) 호환을 위해 상대경로('./') 사용
     await page.goto('./');
 
@@ -14,18 +23,20 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     const body = page.locator('body');
     await expect(body).toHaveClass(/i18n-ready/);
 
-    // 앱 이름 및 비의료기기 법적 고지 표시 확인 ("진단" 단어 미사용 원칙)
     await expect(page.locator('#appTitleTrigger')).toContainText('오늘심박');
-    const footerText = await page.locator('.legal-footer').innerText();
-    expect(footerText).toContain('참고용 정보');
-    expect(footerText).not.toContain('진단');
 
-    // 우측 끝 Primary CTA(#btnPrimaryMeasure) 최소 터치 영역 48x48px 검증
+    // 첫 화면에는 법적 고지 푸터/탭이 없어야 한다 (결과 화면·시트로 이동)
+    await expect(page.locator('.legal-footer')).toHaveCount(0);
+    await expect(page.locator('.tab-nav')).toHaveCount(0);
+
+    // 하단 Primary CTA 최소 터치 영역 48x48px 검증
     const ctaBtn = page.locator('#btnPrimaryMeasure');
     await expect(ctaBtn).toBeVisible();
     const box = await ctaBtn.boundingBox();
     expect(box.height).toBeGreaterThanOrEqual(48);
     expect(box.width).toBeGreaterThanOrEqual(48);
+
+    await expectNoPageScroll(page);
   });
 
   test('2. 한국어(KO) ↔ 영어(EN) 다국어 실시간 전환 및 새로고침 후 유지 검증', async ({ page }) => {
@@ -46,8 +57,14 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     await expect(page.locator('#btnPrimaryMeasure')).toHaveText('Start Measure');
   });
 
-  test('3. 전면 카메라용 상단 화면 조명 스트립(#btnScreenLight) 토글 동작 검증', async ({ page }) => {
+  test('3. 설정 시트의 화면 조명 토글 및 시트 열기/닫기 검증', async ({ page }) => {
     await page.goto('./');
+
+    const settingsSheet = page.locator('#settingsSheet');
+    await expect(settingsSheet).not.toHaveClass(/open/);
+
+    await page.locator('#btnSettings').click();
+    await expect(settingsSheet).toHaveClass(/open/);
 
     const lightStrip = page.locator('#screenLightStrip');
     const lightBtn = page.locator('#btnScreenLight');
@@ -57,15 +74,26 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     await lightBtn.click();
     await expect(lightStrip).toHaveClass(/active/);
     await expect(lightBtn).toContainText('조명 켜짐');
+    await expect(lightBtn).toHaveAttribute('aria-pressed', 'true');
 
     await lightBtn.click();
     await expect(lightStrip).not.toHaveClass(/active/);
+
+    // 닫기 버튼으로 시트 닫기
+    await settingsSheet.locator('[data-sheet-close]').click();
+    await expect(settingsSheet).not.toHaveClass(/open/);
   });
 
-  test('4. 스텔스 디버그 콘솔(타이틀 5연타) + 5초 고속 캘리브레이션(TRACKING) + 완료 후 이력 및 30건 학습 큐 저장 검증', async ({ page }) => {
+  test('4. 스텔스 디버그 + 5초 고속 캘리브레이션(TRACKING) + 결과/법적 고지/이력 저장 검증', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 667 });
     // 가상 클록 설치로 5초 초기 포착 및 15초 측정 완료를 고속 검증
     await page.clock.install();
     await page.goto('./');
+
+    // 측정 시간 15초 선택은 설정 시트에서 한다.
+    await page.locator('#btnSettings').click();
+    await page.locator('.dur-btn[data-duration="15"]').click();
+    await page.locator('#settingsSheet [data-sheet-close]').click();
 
     const debugConsole = page.locator('#debugConsole');
     await expect(debugConsole).not.toHaveClass(/open/);
@@ -77,12 +105,10 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     }
     await expect(debugConsole).toHaveClass(/open/);
 
-    // 시뮬레이션 프리셋: 정상(72bpm) 선택 및 15초 측정 모드 선택
+    // 시뮬레이션 프리셋: 정상(72bpm) 선택
     await page.locator('.sim-preset[data-sim="normal"]').click();
-    await page.locator('.dur-btn[data-duration="15"]').click();
 
     // 디버그 콘솔은 화면 하단을 덮는 오버레이이므로, 실제 사용자처럼 닫고 측정을 시작한다.
-    // (열어 둔 채로는 하단 Primary CTA 가 가려져 클릭이 차단된다)
     await page.locator('#btnCloseDebug').click();
     await expect(debugConsole).not.toHaveClass(/open/);
 
@@ -120,12 +146,25 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     await expect(page.locator('#resultTitle')).toHaveText('정상 범위예요');
     await expect(page.locator('#resultShortNote')).toBeVisible();
     await expect(page.locator('#btnShareImage')).toBeVisible();
+    await expect(page.locator('#btnDetails')).toBeVisible();
 
-    // [검증 D] 최근 30건 캘리브레이션 학습 큐(hearttune_calibration_v1)에 1건 저장되어 상단 배너가 갱신되었는지 확인
+    // 결과 화면에 참고용 의료 고지가 보이고 "진단" 단어는 쓰지 않는다.
+    const legalText = await resultBanner.innerText();
+    expect(legalText).toContain('참고용');
+    expect(legalText).not.toContain('진단');
+
+    // 결과가 떠도 한 화면(스크롤 없음)이고 하단 CTA가 화면 안에 있다.
+    await expectNoPageScroll(page);
+    const shareBox = await page.locator('#btnShareImage').boundingBox();
+    expect(shareBox.y + shareBox.height).toBeLessThanOrEqual(667);
+
+    // [검증 D] 최근 30건 캘리브레이션 학습 큐(hearttune_calibration_v1)에 1건 저장
     await expect(page.locator('#calibStatusText')).toContainText('최근 1건 학습');
 
-    // [검증 E] 측정이력 탭으로 이동하여 일반 이력(hearttune_history_v1) 저장 여부 확인
-    await page.locator('.tab-btn[data-tab="history"]').click();
+    // [검증 E] 메뉴 → 측정 이력 시트에서 일반 이력(hearttune_history_v1) 저장 여부 확인
+    await page.locator('#btnMenu').click();
+    await page.locator('#menuHistory').click();
+    await expect(page.locator('#historySheet')).toHaveClass(/open/);
     const historyItems = page.locator('#historyList .history-item');
     await expect(historyItems).toHaveCount(1);
     await expect(historyItems.first()).toContainText('정상 범위예요');
@@ -154,5 +193,63 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     // [자동 모드로 복귀] 버튼 클릭 시 다시 AUTO 모드로 전환 확인
     await page.locator('#btnResetAutoTune').click();
     await expect(filterModeLabel).toContainText('AUTO');
+  });
+
+  test('6. 기본값(브라우저 언어·후면 카메라·자동 시작 OFF)과 최소 화면 스크롤 없음 검증', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 568 });
+    await page.goto('./');
+
+    // playwright.config.js 의 locale(ko-KR)을 브라우저 언어 기본값으로 사용
+    await expect(page.locator('html')).toHaveAttribute('lang', 'ko');
+
+    await page.locator('#btnSettings').click();
+    await expect(page.locator('#settingsSheet')).toHaveClass(/open/);
+    await expect(page.locator('.cam-btn[data-facing="environment"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('#btnWaveformToggle')).toHaveAttribute('aria-checked', 'false');
+    await page.locator('#settingsSheet [data-sheet-close]').click();
+
+    // 페이지 진입 시 카메라 미리보기가 자동으로 켜진다 (측정 시작 전 손가락 위치 조정).
+    await expect
+      .poll(() => page.evaluate(() => Boolean(document.querySelector('#cameraVideo').srcObject)), {
+        timeout: 5000
+      })
+      .toBe(true);
+
+    // 자동 시작 OFF: 카메라가 켜져 있어도 측정이 시작되지 않는다.
+    await expect(page.locator('#bpmNumber')).toHaveText('--');
+    await expect(page.locator('#btnPrimaryMeasure')).toHaveText('측정 시작');
+
+    await expectNoPageScroll(page);
+  });
+
+  test('7. 디버그 창 상단 경계 드래그로 높이 조절(--debug-height) 검증', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 667 });
+    await page.goto('./');
+
+    const titleTrigger = page.locator('#appTitleTrigger');
+    for (let i = 0; i < 5; i++) {
+      await titleTrigger.click();
+    }
+
+    const debugConsole = page.locator('#debugConsole');
+    await expect(debugConsole).toHaveClass(/open/);
+
+    const before = await debugConsole.boundingBox();
+    const handle = page.locator('#debugResizeHandle');
+    const handleBox = await handle.boundingBox();
+
+    // 위로 80px 드래그 → 콘솔 높이 증가
+    await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y - 80, { steps: 6 });
+    await page.mouse.up();
+
+    const after = await debugConsole.boundingBox();
+    expect(after.height).toBeGreaterThan(before.height + 40);
+    // --debug-height 변수로 크기가 제어된다.
+    const cssVar = await page.evaluate(() =>
+      getComputedStyle(document.documentElement).getPropertyValue('--debug-height').trim()
+    );
+    expect(cssVar).toMatch(/^\d+px$/);
   });
 });

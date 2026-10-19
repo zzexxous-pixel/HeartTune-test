@@ -5,8 +5,8 @@
 > 5~7절(현재 상태 / 할 일 / 미결정)을 확인하고 작업을 시작하세요.
 > 대화 기록은 사라져도 이 문서와 저장소(코드·PR·커밋)는 남습니다. **여기가 유일한 기억입니다.**
 
-- 최종 갱신: 2026-10-19 (KST)
-- 갱신자: Arena 에이전트 세션 (PR #1, #2)
+- 최종 갱신: 2026-10-19 (KST) — 원스크린(한 화면) UX 개편 반영
+- 갱신자: Arena 에이전트 세션 `arena/f50fd973-hearttune-test` (이전 PR #1, #2 → Promote 첫 성공)
 - 저장소: `zzexxous-pixel/HeartTune-test` (개발) / `zzexxous-pixel/HeartTune` (운영)
 
 ---
@@ -23,7 +23,7 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
 
 그 다음 읽기 순서:
 
-1. `docs/40-deployment-guide.md` — **배포/CI 구조(가장 중요)**
+1. `docs/40-deployment-guide.md` — **배포/CI 구조(가장 중요)** — 특히 **8-1절(이관 ③ 개선)** 필독
 2. `docs/20-architecture.md` §5-9 — **파일 구조와 책임 경계**
 3. `docs/30-algorithm-dsp.md` — **신호처리 설계와 왜 그렇게 했는지**
 4. `docs/10-spec.md`, `docs/00-brand-concept.md` — **제품 원칙과 금지 표현**
@@ -60,6 +60,9 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
 5. 영문 표기는 **`HeartTune`** (가운데 띄어쓰기·하이픈 금지).
 
 ### 2-2. 접근성·UX (중장년)
+- **첫 화면은 100dvh 한 화면(스크롤 없음)** — 옵션·이력·안내·기술 지표는 바텀시트로만 (10-spec 4-5b)
+- 기본값은 **후면 카메라 / 30초 / 자동 시작 OFF**, 언어는 **브라우저 언어**
+- 카메라 **미리보기 원형 크기(54px)는 변경 금지** (사용자 지정)
 - 기본 글자 **18px 이상**, 핵심 수치(BPM) **64px 이상**
 - 탭 영역 최소 **48×48px**, 인접 버튼 간격 8px 이상
 - 상태를 **색만으로** 전달 금지 → 색 + 아이콘 + 문구 동시 사용
@@ -99,10 +102,10 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
    │  사람이 화면 확인 후 판단
    ▼
 ② Promote to Production (promote-to-production.yml)  ← workflow_dispatch 전용
-   ⓠ confirm=PROMOTE 검사
-   ⓘ 동일 검증 재수행 (verify.yml)
-   ⓙ 통과한 dist/ 만 HeartTune(main) 으로 push (PAT)
-   ⓚ 운영 URL 스모크 테스트 (200 + "오늘심박" + 자산 200)
+   ⓪ confirm=PROMOTE 검사
+   ① 동일 검증 재수행 (verify.yml)
+   ② 통과한 dist/ 만 HeartTune(main) 으로 push (PAT)
+   ③ 운영 URL 스모크 테스트 (기대 빌드 해시 + 자산 10종 + 구버전 판별, 10분 폴링/timeout 20분)
    ▼
 [운영] HeartTune (main) → https://zzexxous-pixel.github.io/HeartTune/
 ```
@@ -122,19 +125,20 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
 
 | 파일 | 줄 수(참고) | 책임 | 테스트 |
 |---|---|---|---|
-| `index.html` | ~266 | **마크업만** (CSS/JS 없음) | E2E |
-| `src/main.css` | ~805 | 전체 스타일, 중장년 접근성 | E2E(버튼 크기) |
-| `src/main.js` | ~771 | 앱 상태·이벤트 바인딩·측정 오케스트레이션·렌더링 | E2E |
+| `index.html` | ~400 | **마크업만** (원스크린 + 바텀시트 6종) | E2E |
+| `src/main.css` | ~900 | 원스크린 레이아웃·시트·디버그 리사이즈, 중장년 접근성 | E2E |
+| `src/main.js` | ~900 | 앱 상태·이벤트·측정 오케스트레이션·시트 연결 | E2E |
 | `src/dsp.js` | ~816 | PPG 신호처리 순수 로직 (DOM 비의존) | **단위 15개** |
-| `src/i18n.js` | ~228 | ko/en 사전, `t()`, 언어 감지·저장, 키 일치 검증 | 단위 1번 + `test:i18n` |
-| `src/features/camera.js` | ~120 | `getUserMedia`·torch(후확인 적용)·장치 목록 | E2E 간접 |
+| `src/i18n.js` | ~240 | ko/en 사전(81키), `t()`, **브라우저 언어 기본 감지**, 키 일치 검증 | 단위 1번 + `test:i18n` |
+| `src/features/camera.js` | ~150 | `getUserMedia`·torch·전/후면 전환·**진입 미리보기** | E2E 간접 |
+| `src/features/sheets.js` | ~95 | 바텀시트 열기/닫기·포커스 트랩·ESC·백드롭 | E2E |
 | `src/features/storage.js` | ~114 | 이력·캘리브레이션 localStorage 키/용량 관리 | 간접 |
 | `src/features/share.js` | ~120 | 결과 PNG 생성 + Web Share/다운로드 | — |
 | `scripts/serve.js` | ~63 | **의존성 0** 정적 서버(로컬·E2E) | — |
 | `scripts/build-dist.js` | ~143 | dist 생성 + 빌드 해시 + 캐시 자동화 + 경로/자산 검증 | `npm run build` |
 | `sw.js` | ~75 | 오프라인. 문서=네트워크 우선, 자산=캐시 우선 | — |
 | `tests/dsp.test.js` | ~233 | DSP 회귀 15개 | `test:unit` |
-| `tests/e2e/hearttune.spec.js` | ~157 | E2E 5개 | `test:e2e` |
+| `tests/e2e/hearttune.spec.js` | ~250 | E2E 7개 | `test:e2e` |
 
 **분리 기준**: DOM 모름 → `dsp.js` / 화면 문구 → `i18n.js` / 부수효과 1개 캡슐화 → `features/*` / 앱 상태·이벤트 → `main.js`
 
@@ -147,15 +151,16 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
 
 | 항목 | 값 | 검증 명령 | 확인일 |
 |---|---|---|---|
-| 최신 main 커밋 | 57c5226 (PR #2 머지) | git log --oneline -1 | 2026-10-19 |
+| 최신 main 커밋 | 1213748 (main) — smoke 개선은 `arena/f50fd973-hearttune-test` 브랜치에서 PR 대기 | git log --oneline -10 | 2026-10-19 |
 | DSP 단위·회귀 | 15 / 15 통과 | npm run test:unit | 2026-10-19 |
-| Playwright E2E | 5 / 5 통과 | npm run test:e2e | 2026-10-19 |
-| i18n 키 | 65개, ko/en 일치 | npm run test:i18n | 2026-10-19 |
-| dist 빌드 | 10개 파일, 빌드 해시 91282438 | npm run build | 2026-10-19 |
-| 워크플로 | ci / verify / promote-to-production | ls .github/workflows | 2026-10-19 |
+| Playwright E2E | 7 / 7 통과 | npm run test:e2e | 2026-10-19 |
+| i18n 키 | 81개, ko/en 일치 | npm run test:i18n | 2026-10-19 |
+| dist 빌드 | 11개 파일, 빌드 해시 자동(현재 19a75155) | npm run build | 2026-10-19 |
+| 워크플로 | ci / verify / promote-to-production — **smoke 개선 반영(8-1절)** | ls .github/workflows | 2026-10-19 |
 | ① Dev CI (main) | 전부 success | Actions 탭 | 2026-10-19 |
-| ② Promote | ✅ 첫 이관 성공 (Re-run 1회) | Actions → ② 실행 이력 | 2026-10-19 |
-| 운영 배포 | ✅ 서빙 중, 빌드 91282438 | 운영 URL 소스에서 meta hearttune-build 확인 | 2026-10-19 |
+| ② Promote | ✅ 첫 이관 성공 (Re-run 1회로 성공) | Actions → ② 실행 이력 | 2026-10-19 |
+| 운영 배포 | ✅ 서빙 중 — https://zzexxous-pixel.github.io/HeartTune/ · 빌드 91282438 (`<meta name="hearttune-build" content="91282438">` 확인) | 운영 URL 소스에서 meta hearttune-build 확인 | 2026-10-19 |
+| 이관 ③ 로직 | ✅ 개선 완료(지속 체계) — 빌드 해시 판정 / 10분 폴링·진단 로그 / 자산 10종 각 1분 재시도 + 내용 해시 검증(모든 자산에 `hearttune-build` 주입, 시간 미의존) / Summary Re-run 안내 / timeout-minutes 20 | `scripts/build-dist.js`·`promote-to-production.yml`·docs/40 8-1절 | 2026-10-19 |
 | 개발 Pages Source | ⚠️ legacy → GitHub Actions 변경 필요 | gh api repos/OWNER/HeartTune-test/pages --jq .build_type | 2026-10-19 |
 | 운영 Pages Source | ✅ Deploy from a branch / main / (root) | gh api repos/OWNER/HeartTune/pages --jq .source | 2026-10-19 |
 | 실측(실제 카메라) 튜닝 | ❌ 미완 — 사용자 실기기 확인 대기 | — | 2026-10-19 |
@@ -169,6 +174,8 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
 2. **CI 실패 원인 불투명** → E2E는 `list` 리포터 + 실패 로그를 Step Summary/PR 코멘트로 게시.
 3. **불필요한 다운로드** → `npx --yes serve` 제거, `scripts/serve.js`(의존성 0) 사용.
 4. **캐시 수동 관리** → 빌드 해시로 `CACHE_NAME` 자동 교체.
+5. **이관 ③ 스모크 불안정 (2026-10-19 개선 → 2026-10-19 지속 체계)** — "오늘심박" 문구 판정은 이전 빌드와 구분 불가 + Pages 전파 지연으로 5분 폴링 부족 + 자산 일시 404 + 구버전 서빙 미감지(시간/Last-Modified로는 구분 불가).
+   → 빌드 해시(`hearttune-build` 메타) 판정 / 10분 폴링·현재 빌드/README 진단 로그 / 자산 10종 각 1분 재시도 + **모든 자산 내용에 동일 해시 주입으로 신/구버전 판별**(`build-dist.js`가 JS/CSS/sw.js에 `/* hearttune-build: 해시 */`, manifest에 `_build` 필드 주입) / 실패 시 Summary에 "이관 ②는 이미 완료됐을 수 있음 + Re-run failed jobs 안내" / timeout 20분. 상세는 `docs/40-deployment-guide.md` 8-1절.
 
 ---
 
@@ -178,9 +185,9 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
 
 | # | 우선 | 할 일 | 비고 |
 |---|---|---|---|
-| 1 | P0 | 개발 Pages Source → GitHub Actions (개발 미리보기 게이트) | 사용자 작업 |
-| 2 | P1 | 이관 ③(smoke) 로직 개선 커밋 반영 | 로컬에 수정본 있음(31f85ea) — 새 세션에서 PR |
-| 3 | P1 | 실기기(iOS/Android) 검증 결과 반영 | 첫 실사용 테스트 |
+| 1 | P0 | 개발 Pages Source → GitHub Actions (개발 미리보기 게이트) | 사용자 작업 — Settings → Pages → Source 변경 필요 |
+| 2 | P1 | 이관 ③(smoke) 로직 개선 커밋 반영 | ✅ 완료(2026-10-19) — **지속 체계**: 빌드 해시 판정 / 10분 폴링·진단 로그 / 자산 10종(각 1분 재시도) + 모든 자산 내용에 `hearttune-build` 해시 주입(`build-dist.js`)으로 신/구버전 판별(시간 미의존) / Summary Re-run 안내 / timeout 20분 → `promote-to-production.yml`·`build-dist.js`·`docs/40` 8-1절 정리. PR 후 ② 재실행 시 안정성 검증 대기 |
+| 3 | P1 | 실기기(iOS/Android) 검증 결과 반영 | 원스크린 UI + 진입 카메라 미리보기가 iOS Safari/PWA에서도 동작하는지 확인 |
 | 4 | P1 | 실제 카메라 신호로 DSP 튜닝 | 디버그 콘솔 CSV 활용 |
 
 **완료 표시 규칙**: 끝난 항목은 지우지 말고 `✅ 완료(날짜)` 로 바꿔 아래 "8. 세션 로그"로 옮긴다.
@@ -192,6 +199,9 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
 | 항목 | 선택지 | 결정 |
 |---|---|---|
 | 색상 테마 | 차분한 의료 블루(현재) / 다크+레드 / 민트 파스텔 | **미정** (현재 블루) |
+| 원스크린 UI | 3단(헤더/스테이지/CTA) + 시트 | ✅ 확정(2026-10-19) — 10-spec 4-5b |
+| 자동 시작 | OFF(버튼 필요) / 손가락 감지 시 자동 | ✅ **OFF** 확정 |
+| 카메라 진입 미리보기 | 페이지 진입 즉시 ON / 측정 시작 시 ON | ✅ **진입 즉시 ON** 확정(토치 OFF) |
 | 이력 보관 개수 | 200건(현재) / 100건 / 무제한(불가) | 200건 임시 |
 | 15초 측정의 리듬 노출 | 참고 문구만 / 숨김 | 참고 문구(현재) |
 | 전면 카메라 폴백 안내 문구 | 현재 `error.webcam.notice` 사용 | 재검토 여지 |
@@ -218,6 +228,7 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
 - 새 파일은 `sw.js ASSETS` + `build-dist.js RUNTIME_FILES` **둘 다** 등록. 하나만 하면 오프라인/배포에서 404.
 - 개발 저장소 Pages가 `legacy`면 **테스트 실패 커밋도 화면에 배포**된다. `build_type` 확인.
 - 운영 저장소는 반대로 **브랜치 배포**를 써야 한다(설정을 개발/운영 혼동 주의).
+- **이관 ③(스모크) 실패 시**: 운영 저장소에 `release: ...` 커밋이 이미 생겼다면 이관 ②는 성공한 것 — Pages 전파 지연이므로 **Re-run failed jobs**로 ③만 재실행하면 된다(전체 재실행 불필요). 로그의 "현재 서빙 빌드 / README 감지"와 Summary 안내를 확인하라(8-1절).
 
 ### DSP
 - 단위 테스트는 **합성 신호**다. 합성 생성기의 중첩파 진폭(1.4)은 실제와 다를 수 있으므로, 실측 튜닝 시 지표를 그대로 신뢰하지 말 것.
@@ -261,7 +272,11 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
 | 2026-10-19 | Pages 설정 경고 어노테이션 추가 + 문서 갱신 | 완료 | PR #2, `82c67de` |
 | 2026-10-19 | 개발 화면 시뮬레이션 렌더링 확인 → 카메라 선택 빈칸 등 UI 결함 7건 수정 | 완료 | `d78b29f` |
 | 2026-10-19 | 운영 첫 이관 대기 (Pages 설정 + ② 실행은 사용자 작업) | **대기** | — |
-|  |  |  |  |
+| 2026-10-19 | ② Promote 첫 이관 성공 (Re-run 1회) — 운영 https://zzexxous-pixel.github.io/HeartTune/ 빌드 91282438 서빙 중 | ✅ 완료 | Actions 실행 이력, HeartTune `release: main from HeartTune-test (91282438)` |
+| 2026-10-19 | 이관 ③(smoke) 로직 개선 — 빌드 해시 판정 / 10분 폴링·진단 로그 / 자산 10종 재시도 / `createCameraController` 구버전 판별 / Summary Re-run 안내 / timeout 20분 | ✅ 완료(로컬) — `promote-to-production.yml` 반영, `docs/40-deployment-guide.md` 8-1절 정리, 로컬 검증(lint/i18n/unit/build) 통과, `agent.md` 5·6·10절 갱신 | `arena/f50fd973-hearttune-test` 브랜치 (PR 대기) |
+| 2026-10-19 | 이관 ③ 지속 체계로 전환 — `createCameraController` 1회용 마커 제거 → 모든 자산에 빌드 해시 주입(`build-dist.js`) + 내용 기반 검증으로 교체 (시간 미의존) | ✅ 완료(로컬) — `scripts/build-dist.js` 모든 자산에 `hearttune-build` 주입·`manifest._build` 추가, `promote-to-production.yml` 자산 해시 검증으로 교체, `docs/40`·`agent.md` 갱신, 빌드 91282438 재검증 통과 | `arena/f50fd973-hearttune-test` 브랜치 |
+
+| 2026-10-19 | **원스크린 UX 개편** — 탭/설정카드/파형/지표/법적푸터를 첫 화면에서 제거하고 헤더·스테이지·하단 CTA 3단 `100dvh` 구성. ⚙️ 설정 시트·≡ 메뉴 시트·이력/안내/법적고지/상세 시트 신설(`src/features/sheets.js`). 후면 카메라 기본 + **진입 즉시 미리보기**(토치 OFF), 자동 시작 OFF, 브라우저 언어 기본, 결과 배너에 법적 고지, 디버그 창 상단 드래그 리사이즈(`--debug-height`) | ✅ 완료(로컬) — i18n 81키 / unit 15 / E2E 7(320×568~414×896·가로모드 스크롤 0 검증) / build 통과 | `arena/f50fd973-hearttune-test` 브랜치 |
 
 > **로그 규칙**: 최신이 아래. 항목이 20개를 넘으면 오래된 것은 `docs/changelog-archive.md` 로 옮긴다.
 

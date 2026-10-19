@@ -101,7 +101,7 @@ jobs:
     name: '이관 ③ 운영 배포 확인'
     needs: publish
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
 
     steps:
       - name: Download verified artifact (비교용)
@@ -110,49 +110,129 @@ jobs:
           name: hearttune-production-dist
           path: ./dist
 
-      - name: Wait for production URL
+      - name: Wait for production URL (build hash 기준)
         env:
           PROD_URL: ${{ env.PROD_URL }}
           RUN_ID: ${{ github.run_id }}
         run: |
-          set -u
+          set -eu
           echo "확인 대상: ${PROD_URL}"
+          # 기대 빌드 해시 = dist/index.html 의 <meta name="hearttune-build" content="...">
+          expected=""
+          if [ -f ./dist/index.html ]; then
+            expected=$(grep -o 'hearttune-build[^>]*content="[^"]*"' ./dist/index.html | sed -E 's/.*content="([^"]*)".*/\1/' || true)
+          fi
+          if [ -z "${expected}" ]; then
+            echo "::error::dist/index.html 에서 hearttune-build 메타를 찾지 못했습니다."
+            exit 1
+          fi
+          echo "기대 빌드: ${expected}"
+          echo "dist/index.html meta: <meta name=\"hearttune-build\" content=\"${expected}\">"
+
           ok=0
-          for i in $(seq 1 30); do
+          for i in $(seq 1 60); do
             code=$(curl -sS -L -o /tmp/page.html -w '%{http_code}' \
                      -H 'Cache-Control: no-cache' \
                      "${PROD_URL}?deploy-check=${RUN_ID}-${i}" || echo "000")
-            marker=$(grep -c '오늘심박' /tmp/page.html 2>/dev/null || true)
-            if [ "${code}" = "200" ] && [ "${marker:-0}" -gt 0 ]; then
-              echo "✅ 운영 페이지 응답 정상 (${i}회 시도, HTTP ${code})"
+            if grep -q "hearttune-build.*content=\"${expected}\"" /tmp/page.html 2>/dev/null; then
+              echo "✅ 운영 페이지가 기대 빌드(${expected})를 서빙 중 (시도 ${i}/60, HTTP ${code})"
               ok=1
               break
             fi
-            echo "대기 중… (${i}/30) HTTP ${code}"
+            # 진단: 현재 서빙 중인 빌드 해시 추출
+            live_build=$(grep -o 'hearttune-build[^>]*content="[^"]*"' /tmp/page.html 2>/dev/null | sed -E 's/.*content="([^"]*)".*/\1/' || true)
+            if [ -n "${live_build}" ]; then
+              echo "대기 중… (${i}/60) HTTP ${code} — 현재 서빙 빌드: ${live_build} (기대: ${expected})"
+            else
+              if grep -qi "readme" /tmp/page.html 2>/dev/null; then
+                echo "대기 중… (${i}/60) HTTP ${code} — README 서빙 중으로 보임 (Pages 빌드 대기, 현재 빌드 없음)"
+              else
+                echo "대기 중… (${i}/60) HTTP ${code} — hearttune-build 메타 없음 (기대: ${expected})"
+              fi
+            fi
             sleep 10
           done
 
           if [ "${ok}" != "1" ]; then
-            echo "::error title=운영 배포 확인 실패::${PROD_URL} 가 새 빌드를 서빙하지 않습니다. HeartTune 저장소 main 커밋과 Pages 설정을 확인하세요."
+            echo ""
+            echo "::error title=운영 배포 확인 실패::${PROD_URL} 가 기대 빌드(${expected})를 10분 내에 서빙하지 않았습니다. HeartTune 저장소 main 커밋과 Pages 설정을 확인하세요."
+            echo "--- 현재 서빙 중인 페이지 진단 ---"
+            echo "HTTP 최종 코드: ${code:-unknown}"
+            live_build_final=$(grep -o 'hearttune-build[^>]*content="[^"]*"' /tmp/page.html 2>/dev/null | sed -E 's/.*content="([^"]*)".*/\1/' || echo "(없음)")
+            echo "현재 서빙 빌드: ${live_build_final}"
+            echo "기대 빌드: ${expected}"
+            if grep -qi "readme" /tmp/page.html 2>/dev/null; then
+              echo "README 감지: 운영 저장소가 README를 서빙 중일 수 있습니다(Pages 빌드 지연 또는 push 미반영)."
+            fi
+            # 운영 Pages 빌드 지연 시 index.html 대신 README가 서빙될 수 있음
+            echo "--- 페이지 헤드 일부(디버깅, 최대 50줄) ---"
+            head -n 50 /tmp/page.html 2>/dev/null || echo "(페이지 없음)"
+            echo "--- 페이지 크기 ---"
+            wc -c /tmp/page.html 2>/dev/null || true
             exit 1
           fi
 
-      - name: Verify runtime assets
+      - name: Verify runtime assets (10종, 각 1분 재시도 + 빌드 해시 지속 검증)
         env:
           PROD_URL: ${{ env.PROD_URL }}
         run: |
           set -u
-          failed=0
-          for path in src/dsp.js src/i18n.js sw.js manifest.webmanifest; do
-            code=$(curl -sS -L -o /dev/null -w '%{http_code}' \
-                     -H 'Cache-Control: no-cache' "${PROD_URL}${path}" || echo "000")
-            echo "${path} → HTTP ${code}"
-            [ "${code}" = "200" ] || failed=1
-          done
-          if [ "${failed}" != "0" ]; then
-            echo "::error title=런타임 자산 누락::운영 저장소에 일부 파일이 없습니다."
+          # 기대 빌드 해시 = dist/index.html meta (모든 자산에 동일 해시가 주입되어 있음)
+          expected=$(grep -o 'hearttune-build[^>]*content="[^"]*"' ./dist/index.html | sed -E 's/.*content="([^"]*)".*/\1/' || true)
+          if [ -z "${expected}" ]; then
+            echo "::error::dist/index.html 에서 기대 빌드 해시를 찾지 못했습니다."
             exit 1
           fi
+          echo "기대 빌드 해시(자산 검증용): ${expected}"
+          echo "검증 방식: HTTP 200 + 응답 본문에 빌드 해시(${expected}) 포함 여부 (내용 기반, 시간 의존 없음)"
+          failed=0
+          assets=(
+            "src/main.css"
+            "src/main.js"
+            "src/dsp.js"
+            "src/i18n.js"
+            "src/features/camera.js"
+            "src/features/sheets.js"
+            "src/features/storage.js"
+            "src/features/share.js"
+            "sw.js"
+            "manifest.webmanifest"
+          )
+          echo "검증 대상 자산 10종:"
+          printf '  - %s\n' "${assets[@]}"
+          for asset in "${assets[@]}"; do
+            ok_asset=0
+            for attempt in $(seq 1 6); do
+              code=$(curl -sS -L -o /tmp/asset_check.tmp -w '%{http_code}' \
+                       -H 'Cache-Control: no-cache' "${PROD_URL}${asset}?v=${GITHUB_RUN_ID}-${attempt}" || echo "000")
+              echo "${asset} (시도 ${attempt}/6) → HTTP ${code}"
+              if [ "${code}" = "200" ]; then
+                # 내용 기반 검증: 모든 자산은 빌드 해시를 포함해야 함 (JS/CSS는 주석, sw.js는 CACHE_NAME, manifest는 _build 필드)
+                if grep -q "${expected}" /tmp/asset_check.tmp 2>/dev/null; then
+                  echo "  ✅ ${asset} 에서 빌드 해시 ${expected} 확인 — 신버전"
+                  ok_asset=1
+                  break
+                else
+                  echo "  ⚠️ ${asset} 200이지만 빌드 해시(${expected}) 없음 — 구버전 캐시/Pages 지연 가능성"
+                  echo "     head 미리보기:"
+                  head -c 180 /tmp/asset_check.tmp 2>/dev/null | tr '\n' ' ' | cut -c1-160 || true
+                  echo ""
+                fi
+              fi
+              if [ "${attempt}" -lt 6 ]; then
+                sleep 10
+              fi
+            done
+            if [ "${ok_asset}" != "1" ]; then
+              echo "::error::${asset} 자산이 60초 내 기대 빌드(${expected})를 서빙하지 않았습니다. (200이어도 내용이 구버전이면 실패)"
+              failed=1
+            fi
+          done
+          if [ "${failed}" != "0" ]; then
+            echo "::error title=런타임 자산 누락/구버전::운영 저장소에 일부 파일이 없거나 구버전을 서빙 중입니다. HeartTune 저장소 main 브랜치와 Pages 빌드 상태를 확인하세요."
+            exit 1
+          fi
+          echo "✅ 모든 자산(10종) 200 + 빌드 해시 확인"
 
       - name: Compare served index.html with built artifact
         continue-on-error: true
@@ -168,6 +248,7 @@ jobs:
             echo "✅ 운영 index.html 이 빌드 산출물과 완전히 일치합니다."
           else
             echo "::warning::운영 index.html 이 빌드 산출물과 다릅니다(CDN 캐시 또는 Pages 빌드 지연 가능)."
+            # 빌드 해시는 일치하더라도 공백/줄바꿈 차이로 sha가 다를 수 있음 — 해시 메타는 이미 위에서 검증됨
           fi
 
       - name: Write job summary
@@ -191,4 +272,10 @@ jobs:
             echo "| 실행 로그 | ${RUN_URL} |"
             echo ""
             echo "운영 저장소 커밋 이력: https://github.com/${{ env.PROD_REPO }}/commits/main"
+            if [ "${RESULT}" != "success" ]; then
+              echo ""
+              echo "> ⚠️ **이관 ②(운영 저장소 반영)는 이미 완료됐을 수 있습니다.**"
+              echo "> HeartTune 저장소 커밋 이력을 먼저 확인하세요. Pages 빌드 지연으로 이관 ③만 실패한 경우, 잠시 뒤 **Actions → 해당 실행 → Re-run failed jobs** 로 ③만 재실행하면 됩니다."
+              echo "> 이관 ②가 실제로 실패했다면(운영 저장소에 커밋 없음), 전체를 다시 실행하세요."
+            fi
           } >> "$GITHUB_STEP_SUMMARY"

@@ -126,12 +126,12 @@ E2E가 실패하면 **실패 로그가 PR 코멘트로 자동 게시**됩니다.
 | 이관 ⓪ 확인 | `confirm == PROMOTE` 검사 | 아무 것도 배포되지 않음 |
 | 이관 ① 소스 재검증 | 개발 CI와 **완전히 동일한** 검증 | 운영 반영 중단 |
 | 이관 ② 운영 저장소 반영 | `dist/` → `HeartTune`의 `main` push (PAT) | 운영 반영 중단 |
-| 이관 ③ 운영 배포 확인 | 운영 URL 200 + `오늘심박` 문구 + 자산 200 (최대 5분) | 실패 표시. 로그 확인 후 재실행 |
+| 이관 ③ 운영 배포 확인 | 운영 URL의 **기대 빌드 해시**(`<meta name="hearttune-build">`) + **모든 자산(10종) 내용에 동일 해시 포함 여부**로 신/구버전 판별(시간 의존 없음) — **최대 10분 폴링, 잡 타임아웃 20분** | 실패 표시. **Summary 안내 확인 → Re-run failed jobs로 ③만 재실행** (8-1절) |
 
 ### 결과 확인
 
 - **Actions 실행 화면** — 단계별 성공/실패
-- **실행 Summary** — 결과·소스 커밋 SHA·운영 URL·운영 저장소 커밋 링크
+- **실행 Summary** — 결과·소스 커밋 SHA·운영 URL·운영 저장소 커밋 링크. ③ 실패 시 "이관 ②는 이미 완료됐을 수 있음 + Re-run 안내"가 함께 표시됩니다.
 - **HeartTune 저장소 → Commits** — `release: main from HeartTune-test (<sha>)` 1건씩 누적(이력 보존)
 - **운영 화면** — https://zzexxous-pixel.github.io/HeartTune/
 
@@ -151,8 +151,9 @@ E2E가 실패하면 **실패 로그가 PR 코멘트로 자동 게시**됩니다.
 2. 모든 런타임 파일 내용으로 **빌드 해시(8자)** 계산
 3. `dist/sw.js` 의 `CACHE_NAME` 을 `hearttune-cache-<해시>` 로 자동 교체 → **배포할 때마다 캐시 자동 무효화**
 4. `dist/index.html` 에 `<meta name="hearttune-build" content="<해시>">` 삽입
-5. 절대경로(`/...`) 사용 금지 + **index.html 이 참조하는 자산이 dist 에 있는지** 검사
-6. `.nojekyll` 생성
+5. **모든 텍스트 자산(JS/CSS/sw.js)에 `/* hearttune-build: <해시> */` 주석, `manifest.webmanifest`에 `_build` 필드로 동일 해시 주입** → 운영 스모크가 **내용(Content) 기반**으로 신/구버전을 판별하는 지속 체계(시간/`Last-Modified` 미의존)
+6. 절대경로(`/...`) 사용 금지 + **index.html 이 참조하는 자산이 dist 에 있는지** 검사
+7. `.nojekyll` 생성
 
 > **더 이상 `sw.js` 캐시 버전을 사람이 올릴 필요가 없습니다.**
 > Service Worker 는 문서(HTML)를 네트워크 우선으로 가져오므로, 새 배포가 즉시 반영되고 오프라인일 때만 캐시를 사용합니다.
@@ -202,7 +203,7 @@ sw.js, manifest.webmanifest
 | 검증 | 명령 | 내용 |
 | :--- | :--- | :--- |
 | 구문·모듈 lint | `npm run lint` | 모든 JS/ESM 모듈 구문 검사 |
-| i18n 키 일치 | `npm run test:i18n` | ko/en 키 집합 100% 일치 (62키) |
+| i18n 키 일치 | `npm run test:i18n` | ko/en 키 집합 100% 일치 (65키) |
 | DSP 단위·회귀 | `npm run test:unit` | 15개 — BPM 정확도, 하모닉 혼동, 박동 검출, 리듬, 적응형 캘리브레이션 |
 | E2E | `npm run test:e2e` | 5개 — 렌더링/법적 고지/언어 전환/조명/측정 플로우/디버그 샌드박스 |
 | 산출물 빌드 | `npm run build` | dist 생성 + 경로/자산 검증 + 캐시 버전 자동화 |
@@ -228,8 +229,55 @@ npm run serve          # http://localhost:8080
 | ② Promote ⓪ 에서 중단 | `confirm` 에 `PROMOTE` 를 정확히 입력 |
 | ② Promote ① 실패 | 개발 CI와 동일한 검증 실패. 먼저 ①을 초록으로 |
 | ② Promote ② 실패 | `ACTIONS_DEPLOY_PAT` 미등록/만료/권한 부족 |
-| ② Promote ③ 실패 | 운영 Pages 빌드 지연 또는 Pages 설정 오류 → 재실행 |
+| ② Promote ③ 실패 | 운영 Pages 빌드 지연(수 분) 또는 Pages 설정 오류 → **로그의 "현재 서빙 빌드 / README 감지" 확인 후 Summary 안내대로 Re-run failed jobs** (8-1절). 이관 ②는 이미 성공했을 수 있습니다. |
 | 운영 화면이 예전 그대로 | 서비스 워커 캐시. 새로고침 2회 또는 시크릿 창. (캐시 이름은 빌드마다 자동 변경됨) |
+
+---
+
+## 8-1. 운영 스모크(이관 ③) 안정화 — 왜 이렇게 바꿨는가 (2026-10-19)
+
+> 첫 Promote 성공 후 발견된 ③ 단계의 불안정(flaky) 원인을 제거하기 위한 개선. 근거는 첫 이관 로그(Re-run 1회로 성공)와 GitHub Pages 브랜치 배포의 전파 지연 특성.
+
+### 왜 바꿨는가
+
+| 기존(문제) | 개선(해결) |
+|---|---|
+| 판정 기준이 `오늘심박` 문자열 → 이전 빌드도 같은 문구를 포함하므로 **새 빌드 반영 여부를 구분할 수 없음** | **판정 기준을 `dist/index.html`의 `<meta name="hearttune-build" content="해시">`로 변경**. 기대 해시는 빌드 산출물에서 추출하고, 운영 응답에 같은 해시가 나타날 때만 성공으로 본다. |
+| 최대 5분(30회×10초) 폴링 → Pages 브랜치 배포는 push 후 **수 분 지연**될 수 있어 타임아웃 | **최대 10분 폴링(60회×10초), 잡 `timeout-minutes: 20`** 으로 연장. 매 시도마다 "현재 서빙 중인 빌드 해시"를 로그에 출력해 진행 상황을 알 수 있다. |
+| 실패 시 "무엇이 서빙 중인지" 알 수 없음 → 원인 파악 불가 | **실패 시 현재 서빙 중인 빌드 해시와 페이지 크기/헤드를 로그에 출력**. `README` 문자열이 감지되면 "Pages가 아직 README를 서빙 중"임을 명시 — 운영 저장소 push는 됐지만 Pages 빌드가 끝나지 않은 상태. |
+| 자산 검증 4종 한 번 체크 → CDN/Pages 전파 지연으로 **일시 404가 실패로 처리** | **자산 10종 전부 검증 + 각각 최대 1분 재시도(6회×10초)**. 대상: `src/main.css`, `src/main.js`, `src/dsp.js`, `src/i18n.js`, `src/features/camera.js`, `src/features/sheets.js`, `src/features/storage.js`, `src/features/share.js`, `sw.js`, `manifest.webmanifest` ( `RUNTIME_FILES` + `main.css`/`manifest` 포함). |
+| 파일명은 같지만 **내용이 다른 구버전**이 캐시/지연으로 서빙될 수 있음(시간/`Last-Modified`로는 구분 불가) | **빌드 시 모든 자산에 동일 해시 주입(JS/CSS/sw.js는 `/* hearttune-build: 해시 */`, manifest는 `_build` 필드, index.html은 meta, sw.js는 CACHE_NAME)** → 스모크가 각 파일 내용에 기대 해시가 포함됐는지로 판별. 함수명 같은 1회용 마커가 아니라 매 빌드 해시로 지속 가능. |
+| ③ 실패 시 "이관 전체가 실패한 것처럼" 보여 사용자 혼란 → 운영 저장소 커밋은 이미 된 상태 | **실패 시 Summary에 안내 추가**: "이관 ②(운영 저장소 반영)는 이미 완료됐을 수 있음 — HeartTune 커밋 이력 확인 → Pages 지연이면 **Actions → 해당 실행 → Re-run failed jobs**로 ③만 재실행". 전체 워크플로를 다시 돌릴 필요가 없다. |
+
+### 동작 요약
+
+```
+기대 해시 = dist/index.html 의 hearttune-build (예: 91282438)
+# 빌드 시 모든 자산에 동일 해시가 이미 주입되어 있음:
+#  - index.html: <meta name="hearttune-build" content="해시">
+#  - src/*.js, src/*.css, sw.js: /* hearttune-build: 해시 */ (sw.js는 CACHE_NAME도 hearttune-cache-해시)
+#  - manifest.webmanifest: { "_build": "해시", ... }
+
+for 1..60 (10초 간격, 10분):
+  운영 URL?deploy-check=... 을 no-cache로 GET
+  응답에 <meta name="hearttune-build" content="기대 해시"> 가 있으면 성공
+  없으면 현재 서빙 해시/README 여부를 로그에 남기고 대기
+→ 실패 시 현재 서빙 빌드/README/페이지 헤드를 에러 로그로 출력
+
+자산 10종 각각 (src/main.css, src/main.js, src/dsp.js, src/i18n.js, src/features/*.js 4종, sw.js, manifest.webmanifest):
+  for 1..6 (10초 간격, 1분):
+    PROD_URL + asset 을 no-cache로 GET
+    → HTTP 200 이고 응답 본문에 기대 해시(91282438)가 포함되면 통과
+    → 200이지만 해시가 없으면 구버전 캐시로 간주해 재시도
+  6회 모두 실패하면 잡 실패
+# → 파일 시간(Last-Modified)이나 1회용 심볼에 의존하지 않는 내용 기반 지속 체계
+```
+
+### 운영자가 해야 할 일
+
+- ③이 실패하면 **먼저 HeartTune 저장소 Commits 확인**: `release: ... from HeartTune-test (...)` 커밋이 생겼다면 이관 ②는 성공한 것이다.
+- 그 경우 **Re-run failed jobs**만 실행하면 된다(전체 재실행 불필요). Pages가 전파를 마치면 1~2분 내 성공한다.
+- 반대로 운영 저장소에 커밋이 없다면 ② 자체가 실패한 것이므로 전체 워크플로를 다시 실행한다.
 
 ---
 
@@ -237,6 +285,9 @@ npm run serve          # http://localhost:8080
 
 - ✅ DSP 단위·회귀 테스트 **15/15 통과**
 - ✅ Playwright E2E **5/5 통과**
-- ✅ 빌드·경로 검증 통과, Service Worker 캐시 버전 자동화
+- ✅ i18n **65키** ko/en 일치
+- ✅ 빌드·경로 검증 통과, Service Worker 캐시 버전 자동화 (빌드 91282438)
+- ✅ **개발/운영 분리 완료 — ② Promote 첫 이관 성공 (Re-run 1회)**, 운영 서빙 중: https://zzexxous-pixel.github.io/HeartTune/ (빌드 91282438, `hearttune-build` 메타로 확인)
+- ✅ **이관 ③ 스모크 로직 개선 완료 (2026-10-19, 지속 체계)** — 빌드 해시 판정 / 10분 폴링 + 진단 로그 / 자산 10종 각각 1분 재시도 + 내용에 해시 포함 여부로 구버전 판별(모든 자산에 `hearttune-build` 주입) / Summary Re-run 안내 / timeout 20분 (8-1절)
 - ⚠️ **개발 저장소 Pages Source 를 `GitHub Actions` 로 변경해야** 미리보기 게이트가 동작합니다 (2-1)
 - ⚠️ 실측(실제 카메라) 신호 검증은 아직 합성 신호 수준입니다 — 디버그 콘솔 CSV 로 실측 튜닝 필요
