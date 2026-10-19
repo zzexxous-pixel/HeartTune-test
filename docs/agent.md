@@ -45,7 +45,7 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
 | 저장 | `localStorage`만 (서버 없음, 영상 전송 없음) |
 | 공유 | 결과를 **큰 글씨 PNG**로 생성 → Web Share / 다운로드 |
 | 타깃 | **중장년** (+ 자녀가 부모님 확인) |
-| 언어 | ko 기본 / en (i18n 키 65개, 구조로 다국어 확장 가능) |
+| 언어 | ko 기본 / en (i18n 키 81개, 구조로 다국어 확장 가능) |
 | 호스팅 | GitHub Pages (HTTPS 필수: 카메라 API) |
 
 ---
@@ -61,8 +61,9 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
 
 ### 2-2. 접근성·UX (중장년)
 - **첫 화면은 100dvh 한 화면(스크롤 없음)** — 옵션·이력·안내·기술 지표는 바텀시트로만 (10-spec 4-5b)
-- 기본값은 **후면 카메라 / 30초 / 자동 시작 OFF**, 언어는 **브라우저 언어**
-- 카메라 **미리보기 원형 크기(54px)는 변경 금지** (사용자 지정)
+- 기본값은 **후면 카메라 / 30초 / 자동 시작 OFF / 파형 ON / 화면 조명 ON**, 언어는 **브라우저 언어**
+- 카메라 미리보기 **54px 변경 금지** (사용자 지정)
+- 헤더 순서는 **[≡ 메뉴] [❤️ 로고] [EN] [⚙️]** — 로고가 남는 공간을 차지한다.
 - 기본 글자 **18px 이상**, 핵심 수치(BPM) **64px 이상**
 - 탭 영역 최소 **48×48px**, 인접 버튼 간격 8px 이상
 - 상태를 **색만으로** 전달 금지 → 색 + 아이콘 + 문구 동시 사용
@@ -94,10 +95,12 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
    ▼
 ① Dev CI (ci.yml)  →  verify.yml 재사용
    ├ 검증① lint · i18n · DSP 단위(15)
-   ├ 검증② Playwright E2E(5)
+   ├ 검증② Playwright E2E(7)
    ├ 검증③ dist 빌드(+경로/자산 검증, 캐시 해시 자동)
    └ ✅ 전부 통과 시에만 → 개발 미리보기 배포 (GitHub Actions Pages)
         https://zzexxous-pixel.github.io/HeartTune-test/
+
+   PR 은 별도 `preview-pr.yml` 이 검증 산출물을 `/preview/` 에 배포한다. 루트는 최신 main 빌드로 유지한다.
    │
    │  사람이 화면 확인 후 판단
    ▼
@@ -118,6 +121,20 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
 
 > ⚠️ **에이전트 권한 한계**: Arena 세션 토큰으로는 **workflow 수동 실행(dispatch)·Pages 설정 변경·Secrets 조회**가 403으로 막힙니다.
 > 이 세 가지는 **사용자에게 요청**하고, 에이전트는 코드/문서/로컬 검증까지만 담당합니다.
+
+### 3-1. 세션 ↔ 브랜치 ↔ PR 운영 방식
+
+- **1세션 = 1브랜치 = 1PR** 로 작업한다. 이 저장소 세션에서 사용하는 브랜치는 `arena/c85567d7-hearttune-test` 이다.
+- 한 세션에서 커밋을 여러 개 쌓을 수 있지만, **머지는 마지막에 1회**만 한다. 머지 후에는 해당 세션에서 추가 변경이 있더라도 로컬 커밋까지만 가능하며 원격 푸시/PR을 이어서 만들지 않는다. 필요한 후속 작업은 새 세션/PR로 진행한다.
+- 머지 전 화면 확인은 아래 세 곳을 모두 기준으로 삼는다.
+
+| 확인 | 주소/명령 | 목적 |
+|---|---|---|
+| ① PR 미리보기 | `https://zzexxous-pixel.github.io/HeartTune-test/preview/` | PR 코드가 최신 main 루트를 덮어쓰지 않고 표시되는지 확인 |
+| ② 로컬 미리보기 | `npm run preview` → `http://localhost:8080/` | 서비스 워커 캐시 없이 현재 작업본 확인 |
+| ③ 머지 후 개발 페이지 | `https://zzexxous-pixel.github.io/HeartTune-test/` | Dev CI 성공 후 최신 main 루트 반영 확인 |
+
+- PR 을 **병합하지 않고 닫으면** `preview-pr.yml` 의 `cleanup-preview` 가 최신 main 을 다시 배포해 `/preview/` 를 제거한다.
 
 ---
 
@@ -151,17 +168,18 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
 
 | 항목 | 값 | 검증 명령 | 확인일 |
 |---|---|---|---|
-| 최신 main 커밋 | 1213748 (main) — smoke 개선은 `arena/f50fd973-hearttune-test` 브랜치에서 PR 대기 | git log --oneline -10 | 2026-10-19 |
+| 최신 main 커밋 | `fded047` (PR #3 머지 완료) | git log --oneline -5 | 2026-10-19 |
 | DSP 단위·회귀 | 15 / 15 통과 | npm run test:unit | 2026-10-19 |
-| Playwright E2E | 7 / 7 통과 | npm run test:e2e | 2026-10-19 |
+| Playwright E2E | 테스트 7개 구성 (로컬 Chromium 런타임 라이브러리 누락으로 실행 불가, CI 확인 대기) | `PW_LOCAL=1 npx playwright test` | 2026-10-19 |
 | i18n 키 | 81개, ko/en 일치 | npm run test:i18n | 2026-10-19 |
-| dist 빌드 | 11개 파일, 빌드 해시 자동(현재 19a75155) | npm run build | 2026-10-19 |
-| 워크플로 | ci / verify / promote-to-production — **smoke 개선 반영(8-1절)** | ls .github/workflows | 2026-10-19 |
-| ① Dev CI (main) | 전부 success | Actions 탭 | 2026-10-19 |
+| 개발 배포 빌드 | `b5ad15d2` 서빙 중 | 개발 Pages 빌드 메타 확인 | 2026-10-19 |
+| dist 빌드 | 11개 파일, 빌드 해시 자동 | npm run build | 2026-10-19 |
+| 워크플로 | ci / verify / promote-to-production / preview-pr | ls .github/workflows | 2026-10-19 |
+| ① Dev CI (main) | success | Actions 탭 | 2026-10-19 |
 | ② Promote | ✅ 첫 이관 성공 (Re-run 1회로 성공) | Actions → ② 실행 이력 | 2026-10-19 |
 | 운영 배포 | ✅ 서빙 중 — https://zzexxous-pixel.github.io/HeartTune/ · 빌드 91282438 (`<meta name="hearttune-build" content="91282438">` 확인) | 운영 URL 소스에서 meta hearttune-build 확인 | 2026-10-19 |
 | 이관 ③ 로직 | ✅ 개선 완료(지속 체계) — 빌드 해시 판정 / 10분 폴링·진단 로그 / 자산 10종 각 1분 재시도 + 내용 해시 검증(모든 자산에 `hearttune-build` 주입, 시간 미의존) / Summary Re-run 안내 / timeout-minutes 20 | `scripts/build-dist.js`·`promote-to-production.yml`·docs/40 8-1절 | 2026-10-19 |
-| 개발 Pages Source | ⚠️ legacy → GitHub Actions 변경 필요 | gh api repos/OWNER/HeartTune-test/pages --jq .build_type | 2026-10-19 |
+| 개발 Pages Source | `GitHub Actions` (workflow) | 저장소 Pages 설정 | 2026-10-19 |
 | 운영 Pages Source | ✅ Deploy from a branch / main / (root) | gh api repos/OWNER/HeartTune/pages --jq .source | 2026-10-19 |
 | 실측(실제 카메라) 튜닝 | ❌ 미완 — 사용자 실기기 확인 대기 | — | 2026-10-19 |
 
@@ -185,7 +203,7 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
 
 | # | 우선 | 할 일 | 비고 |
 |---|---|---|---|
-| 1 | P0 | 개발 Pages Source → GitHub Actions (개발 미리보기 게이트) | 사용자 작업 — Settings → Pages → Source 변경 필요 |
+| 1 | P1 | PR 미리보기 활성화 확인 | PR에서 `preview-pr.yml` 검증·배포 후 `/preview/` URL 및 Summary를 확인하고, 미병합 close 때 cleanup 되는지 확인 |
 | 2 | P1 | 이관 ③(smoke) 로직 개선 커밋 반영 | ✅ 완료(2026-10-19) — **지속 체계**: 빌드 해시 판정 / 10분 폴링·진단 로그 / 자산 10종(각 1분 재시도) + 모든 자산 내용에 `hearttune-build` 해시 주입(`build-dist.js`)으로 신/구버전 판별(시간 미의존) / Summary Re-run 안내 / timeout 20분 → `promote-to-production.yml`·`build-dist.js`·`docs/40` 8-1절 정리. PR 후 ② 재실행 시 안정성 검증 대기 |
 | 3 | P1 | 실기기(iOS/Android) 검증 결과 반영 | 원스크린 UI + 진입 카메라 미리보기가 iOS Safari/PWA에서도 동작하는지 확인 |
 | 4 | P1 | 실제 카메라 신호로 DSP 튜닝 | 디버그 콘솔 CSV 활용 |
@@ -277,6 +295,7 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
 | 2026-10-19 | 이관 ③ 지속 체계로 전환 — `createCameraController` 1회용 마커 제거 → 모든 자산에 빌드 해시 주입(`build-dist.js`) + 내용 기반 검증으로 교체 (시간 미의존) | ✅ 완료(로컬) — `scripts/build-dist.js` 모든 자산에 `hearttune-build` 주입·`manifest._build` 추가, `promote-to-production.yml` 자산 해시 검증으로 교체, `docs/40`·`agent.md` 갱신, 빌드 91282438 재검증 통과 | `arena/f50fd973-hearttune-test` 브랜치 |
 
 | 2026-10-19 | **원스크린 UX 개편** — 탭/설정카드/파형/지표/법적푸터를 첫 화면에서 제거하고 헤더·스테이지·하단 CTA 3단 `100dvh` 구성. ⚙️ 설정 시트·≡ 메뉴 시트·이력/안내/법적고지/상세 시트 신설(`src/features/sheets.js`). 후면 카메라 기본 + **진입 즉시 미리보기**(토치 OFF), 자동 시작 OFF, 브라우저 언어 기본, 결과 배너에 법적 고지, 디버그 창 상단 드래그 리사이즈(`--debug-height`) | ✅ 완료(로컬) — i18n 81키 / unit 15 / E2E 7(320×568~414×896·가로모드 스크롤 0 검증) / build 통과 | `arena/f50fd973-hearttune-test` 브랜치 |
+| 2026-10-19 | UI 가독성·헤더/설정 기본값 조정, PR `/preview/` 배포와 cleanup, `npm run preview --no-sw` 구현 | 작업 및 검증 진행 중 | `arena/c85567d7-hearttune-test` |
 
 > **로그 규칙**: 최신이 아래. 항목이 20개를 넘으면 오래된 것은 `docs/changelog-archive.md` 로 옮긴다.
 
