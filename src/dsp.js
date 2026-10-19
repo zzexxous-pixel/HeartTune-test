@@ -507,6 +507,105 @@ export function evaluateRhythm(beatTimesSec, durationSec, expectedBpm = 72) {
 }
 
 /**
+ * 8-1. 주파수 후보(FFT / 자기상관 / IBI 중앙값)의 옥타브 오류(하모닉 혼동) 해소
+ *
+ * 왜 필요한가:
+ *   손가락 PPG 파형은 수축기 피크 + 중첩파(dicrotic wave) + 골짜기로 구성되어
+ *   스펙트럼에 2차·3차 하모닉이 강하게 나타난다. 저박동(45~60 BPM)에서는
+ *   2차 하모닉이 기본파보다 커지는 경우가 있어, FFT 최대 피크만 쓰면
+ *   "2배 BPM"을 고른다. 그 값이 필터 트래킹 중심이 되면 대역이 잘못 좁혀져
+ *   박동 검출기까지 2배로 세는 연쇄 오류가 발생한다.
+ *
+ * 해결:
+ *   세 추정치를 동시에 보고 "합의(consensus)"를 우선하며,
+ *   ① 주파수 두 개(FFT·자기상관)가 서로 일치하면 그 합의를 신뢰하고,
+ *   ② 불일치하면 시간영역(IBI 중앙값)을 중재자로 사용한다.
+ *   시간영역은 0.30초 불응기(refractory) 덕분에 중첩파를 박동으로 세지 않으므로
+ *   하모닉 혼동에 강하다.
+ *
+ * @returns {{bpm:number, source:string, agreement:number, isHarmonicCorrected:boolean}}
+ *   source: 'consensus' | 'frequency' | 'time-domain' | 'early-time-domain' | 'prior'
+ *   agreement: 12% 이내로 서로 일치한 추정치 개수 (0~3)
+ */
+export function resolveBpmEstimate({
+  fftBpm = 0,
+  autocorrBpm = 0,
+  beatMedianBpm = 0,
+  beatCount = 0,
+  durationSec = 0,
+  priorBpm = 72,
+  minBeats = 8
+} = {}) {
+  const isValid = (v) => Number.isFinite(v) && v >= 30 && v <= 220;
+  const relDiff = (a, b) => (Math.max(a, b) > 0 ? Math.abs(a - b) / Math.max(a, b) : 1);
+  const same = (a, b) => isValid(a) && isValid(b) && relDiff(a, b) <= 0.12;
+
+  const fft = isValid(fftBpm) ? fftBpm : 0;
+  const ac = isValid(autocorrBpm) ? autocorrBpm : 0;
+  const median = beatCount >= 3 && isValid(beatMedianBpm) ? beatMedianBpm : 0;
+
+  // 시간영역 신뢰 조건: 충분한 박동 수 (짧은 구간은 별도 처리)
+  const beatsOk = median > 0 && beatCount >= minBeats;
+
+  const agreement =
+    (same(fft, ac) ? 2 : 0) +
+    (median && same(median, fft) ? 1 : 0) +
+    (median && same(median, ac) ? 1 : 0);
+
+  // ① 10초 미만 초기 포착: 파형 주기가 아직 짧아 스펙트럼 해상도가 낮다.
+  //    자기상관과 IBI 중앙값이 서로 일치하면 그 평균을 채택(기존 고속 포착 유지).
+  if (durationSec > 0 && durationSec < 10 && ac > 42 && median > 42 && same(ac, median)) {
+    return {
+      bpm: (ac + median) / 2,
+      source: 'early-time-domain',
+      agreement: Math.max(agreement, 2),
+      isHarmonicCorrected: false
+    };
+  }
+
+  // ② 주파수 도메인 두 추정치가 합의 → 그 합의를 신뢰.
+  //    (합의를 깨는 박동 수는 중첩파 오검출 또는 노이즈성 누락일 가능성이 높다)
+  if (same(fft, ac)) {
+    if (beatsOk && same(median, fft)) {
+      return { bpm: (fft + ac + median) / 3, source: 'consensus', agreement: 3, isHarmonicCorrected: false };
+    }
+    return {
+      bpm: (fft + ac) / 2,
+      source: 'frequency',
+      agreement: 2,
+      isHarmonicCorrected: Boolean(median && relDiff(median, fft) > 0.25)
+    };
+  }
+
+  // ③ 불일치(하모닉 혼동 가능) → 시간영역 중재
+  if (beatsOk) {
+    if (same(median, fft)) {
+      return { bpm: (median + fft) / 2, source: 'time-domain', agreement: 2, isHarmonicCorrected: true };
+    }
+    if (same(median, ac)) {
+      return { bpm: (median + ac) / 2, source: 'time-domain', agreement: 2, isHarmonicCorrected: true };
+    }
+    return { bpm: median, source: 'time-domain', agreement: 1, isHarmonicCorrected: true };
+  }
+
+  // ④ 박동 수가 부족 → 주파수 추정치 중 하나. 기저 심박수(prior)에 가까운 쪽을 선호.
+  if (fft && ac) {
+    const prior = isValid(priorBpm) ? priorBpm : 72;
+    const chosen = Math.abs(fft - prior) <= Math.abs(ac - prior) ? fft : ac;
+    return { bpm: chosen, source: 'frequency', agreement: 0, isHarmonicCorrected: false };
+  }
+  if (fft || ac) {
+    return { bpm: fft || ac, source: 'frequency', agreement: 0, isHarmonicCorrected: false };
+  }
+  if (median) {
+    return { bpm: median, source: 'time-domain', agreement: 0, isHarmonicCorrected: false };
+  }
+
+  const prior = isValid(priorBpm) ? priorBpm : 72;
+  return { bpm: prior, source: 'prior', agreement: 0, isHarmonicCorrected: false };
+}
+
+/**
  * 9. 적응형 캘리브레이션 + 동적 주파수 추적(Tracking & Hold) 통합 파이프라인
  * @param {Float64Array|number[]} uniformSignal - 15Hz 균일 샘플링 시계열
  * @param {number} fs - 샘플링 주파수 (기본 15Hz)
@@ -531,19 +630,26 @@ export function analyzePpgSignal(uniformSignal, fs = TARGET_FS, options = {}) {
   const wideRhythm = evaluateRhythm(wideBeats, durationSec, wideFft.bpm || priorBpm);
 
   // 5~10초 구간에서도 빠른 포착을 위해 자기상관 + IBI 중앙값 + FFT 교차 평가
-  let candidateBpm = wideFft.bpm;
-  let crossDiff = Math.abs(wideFft.bpm - wideAutocorr);
+  // ▸ 하모닉(중첩파) 혼동을 해소한 통합 추정치를 사용한다.
+  //   FFT 최대 피크만 쓰면 저박동에서 2차 하모닉을 기본파로 오인하여
+  //   필터 트래킹 대역이 잘못 좁혀지고 박동이 2배로 검출되는 연쇄 오류가 생긴다.
+  const wideEstimate = resolveBpmEstimate({
+    fftBpm: wideFft.bpm,
+    autocorrBpm: wideAutocorr,
+    beatMedianBpm: wideRhythm.medianBpm,
+    beatCount: wideBeats.length,
+    durationSec,
+    priorBpm,
+    minBeats: durationSec < 10 ? 6 : 8
+  });
 
-  if (durationSec < 10 && wideAutocorr > 42 && wideRhythm.medianBpm > 42) {
-    // 5~10초 초기 구간: 시간 영역(자기상관 + 박동 간격 중앙값) 우선 결합
-    if (Math.abs(wideAutocorr - wideRhythm.medianBpm) <= 12) {
-      candidateBpm = (wideAutocorr + wideRhythm.medianBpm) / 2;
-      crossDiff = Math.abs(wideAutocorr - wideRhythm.medianBpm);
-    }
-  }
+  let candidateBpm = wideEstimate.bpm;
+  const crossDiff = Math.abs(wideFft.bpm - wideAutocorr);
 
+  // 품질 점수: 스펙트럼 신뢰도 + 추정치 합의도(consensus)를 함께 반영
+  const consensusBonus = wideEstimate.agreement >= 2 ? 30 : 10;
   const rawQuality = Math.round(
-    Math.min(100, Math.max(20, wideFft.confidence * 70 + (crossDiff <= 15 ? 30 : 10)))
+    Math.min(100, Math.max(20, wideFft.confidence * 70 + consensusBonus))
   );
 
   // 2단계: 동적 필터 대역 결정 (Tracking vs Hold vs Prior Fallback)
@@ -595,22 +701,18 @@ export function analyzePpgSignal(uniformSignal, fs = TARGET_FS, options = {}) {
   const beatTimes = detectBeats(filtered, fs);
   const rhythm = evaluateRhythm(beatTimes, durationSec, fftRes.bpm || centerBpm);
 
-  let finalBpm = fftRes.bpm;
-  let isCrossValidated = Math.abs(fftRes.bpm - autocorrBpm) <= 15;
+  const finalEstimate = resolveBpmEstimate({
+    fftBpm: fftRes.bpm,
+    autocorrBpm,
+    beatMedianBpm: rhythm.medianBpm,
+    beatCount: beatTimes.length,
+    durationSec,
+    priorBpm: centerBpm,
+    minBeats: durationSec < 10 ? 6 : 8
+  });
 
-  if (!isCrossValidated && rhythm.medianBpm > 0) {
-    if (Math.abs(rhythm.medianBpm - fftRes.bpm) <= 12) {
-      finalBpm = (fftRes.bpm + rhythm.medianBpm) / 2;
-      isCrossValidated = true;
-    } else if (Math.abs(rhythm.medianBpm - autocorrBpm) <= 12) {
-      finalBpm = (autocorrBpm + rhythm.medianBpm) / 2;
-      isCrossValidated = true;
-    } else {
-      finalBpm = rhythm.medianBpm;
-    }
-  } else if (rhythm.medianBpm > 0 && Math.abs(rhythm.medianBpm - fftRes.bpm) <= 8) {
-    finalBpm = fftRes.bpm * 0.65 + rhythm.medianBpm * 0.35;
-  }
+  const finalBpm = finalEstimate.bpm;
+  const isCrossValidated = finalEstimate.agreement >= 2;
 
   const roundedBpm = Math.round(finalBpm || centerBpm);
 
@@ -639,6 +741,12 @@ export function analyzePpgSignal(uniformSignal, fs = TARGET_FS, options = {}) {
     cv: rhythm.cv,
     rmssdMs: rhythm.rmssdMs,
     qualityScore,
+    estimator: {
+      source: finalEstimate.source,
+      agreement: finalEstimate.agreement,
+      harmonicCorrected: finalEstimate.isHarmonicCorrected,
+      wideSource: wideEstimate.source
+    },
     filteredSignal: filtered,
     beatTimes,
     filterState: {

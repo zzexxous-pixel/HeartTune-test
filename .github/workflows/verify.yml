@@ -7,7 +7,7 @@
 #
 #   · 검증 항목은 두 곳에서 완전히 동일합니다(한 곳만 고치면 양쪽에 반영).
 #       ① 구문/모듈 lint  ② i18n ko·en 키 일치  ③ DSP 단위·회귀 테스트
-#       ④ Playwright E2E   ⑤ 운영 배포 산출물(dist/) 빌드 + 업로드
+#       ④ Playwright E2E   ⑤ 배포 산출물(dist/) 빌드 + 업로드
 # =============================================================================
 name: Verify (reusable)
 
@@ -43,7 +43,19 @@ jobs:
         run: npm run test:i18n
 
       - name: '3) DSP 알고리즘 단위·회귀 테스트'
-        run: npm run test:unit
+        run: |
+          set -o pipefail
+          npm run test:unit 2>&1 | tee unit-test.log
+
+      - name: 실패 로그 요약 (단위 테스트)
+        if: failure()
+        run: |
+          {
+            echo "## ❌ 단위 테스트 실패 로그 (마지막 120줄)"
+            echo '```'
+            tail -n 120 unit-test.log 2>/dev/null || echo "(로그 없음)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
   # ── 검증 ②: E2E (실제 브라우저) ──────────────────────────────────────────
   e2e:
@@ -67,7 +79,36 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: '4) Run E2E tests'
-        run: npm run test:e2e
+        run: |
+          set -o pipefail
+          npm run test:e2e 2>&1 | tee e2e.log
+
+      - name: 실패 로그 요약 (E2E)
+        if: failure()
+        run: |
+          {
+            echo "## ❌ E2E 실패 로그 (마지막 200줄)"
+            echo '```'
+            tail -n 200 e2e.log 2>/dev/null || echo "(로그 없음)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # PR 이면 실패 로그를 PR 코멘트로도 남긴다.
+      # (Actions 로그를 열지 않아도 원인을 바로 확인할 수 있고, 자동화 도구도 읽을 수 있다)
+      - name: PR 코멘트로 실패 로그 게시
+        if: failure() && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            echo "### ❌ Playwright E2E 실패 — 마지막 120줄"
+            echo ""
+            echo '```'
+            tail -n 120 e2e.log 2>/dev/null || echo "(로그 없음)"
+            echo '```'
+          } > /tmp/e2e-failure.md
+          gh pr comment "${{ github.event.pull_request.number }}" \
+            --repo "$GITHUB_REPOSITORY" --body-file /tmp/e2e-failure.md
 
       - name: Upload Playwright report (실패 시)
         if: failure()
@@ -77,10 +118,10 @@ jobs:
           path: playwright-report/
           retention-days: 7
 
-  # ── 검증 ③: 운영 배포 산출물 빌드 ────────────────────────────────────────
-  #   이 아티팩트가 운영 저장소(HeartTune)로 그대로 전달됩니다.
+  # ── 검증 ③: 배포 산출물 빌드 ────────────────────────────────────────────
+  #   이 아티팩트가 개발 Pages 와 운영 저장소(HeartTune)로 그대로 전달됩니다.
   build:
-    name: '검증 ③ 운영 산출물 빌드'
+    name: '검증 ③ 배포 산출물 빌드'
     needs: static-and-unit
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -94,7 +135,7 @@ jobs:
         with:
           node-version: '22'
 
-      - name: '5) Build dist/ (상대경로 검증 포함)'
+      - name: '5) Build dist/ (상대경로·참조자산 검증 + 캐시 버전 자동 생성)'
         run: npm run build
 
       - name: Upload production artifact

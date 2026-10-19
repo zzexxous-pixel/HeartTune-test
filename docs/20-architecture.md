@@ -8,7 +8,7 @@
 ## 5. 기술 스택 및 아키텍처
 
 ## 5-1. 프론트엔드
-- **1페이지 SPA**: 프레임워크 없이 **Vanilla JS + ES Modules** (또는 Vite + 경량 구성)
+- **1페이지 SPA**: 프레임워크 없이 **Vanilla JS + ES Modules** (파일 구조는 5-9)
   - 이유: 카메라 API·Canvas·WebAudio 등 브라우저 네이티브 API가 핵심이라 프레임워크 이득이 적음. 번들 최소화가 중장년 사용자 로딩 속도에 유리
 - 카메라: `getUserMedia` + `torch: true` + `requestVideoFrameCallback` + `<canvas>` 프레임 분석
 - 신호처리: FFT는 직접 구현 또는 `fft.js` 등 경량 라이브러리
@@ -16,19 +16,19 @@
 
 ## 5-2. i18n 구조 (다국어 확장 전제)
 ```
-src/
-  i18n/
-    index.js        ← t('key') 로더, 언어 감지·전환·localStorage 저장
-    ko.json         ← 한국어 (기본)
-    en.json         ← 영어
-    ja.json         ← (확장 예시 — 나중에 추가만 하면 됨)
+src/i18n.js
+  └ dictionaries = { ko: {...}, en: {...} }   ← 현재 구현 (키 62개)
+    t('key') 로더 · 언어 감지(navigator.language, 기본 ko) · 전환 · localStorage 저장
+    validateI18nKeyParity()  ← ko/en 키 집합 일치 검증 (CI 필수 통과 항목)
+
+  ▸ 언어를 추가할 때: dictionaries 에 `ja: {...}` 를 추가하고 키 집합을 맞추면 된다.
 ```
 - **원칙**: 화면 텍스트를 코드에 하드코딩 금지. 전부 `ko.json`/`en.json` 키로 참조
 - **키 네이밍**: `result.normal.title`, `result.tachy.desc`, `error.pressHarder` 처럼 **화면.영역.항목** 3단 구조
 - **플래시보팅 방지**: `<html lang>` 초기화 후 언어 팩 로드 완료 시 `body` 표시 (FOUC 방지)
 - 언어 감지: `navigator.language` → 없으면 `ko` 기본값
 - **주의**: 숫자·단위·날짜는 `Intl.NumberFormat` / `Intl.DateTimeFormat` 사용 (예: 영어권 `72 bpm`, 한국어 `72회/분`)
-- 번역 누락 방지: CI에서 **ko.json과 en.json 키 일치 검증** (아래 5-4)
+- 번역 누락 방지: CI에서 **ko/en 사전 키 일치 검증** (아래 5-4)
 
 ## 5-3. 저장소 / 브랜치 전략
 | 저장소 | 역할 | 브랜치 |
@@ -43,7 +43,7 @@ HeartTune-test (main)
       │             lint + i18n + DSP 단위 + E2E + dist 빌드
       │             ⇒ 운영 배포 없음
       │
-      ├─▶ 개발 Pages 자동 배포 (branch: main)
+      ├─▶ ✅ 검증 전부 통과 시에만 개발 Pages 배포 (GitHub Actions Pages)
       │   https://zzexxous-pixel.github.io/HeartTune-test/   ← 화면 직접 확인
       │
       │  사람이 판단 후 수동 실행  ──▶ ② Promote to Production (promote-to-production.yml)
@@ -58,23 +58,26 @@ HeartTune (main) → GitHub Pages 자동 배포
 
 - 검증 정의는 `.github/workflows/verify.yml` **한 곳**에만 두고 두 워크플로가 `workflow_call` 로 공유한다.
 - 운영 반영 트리거는 `workflow_dispatch` **단독**이다. `push`/태그로는 배포되지 않는다.
+- 개발 미리보기 역시 검증을 통과한 산출물만 배포된다(저장소 Pages Source = GitHub Actions 전제).
 - 운영 이관은 `production` environment 로 기록되며, 필요 시 필수 리뷰어를 붙여 승인 게이트를 추가할 수 있다.
 
 **보안 주의**
 - 크로스 리포 push에는 **fine-grained PAT** 또는 **deploy key** 필요 → GitHub Secrets(`ACTIONS_DEPLOY_KEY`)에 저장, 코드에 절대 하드코딩 금지
 - `HeartTune-test`는 **private**, `HeartTune`(배포용)만 public 권장
 
-## 5-4. CI 체크 항목 (예정)
-- [ ] `ko.json` / `en.json` **키 집합 일치** 검증 (누락 시 실패)
-- [ ] 린트 (ESLint) + 포맷 (Prettier)
-- [ ] 신호처리 단위 테스트 (합성 PPG 신호 → 기대 BPM 회귀 테스트)
-- [ ] 빌드 산출물 생성
+## 5-4. CI 체크 항목 (구현 완료)
+- [x] i18n **키 집합 일치** 검증 (누락 시 실패)
+- [x] 구문·모듈 lint (ESLint/Prettier 미도입 — `node --check` 기반)
+- [x] 신호처리 단위 테스트 15개 (합성 PPG → BPM 회귀, 하모닉 혼동, 리듬 판정)
+- [x] Playwright E2E 5개 (렌더링·i18n·측정 플로우·디버그 샌드박스)
+- [x] 빌드 산출물 생성 + 경로/자산 검증 + 캐시 버전 자동화
 
 ## 5-5. 배포 호스팅 — ✅ 확정: GitHub Pages
 - ✅ **GitHub Pages** (무료, Actions와 자연 연계, HTTPS 자동 제공)
 - ⚠️ **카메라 API는 HTTPS 필수** — `getUserMedia`는 보안 컨텍스트에서만 동작. GitHub Pages는 `https://<계정>.github.io/...`로 HTTPS 제공하므로 조건 충족
 - ⚠️ GitHub Pages는 **public 저장소만 무료** → 운영 `HeartTune`은 public 필요. 개발 `HeartTune-test`는 private 가능
 - ⚠️ 커스텀 도메인 사용 시 `CNAME` 설정 + Actions 배포 경로(`cname` 옵션) 주의
+- 개발 저장소 Pages 는 **Source = GitHub Actions** 로 두어, 검증 통과분만 배포한다.
 - 로컬 개발 시 `http://localhost`는 보안 컨텍스트로 인정되어 카메라 동작함 (단 `http://192.168.x.x`는 차단)
 
 ## 5-6. 반응형 설계 — 휴대폰 전용 (PC는 2026-09-11 제외 결정)
@@ -159,5 +162,39 @@ HeartTune (main) → GitHub Pages 자동 배포
 #### ⑥ 성능 (PC vs 모바일)
 - 프레임당 픽셀 연산이 있으므로 **캔버스를 64×64 이하로 축소**해 처리량 확보
 - `getImageData`는 매 프레임 비용이 큼 → **10~15fps로 샘플링 제한** 권장 (30fps 전부 안 써도 BPM 계산 충분)
+
+
+## 5-9. 파일 구조 (2026-10-19 분리)
+
+기존에는 `index.html` 한 파일(약 2,000줄)에 CSS/앱 로직이 모두 들어 있었다.
+이제 마크업만 남기고 역할별로 분리했다.
+
+```
+index.html                 ← 마크업만 (약 250줄)
+src/
+  main.css                 ← 스타일 전체 (약 745줄)
+  main.js                  ← UI·네비게이션·측정 오케스트레이션
+  dsp.js                   ← 신호처리 순수 로직 (DOM 비의존 → Node 테스트 가능)
+  i18n.js                  ← ko/en 사전
+  features/
+    camera.js              ← getUserMedia·torch·장치 목록
+    storage.js             ← 측정 이력·캘리브레이션 (localStorage 키 관리)
+    share.js               ← 결과 이미지 캔버스 렌더 + Web Share/다운로드
+scripts/
+  build-dist.js            ← dist 빌드 + 버전 자동화
+  serve.js                 ← 의존성 없는 정적 서버
+```
+
+**분리 기준**
+| 기준 | 배치 |
+|---|---|
+| DOM 을 전혀 모르는 계산 로직 | `src/dsp.js` (DOM 비의존) |
+| 화면 텍스트/포맷 | `src/i18n.js` |
+| 하나의 부수효과(카메라, 저장소, 공유)를 캡슐화 | `src/features/*.js` |
+| 앱 상태·이벤트·화면 갱신 | `src/main.js` |
+
+**주의**
+- 새 파일을 추가하면 `sw.js` 의 `ASSETS` 와 `scripts/build-dist.js` 의 `RUNTIME_FILES` **양쪽**에 등록해야 한다. (빌드가 누락을 검사해 실패시켜 준다)
+- `index.html` 이 `./` 상대경로로만 자산을 참조해야 GitHub Pages 하위 경로에서 동작한다.
 
 ---
