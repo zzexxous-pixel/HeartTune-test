@@ -11,8 +11,21 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PORT = Number(process.argv[2] || process.env.PORT || 8080);
-const ROOT = path.resolve(process.argv[3] || path.join(__dirname, '..'));
+const args = process.argv.slice(2);
+const positionals = args.filter((arg) => !arg.startsWith('--'));
+const NO_SW = args.includes('--no-sw');
+const PORT = Number(positionals[0] || process.env.PORT || 8080);
+const ROOT = path.resolve(positionals[1] || path.join(__dirname, '..'));
+const NO_SW_SCRIPT = `self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('activate', (event) => {
+  event.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(keys.map((key) => caches.delete(key)));
+    await self.registration.unregister();
+    await self.clients.claim();
+  })());
+});
+self.addEventListener('fetch', () => {});`;
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -40,6 +53,15 @@ const server = http.createServer((req, res) => {
   let pathname = decodeURIComponent(url.pathname);
   if (pathname.endsWith('/')) pathname += 'index.html';
 
+  if (NO_SW && pathname.endsWith('/sw.js')) {
+    send(res, 200, NO_SW_SCRIPT, {
+      'Content-Type': 'text/javascript; charset=utf-8',
+      'Service-Worker-Allowed': '/',
+      'Cache-Control': 'no-store'
+    });
+    return;
+  }
+
   const filePath = path.join(ROOT, pathname);
 
   // 경로 탈출(directory traversal) 차단
@@ -59,5 +81,5 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`[serve] http://localhost:${PORT}  (root: ${ROOT})`);
+  console.log(`[serve] http://localhost:${PORT}  (root: ${ROOT}${NO_SW ? ', no-sw' : ''})`);
 });

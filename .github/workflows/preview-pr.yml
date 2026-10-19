@@ -1,0 +1,133 @@
+# Build each pull request into /preview/ on the development Pages site.
+name: PR 미리보기 (개발 페이지 /preview/)
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, closed]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: pr-preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    if: github.event.action != 'closed'
+    uses: ./.github/workflows/verify.yml
+
+  deploy-preview:
+    name: PR 미리보기 배포
+    needs: verify
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}preview/
+    concurrency:
+      group: dev-pages
+      cancel-in-progress: false
+    steps:
+      - name: Download verified PR artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: hearttune-production-dist
+          path: ./pr-dist
+
+      - name: Checkout latest main for Pages root
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          path: main-src
+
+      - name: Build latest main root
+        working-directory: main-src
+        run: npm run build
+
+      - name: Assemble Pages site (latest main + PR preview)
+        run: |
+          mkdir -p site/preview
+          cp -r main-src/dist/. site/
+          cp -r pr-dist/. site/preview/
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v6
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: ./site
+
+      - name: Deploy PR preview to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
+
+      - name: Write preview URL to job summary
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          {
+            echo "## PR 미리보기 배포 완료"
+            echo ""
+            echo "- 미리보기: ${PAGE_URL}preview/"
+            echo "- PR: #${PR_NUMBER}"
+            echo "- 커밋: \`${SHA}\`"
+            echo "- 개발 페이지 루트는 최신 main 산출물로 유지됩니다."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  cleanup-preview:
+    name: 닫힌 PR 미리보기 정리
+    if: github.event.action == 'closed' && github.event.pull_request.merged == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+    concurrency:
+      group: dev-pages
+      cancel-in-progress: false
+    steps:
+      - name: Checkout latest main
+        uses: actions/checkout@v7
+        with:
+          ref: main
+
+      - name: Build latest main root (removes /preview/)
+        run: npm run build
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v6
+
+      - name: Upload clean main Pages artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: ./dist
+
+      - name: Deploy Pages without closed PR preview
+        id: deployment
+        uses: actions/deploy-pages@v5
+
+      - name: Write cleanup result to job summary
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          {
+            echo "## PR 미리보기 정리 완료"
+            echo ""
+            echo "- PR #${PR_NUMBER} 가 병합되지 않고 닫혀 /preview/ 를 제거했습니다."
+            echo "- 개발 페이지: ${PAGE_URL}"
+          } >> "$GITHUB_STEP_SUMMARY"

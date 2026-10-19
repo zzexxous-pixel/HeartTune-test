@@ -10,7 +10,8 @@
     "test:unit": "node --test tests/dsp.test.js",
     "test:e2e": "playwright test",
     "build": "node scripts/build-dist.js",
-    "serve": "node scripts/serve.js 8080 ."
+    "serve": "node scripts/serve.js 8080 .",
+    "preview": "node scripts/serve.js 8080 . --no-sw"
   },
   "devDependencies": {
     "@playwright/test": "^1.48.0"
