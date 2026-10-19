@@ -1,0 +1,194 @@
+# =============================================================================
+# promote-to-production.yml — ② 개발 → 운영(HeartTune) 수동 이관 워크플로
+#
+#   하는 일         : 개발 소스를 다시 검증한 뒤, 검증을 통과한 산출물(dist/)만
+#                    운영 저장소 zzexxous-pixel/HeartTune 의 main 브랜치로 반영합니다.
+#   실행 시점       : 오직 수동(workflow_dispatch) 만. push/tag 로는 절대 실행되지 않습니다.
+#   실행 방법       : GitHub → Actions → "② Promote to Production (HeartTune)"
+#                    → Run workflow → 브랜치 main → confirm 칸에 PROMOTE 입력 → 실행
+#   결과 확인 위치  : Actions 실행 로그 + Summary, 그리고 HeartTune 저장소 커밋 이력
+#
+#   사전 준비(최초 1회):
+#     · HeartTune-test → Settings → Secrets and variables → Actions
+#         ACTIONS_DEPLOY_PAT = HeartTune 저장소 Contents: Read/Write 권한 PAT
+#     · HeartTune → Settings → Pages → Deploy from a branch → main / (root)
+# =============================================================================
+name: ② Promote to Production (HeartTune)
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: '운영 반영을 확인하려면 PROMOTE 를 입력하세요.'
+        required: true
+        type: string
+      release_note:
+        description: '운영 저장소 커밋 메시지 (비우면 자동 생성)'
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+# 운영 반영은 동시에 두 번 일어나면 안 됩니다. 진행 중인 이관은 취소하지 않습니다.
+concurrency:
+  group: promote-to-production
+  cancel-in-progress: false
+
+env:
+  PROD_REPO: ${{ github.repository_owner }}/HeartTune
+  PROD_URL: https://${{ github.repository_owner }}.github.io/HeartTune/
+
+jobs:
+  # ── 이관 ⓪: 실수 방지 확인 ───────────────────────────────────────────────
+  guard:
+    name: '이관 ⓪ 확인'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Confirm promotion
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+          SHA: ${{ github.sha }}
+          REF: ${{ github.ref_name }}
+        run: |
+          echo "이관 소스: ${REF} / ${SHA}"
+          if [ "${CONFIRM}" != "PROMOTE" ]; then
+            echo "::error title=이관 중단::confirm 입력값이 PROMOTE 가 아닙니다. 운영에 반영하지 않았습니다."
+            exit 1
+          fi
+          echo "운영 반영 확인 완료"
+
+  # ── 이관 ①: 개발 CI와 완전히 동일한 검증을 다시 수행 ─────────────────────
+  verify:
+    name: '이관 ① 소스 재검증'
+    needs: guard
+    uses: ./.github/workflows/verify.yml
+
+  # ── 이관 ②: 검증을 통과한 산출물만 운영 저장소로 push ─────────────────────
+  publish:
+    name: '이관 ② 운영 저장소 반영'
+    needs: [guard, verify]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: production
+      url: https://zzexxous-pixel.github.io/HeartTune/
+
+    steps:
+      - name: Download verified artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: hearttune-production-dist
+          path: ./dist
+
+      - name: Deploy dist/ → HeartTune (main)
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          personal_token: ${{ secrets.ACTIONS_DEPLOY_PAT }}
+          external_repository: ${{ env.PROD_REPO }}
+          publish_branch: main
+          publish_dir: ./dist
+          keep_files: false
+          # 이력 보존: 매 배포가 운영 저장소에 1개 커밋으로 쌓입니다(감사 추적용).
+          force_orphan: false
+          commit_message: >-
+            ${{ inputs.release_note != '' && inputs.release_note ||
+            format('release: {0} from HeartTune-test ({1})', github.ref_name, github.sha) }}
+
+  # ── 이관 ③: 실제 운영 URL이 새 빌드를 서빙하는지 확인 ─────────────────────
+  smoke:
+    name: '이관 ③ 운영 배포 확인'
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Download verified artifact (비교용)
+        uses: actions/download-artifact@v8
+        with:
+          name: hearttune-production-dist
+          path: ./dist
+
+      - name: Wait for production URL
+        env:
+          PROD_URL: ${{ env.PROD_URL }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -u
+          echo "확인 대상: ${PROD_URL}"
+          ok=0
+          for i in $(seq 1 30); do
+            code=$(curl -sS -L -o /tmp/page.html -w '%{http_code}' \
+                     -H 'Cache-Control: no-cache' \
+                     "${PROD_URL}?deploy-check=${RUN_ID}-${i}" || echo "000")
+            marker=$(grep -c '오늘심박' /tmp/page.html 2>/dev/null || true)
+            if [ "${code}" = "200" ] && [ "${marker:-0}" -gt 0 ]; then
+              echo "✅ 운영 페이지 응답 정상 (${i}회 시도, HTTP ${code})"
+              ok=1
+              break
+            fi
+            echo "대기 중… (${i}/30) HTTP ${code}"
+            sleep 10
+          done
+
+          if [ "${ok}" != "1" ]; then
+            echo "::error title=운영 배포 확인 실패::${PROD_URL} 가 새 빌드를 서빙하지 않습니다. HeartTune 저장소 main 커밋과 Pages 설정을 확인하세요."
+            exit 1
+          fi
+
+      - name: Verify runtime assets
+        env:
+          PROD_URL: ${{ env.PROD_URL }}
+        run: |
+          set -u
+          failed=0
+          for path in src/dsp.js src/i18n.js sw.js manifest.webmanifest; do
+            code=$(curl -sS -L -o /dev/null -w '%{http_code}' \
+                     -H 'Cache-Control: no-cache' "${PROD_URL}${path}" || echo "000")
+            echo "${path} → HTTP ${code}"
+            [ "${code}" = "200" ] || failed=1
+          done
+          if [ "${failed}" != "0" ]; then
+            echo "::error title=런타임 자산 누락::운영 저장소에 일부 파일이 없습니다."
+            exit 1
+          fi
+
+      - name: Compare served index.html with built artifact
+        continue-on-error: true
+        env:
+          PROD_URL: ${{ env.PROD_URL }}
+        run: |
+          curl -sS -L -H 'Cache-Control: no-cache' "${PROD_URL}?sha=${RANDOM}" -o /tmp/live.html
+          built=$(sha256sum ./dist/index.html | cut -d' ' -f1)
+          live=$(sha256sum /tmp/live.html | cut -d' ' -f1)
+          echo "built=${built}"
+          echo "live =${live}"
+          if [ "${built}" = "${live}" ]; then
+            echo "✅ 운영 index.html 이 빌드 산출물과 완전히 일치합니다."
+          else
+            echo "::warning::운영 index.html 이 빌드 산출물과 다릅니다(CDN 캐시 또는 Pages 빌드 지연 가능)."
+          fi
+
+      - name: Write job summary
+        if: always()
+        env:
+          PROD_URL: ${{ env.PROD_URL }}
+          SOURCE_SHA: ${{ github.sha }}
+          RELEASE_NOTE: ${{ inputs.release_note }}
+          RESULT: ${{ job.status }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          {
+            echo "## ② 운영 이관 결과"
+            echo ""
+            echo "| 항목 | 값 |"
+            echo "| :--- | :--- |"
+            echo "| 결과 | **${RESULT}** |"
+            echo "| 소스 커밋 | \`${SOURCE_SHA}\` |"
+            echo "| 커밋 메시지 | ${RELEASE_NOTE:-자동 생성} |"
+            echo "| 운영 URL | ${PROD_URL} |"
+            echo "| 실행 로그 | ${RUN_URL} |"
+            echo ""
+            echo "운영 저장소 커밋 이력: https://github.com/${{ env.PROD_REPO }}/commits/main"
+          } >> "$GITHUB_STEP_SUMMARY"

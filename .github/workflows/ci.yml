@@ -1,0 +1,134 @@
+# =============================================================================
+# ci.yml — ① 개발(HeartTune-test) 커밋 검증 + 개발 미리보기 배포
+#
+#   하는 일
+#     1) 커밋/PR 을 받아 테스트 (운영 반영 없음)
+#     2) main 브랜치에서 "모든 검증을 통과한 경우에만" 개발 Pages 를 갱신
+#
+#   실행 시점       : main 브랜치 push, main 대상 PR, 수동 실행
+#   결과 확인 위치  : GitHub → Actions → "① Dev CI (HeartTune-test)"
+#   개발 화면       : https://zzexxous-pixel.github.io/HeartTune-test/
+#
+#   ⚠️ 개발 Pages 를 이 워크플로가 배포하므로, 저장소 설정이 필요합니다(최초 1회).
+#      Settings → Pages → Build and deployment → Source = "GitHub Actions"
+#      (Branch 배포로 두면 테스트 실패 커밋도 화면에 먼저 올라갑니다)
+#
+#   ⚠️ 이 워크플로는 운영 저장소(HeartTune)에 절대 배포하지 않습니다.
+#      운영 반영은 promote-to-production.yml 을 수동으로 실행해야만 일어납니다.
+# =============================================================================
+name: ① Dev CI (HeartTune-test)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  # E2E 실패 로그를 PR 코멘트로 남기기 위해 필요 (verify.yml 에서 사용)
+  pull-requests: write
+
+# 같은 브랜치에 연속 커밋하면 이전 실행은 취소하고 마지막 것만 봅니다.
+concurrency:
+  group: dev-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: '개발 검증'
+    uses: ./.github/workflows/verify.yml
+
+  # ── 개발 미리보기: 검증을 모두 통과한 산출물만 개발 Pages 로 배포 ──────────
+  deploy-dev-preview:
+    name: '개발 미리보기 배포'
+    needs: verify
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    concurrency:
+      group: dev-pages
+      cancel-in-progress: true
+
+    steps:
+      - name: Download verified artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: hearttune-production-dist
+          path: ./dist
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v6
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: ./dist
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
+
+      - name: 안내 (Pages 설정이 Branch 로 되어 있는 경우)
+        if: failure()
+        run: |
+          {
+            echo "## ⚠️ 개발 미리보기 배포 실패"
+            echo ""
+            echo "저장소 Pages 설정을 확인하세요:"
+            echo "**Settings → Pages → Build and deployment → Source = GitHub Actions**"
+            echo ""
+            echo "Source 가 \`Deploy from a branch\` 로 되어 있으면 Actions 배포가 거부됩니다."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  report:
+    name: '결과 요약'
+    needs: [verify, deploy-dev-preview]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Write job summary
+        env:
+          RESULT: ${{ needs.verify.result }}
+          DEPLOY: ${{ needs.deploy-dev-preview.result }}
+          DEV_URL: https://${{ github.repository_owner }}.github.io/HeartTune-test/
+          SHA: ${{ github.sha }}
+          REF: ${{ github.ref_name }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          {
+            echo "## ① 개발 검증 결과"
+            echo ""
+            echo "| 항목 | 값 |"
+            echo "| :--- | :--- |"
+            echo "| 검증 | **${RESULT}** |"
+            echo "| 개발 미리보기 배포 | \`${DEPLOY}\` |"
+            echo "| 브랜치 | \`${REF}\` |"
+            echo "| 커밋 | \`${SHA}\` |"
+            echo "| 트리거 | \`${EVENT}\` |"
+            echo ""
+            echo "### 다음 단계"
+            echo "- 개발 화면 확인: ${DEV_URL}"
+            echo "- 화면 확인 후 운영에 반영하려면 **Actions → ② Promote to Production (HeartTune) → Run workflow** 를 실행하고 \`PROMOTE\` 를 입력하세요."
+            echo ""
+            if [ "${RESULT}" != "success" ]; then
+              echo "> ❌ 검증이 실패했습니다. 위 실행의 실패 단계를 확인한 뒤 다시 커밋하세요."
+              echo "> 실패한 커밋은 개발 화면에도 배포되지 않습니다."
+            else
+              echo "> ✅ 검증을 통과했습니다. 개발 화면을 확인한 뒤 수동으로 운영 이관을 진행하세요."
+            if [ "${DEPLOY}" != "success" ]; then
+              echo "> ⚠️ 개발 미리보기 배포가 \`${DEPLOY}\` 상태입니다. 실패했다면 Settings → Pages → Source = GitHub Actions 인지 확인하세요."
+            fi
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

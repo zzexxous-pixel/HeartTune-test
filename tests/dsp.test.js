@@ -9,7 +9,8 @@ import {
   TARGET_FS,
   extractFrameSample,
   analyzePpgSignal,
-  generateSyntheticPPG
+  generateSyntheticPPG,
+  resolveBpmEstimate
 } from '../src/dsp.js';
 import { validateI18nKeyParity } from '../src/i18n.js';
 
@@ -177,4 +178,56 @@ test('12. [디버그 샌드박스] 수동 필터 슬라이더(manualHp / manualL
   assert.equal(res.filterState.hp, 0.95);
   assert.equal(res.filterState.lp, 3.10);
   assert.ok(Math.abs(res.bpm - 72) <= 4);
+});
+
+test('13. [하모닉 혼동 해소] FFT가 2차 하모닉을 골라도 박동(시간영역) 중재로 기본파를 복원해야 함', () => {
+  // 45 BPM 실측: FFT=89.65(2차 하모닉), 자기상관=44.99, IBI 중앙값=44.8
+  const resolved = resolveBpmEstimate({
+    fftBpm: 89.65,
+    autocorrBpm: 44.99,
+    beatMedianBpm: 44.8,
+    beatCount: 23,
+    durationSec: 30,
+    priorBpm: 72
+  });
+  assert.equal(resolved.source, 'time-domain');
+  assert.equal(resolved.isHarmonicCorrected, true);
+  assert.ok(Math.abs(resolved.bpm - 45) <= 2, `기대 45±2, 실측 ${resolved.bpm}`);
+
+  // 120 BPM 실측: FFT=119.77(정답), 자기상관=59.98(2배 주기 오검출)
+  const resolved2 = resolveBpmEstimate({
+    fftBpm: 119.77,
+    autocorrBpm: 59.98,
+    beatMedianBpm: 120.3,
+    beatCount: 59,
+    durationSec: 30,
+    priorBpm: 72
+  });
+  assert.ok(Math.abs(resolved2.bpm - 120) <= 2, `기대 120±2, 실측 ${resolved2.bpm}`);
+});
+
+test('14. [하모닉 혼동 해소] 주파수 두 추정치가 합의하면 그 합의를 우선한다', () => {
+  const resolved = resolveBpmEstimate({
+    fftBpm: 108,
+    autocorrBpm: 108,
+    beatMedianBpm: null,
+    beatCount: 4,
+    durationSec: 30,
+    priorBpm: 72
+  });
+  assert.equal(resolved.source, 'frequency');
+  assert.ok(Math.abs(resolved.bpm - 108) <= 1, `기대 108, 실측 ${resolved.bpm}`);
+});
+
+test('15. [하모닉 혼동 해소] 10초 미만 구간은 자기상관+IBI 중앙값 평균으로 고속 포착한다', () => {
+  const resolved = resolveBpmEstimate({
+    fftBpm: 0,
+    autocorrBpm: 84,
+    beatMedianBpm: 83.5,
+    beatCount: 7,
+    durationSec: 5,
+    priorBpm: 70
+  });
+  assert.equal(resolved.source, 'early-time-domain');
+  assert.ok(Math.abs(resolved.bpm - 83.75) <= 1, `기대 83.75, 실측 ${resolved.bpm}`);
 });

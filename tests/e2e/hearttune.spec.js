@@ -81,6 +81,11 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     await page.locator('.sim-preset[data-sim="normal"]').click();
     await page.locator('.dur-btn[data-duration="15"]').click();
 
+    // 디버그 콘솔은 화면 하단을 덮는 오버레이이므로, 실제 사용자처럼 닫고 측정을 시작한다.
+    // (열어 둔 채로는 하단 Primary CTA 가 가려져 클릭이 차단된다)
+    await page.locator('#btnCloseDebug').click();
+    await expect(debugConsole).not.toHaveClass(/open/);
+
     // 측정 시작 클릭
     const ctaBtn = page.locator('#btnPrimaryMeasure');
     await ctaBtn.click();

@@ -1,0 +1,805 @@
+:root {
+  --bg-page: #F4F7FB;
+  --bg-card: #FFFFFF;
+  --bg-subtle: #EDF2F9;
+  --primary: #0F4C81;
+  --primary-hover: #0B3861;
+  --accent: #E11D48;
+  --text-main: #111827;
+  --text-sub: #4B5563;
+  --border-color: #D1D9E6;
+
+  --status-normal-bg: #ECFDF5;
+  --status-normal-fg: #065F46;
+  --status-normal-border: #10B981;
+
+  --status-brady-bg: #EFF6FF;
+  --status-brady-fg: #1E40AF;
+  --status-brady-border: #3B82F6;
+
+  --status-tachy-bg: #FFFBEB;
+  --status-tachy-fg: #92400E;
+  --status-tachy-border: #F59E0B;
+
+  --status-irregular-bg: #FFF1F2;
+  --status-irregular-fg: #9F1239;
+  --status-irregular-border: #F43F5E;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  /* 한국어 우선 시스템 폰트 스택: 기기 기본 한글 폰트를 사용해 다운로드 비용 없이 또렷하게 표시 */
+  font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", "Noto Sans KR",
+    "Malgun Gothic", "맑은 고딕", "Nanum Gothic", "Segoe UI", Roboto, sans-serif;
+  font-size: 18px;
+  line-height: 1.55;
+  color: var(--text-main);
+  background-color: var(--bg-page);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  opacity: 0;
+  transition: opacity 0.15s ease-in;
+}
+
+body.i18n-ready {
+  opacity: 1;
+}
+
+/* 전면 카메라(웹캠) 대안 광원: 상단 조명 스트립 */
+#screenLightStrip {
+  display: none;
+  width: 100%;
+  height: 84px;
+  background: #FFFFFF;
+  box-shadow: 0 8px 32px rgba(255, 255, 255, 0.95);
+  border-bottom: 3px solid #FDE047;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  color: #111827;
+  font-size: 1rem;
+  z-index: 100;
+}
+
+#screenLightStrip.active {
+  display: flex;
+}
+
+/* 메인 앱 쉘 */
+.app-shell {
+  width: 100%;
+  max-width: 520px;
+  background: var(--bg-card);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 4px 24px rgba(15, 76, 129, 0.08);
+  position: relative;
+}
+
+/* 상단 드래그 핸들 */
+.top-drag-handle-wrap {
+  width: 100%;
+  padding: 10px 0 4px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: var(--bg-card);
+}
+
+.top-drag-handle {
+  width: 44px;
+  height: 5px;
+  border-radius: 999px;
+  background-color: #CBD5E1;
+}
+
+/* 헤더 */
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px 12px;
+  border-bottom: 1px solid var(--border-color);
+  gap: 8px;
+}
+
+/* 스텔스 디버그 트리거: cursor: default, 호버 효과 없음, title 없음 */
+.brand-trigger {
+  cursor: default;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.brand-title {
+  font-size: 1.45rem;
+  font-weight: 800;
+  color: var(--primary);
+  letter-spacing: -0.02em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.brand-sub {
+  font-size: 0.88rem;
+  color: var(--text-sub);
+  font-weight: 500;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 버튼 최소 48x48px 보장 */
+.btn {
+  min-height: 48px;
+  min-width: 48px;
+  padding: 0 16px;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 700;
+  border: 2px solid transparent;
+  background: var(--bg-subtle);
+  color: var(--text-main);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.btn:focus-visible {
+  outline: 3px solid #2563EB;
+  outline-offset: 2px;
+}
+
+.btn-outline {
+  background: #FFFFFF;
+  border-color: var(--border-color);
+}
+
+.btn-primary {
+  background: var(--primary);
+  color: #FFFFFF;
+  font-size: 1.15rem;
+  padding: 0 24px;
+}
+
+.btn-primary.measuring {
+  background: var(--accent);
+}
+
+/* 상단 탭 내비게이션 */
+.tab-nav {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  padding: 12px 16px;
+  background: var(--bg-subtle);
+}
+
+.tab-btn {
+  min-height: 48px;
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background: transparent;
+  font-size: 1.02rem;
+  font-weight: 700;
+  color: var(--text-sub);
+  cursor: pointer;
+}
+
+.tab-btn.active {
+  background: var(--bg-card);
+  color: var(--primary);
+  border-color: var(--primary);
+  box-shadow: 0 2px 6px rgba(15, 76, 129, 0.1);
+}
+
+.tab-btn:focus-visible {
+  outline: 3px solid #2563EB;
+}
+
+/* 메인 콘텐츠 */
+.main-content {
+  flex: 1;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.tab-panel {
+  display: none;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.tab-panel.active {
+  display: flex;
+}
+
+/* 측정 옵션 카드 */
+.config-card {
+  background: var(--bg-subtle);
+  border-radius: 16px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.config-label {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-sub);
+}
+
+.duration-group {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.dur-btn {
+  min-height: 48px;
+  border-radius: 10px;
+  border: 2px solid var(--border-color);
+  background: #FFFFFF;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--text-main);
+  cursor: pointer;
+  padding: 4px 4px;
+  line-height: 1.25;
+  word-break: keep-all;
+}
+
+.dur-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+}
+
+.dur-main {
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.dur-sub {
+  font-size: 0.72rem;
+  font-weight: 600;
+  opacity: 0.85;
+  white-space: nowrap;
+}
+
+.dur-btn.active {
+  background: var(--primary);
+  color: #FFFFFF;
+  border-color: var(--primary);
+}
+
+.camera-select-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.camera-select {
+  flex: 1;
+  min-height: 48px;
+  border-radius: 10px;
+  border: 2px solid var(--border-color);
+  padding: 0 12px;
+  font-size: 1rem;
+  background: #FFFFFF;
+  color: var(--text-main);
+}
+
+/* 측정 게이지 스테이지 */
+.monitor-stage {
+  background: #FFFFFF;
+  border: 2px solid var(--border-color);
+  border-radius: 20px;
+  padding: 20px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  text-align: center;
+}
+
+.stage-guide-text {
+  font-size: 1.08rem;
+  font-weight: 700;
+  color: var(--primary);
+  min-height: 1.6em;
+}
+
+.ring-container {
+  position: relative;
+  width: 240px;
+  height: 240px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.progress-ring {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 240px;
+  height: 240px;
+  transform: rotate(-90deg);
+}
+
+.progress-ring-bg {
+  fill: none;
+  stroke: #E2E8F0;
+  stroke-width: 12;
+}
+
+.progress-ring-bar {
+  fill: none;
+  stroke: var(--primary);
+  stroke-width: 12;
+  stroke-linecap: round;
+  stroke-dasharray: 666;
+  stroke-dashoffset: 666;
+  transition: stroke-dashoffset 0.25s linear, stroke 0.25s ease;
+}
+
+.ring-center-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+
+.camera-preview-badge {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 3px solid var(--border-color);
+  position: relative;
+  background: #1E293B;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#cameraVideo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.heart-icon {
+  color: var(--accent);
+  font-size: 1.5rem;
+  display: inline-block;
+}
+
+.heart-icon.beating {
+  animation: pulseBeat 0.8s infinite ease-in-out;
+}
+
+@keyframes pulseBeat {
+  0%, 100% { transform: scale(1); }
+  35% { transform: scale(1.26); }
+}
+
+/* 핵심 수치 64px 이상 */
+.bpm-value {
+  font-size: clamp(4rem, 14vw, 5.2rem);
+  font-weight: 900;
+  line-height: 1.05;
+  color: var(--text-main);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+}
+
+.bpm-unit-row {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-sub);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.timer-badge {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--primary);
+  background: var(--bg-subtle);
+  padding: 4px 12px;
+  border-radius: 999px;
+  margin-top: 4px;
+}
+
+/* 실시간 파형 캔버스 */
+.waveform-box {
+  width: 100%;
+  background: #0F172A;
+  border-radius: 14px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.waveform-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 2px 12px;
+  font-size: 0.86rem;
+  line-height: 1.35;
+  color: #CBD5E1;
+  word-break: keep-all;
+}
+
+.waveform-meta span:last-child {
+  color: #94A3B8;
+}
+
+#waveformCanvas {
+  width: 100%;
+  height: 84px;
+  display: block;
+}
+
+.metrics-strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  width: 100%;
+}
+
+.metric-pill {
+  background: var(--bg-subtle);
+  border-radius: 10px;
+  padding: 8px 6px;
+  text-align: center;
+}
+
+.metric-pill-label {
+  font-size: 0.8rem;
+  color: var(--text-sub);
+  display: block;
+}
+
+.metric-pill-val {
+  font-size: 0.98rem;
+  font-weight: 800;
+  color: var(--text-main);
+}
+
+/* 판정 결과 배지 */
+.result-banner {
+  display: none;
+  width: 100%;
+  border-radius: 16px;
+  padding: 16px;
+  border: 2px solid transparent;
+  text-align: left;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.result-banner.visible {
+  display: flex;
+}
+
+.result-banner.status-normal {
+  background: var(--status-normal-bg);
+  color: var(--status-normal-fg);
+  border-color: var(--status-normal-border);
+}
+
+.result-banner.status-brady {
+  background: var(--status-brady-bg);
+  color: var(--status-brady-fg);
+  border-color: var(--status-brady-border);
+}
+
+.result-banner.status-tachy {
+  background: var(--status-tachy-bg);
+  color: var(--status-tachy-fg);
+  border-color: var(--status-tachy-border);
+}
+
+.result-banner.status-irregular {
+  background: var(--status-irregular-bg);
+  color: var(--status-irregular-fg);
+  border-color: var(--status-irregular-border);
+}
+
+.result-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 1.25rem;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+#resultIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+#resultIcon svg {
+  display: block;
+}
+
+.result-desc {
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.result-short-note {
+  font-size: 0.92rem;
+  font-weight: 700;
+  padding-top: 6px;
+  border-top: 1px dashed currentColor;
+}
+
+/* 경고 알림창 */
+.alert-box {
+  display: none;
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #FEF3C7;
+  color: #92400E;
+  border: 2px solid #F59E0B;
+  font-size: 0.98rem;
+  font-weight: 700;
+  text-align: left;
+}
+
+.alert-box.visible {
+  display: block;
+}
+
+/* 컨트롤 플로우 바 (우측 끝 Primary CTA) */
+.control-flow-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+.control-flow-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.control-flow-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 측정 이력 탭 */
+.trend-card {
+  background: var(--bg-subtle);
+  border-radius: 16px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.trend-summary-text {
+  font-size: 1.12rem;
+  font-weight: 800;
+  color: var(--primary);
+}
+
+#trendCanvas {
+  width: 100%;
+  height: 120px;
+  background: #FFFFFF;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+}
+
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  list-style: none;
+}
+
+.history-item {
+  background: #FFFFFF;
+  border: 2px solid var(--border-color);
+  border-radius: 14px;
+  padding: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.history-bpm {
+  font-size: 1.65rem;
+  font-weight: 900;
+  color: var(--primary);
+  /* "72 회/분" 이 두 줄로 쪼개지지 않도록 한 덩어리로 유지 */
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+.history-bpm .unit {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-sub);
+  margin-left: 3px;
+}
+
+.history-item > div:first-child {
+  min-width: 0;
+  word-break: keep-all;
+}
+
+/* 가이드 카드 */
+.guide-card {
+  background: var(--bg-subtle);
+  border-radius: 16px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.guide-card h3 {
+  font-size: 1.15rem;
+  color: var(--primary);
+}
+
+/* 법적 고지 푸터 */
+.legal-footer {
+  margin-top: auto;
+  padding: 16px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+  background: var(--bg-subtle);
+  border-top: 1px solid var(--border-color);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: #374151;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* 내장 모바일 디버그 콘솔 & 샌드박스 */
+#debugConsole {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 520px;
+  max-height: 68vh;
+  background: #0F172A;
+  color: #F8FAFC;
+  border-top: 3px solid #38BDF8;
+  z-index: 999;
+  flex-direction: column;
+  padding: 12px;
+  gap: 8px;
+  box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.45);
+  overflow-y: auto;
+}
+
+#debugConsole.open {
+  display: flex;
+}
+
+.debug-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #38BDF8;
+}
+
+.debug-sim-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.debug-btn {
+  min-height: 38px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid #475569;
+  background: #1E293B;
+  color: #F8FAFC;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.debug-btn.active {
+  background: #0284C7;
+  border-color: #38BDF8;
+}
+
+.sandbox-panel {
+  border-top: 1px dashed #475569;
+  padding-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.8rem;
+}
+
+.sandbox-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+#debugLogList {
+  overflow-y: auto;
+  font-family: monospace;
+  font-size: 0.76rem;
+  background: #020617;
+  padding: 8px;
+  border-radius: 8px;
+  max-height: 130px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+@media (orientation: landscape) and (max-height: 540px) {
+  .app-shell {
+    max-width: 820px;
+  }
+  .monitor-stage {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: space-around;
+  }
+  .ring-container {
+    width: 190px;
+    height: 190px;
+  }
+  .progress-ring {
+    width: 190px;
+    height: 190px;
+  }
+}

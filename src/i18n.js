@@ -16,9 +16,12 @@ export const dictionaries = {
     'app.nav.guide': '측정안내',
 
     'measure.config.durationLabel': '측정 시간 선택',
-    'measure.config.sec15': '15초 (빠른 확인)',
-    'measure.config.sec30': '30초 (권장·리듬 확인)',
-    'measure.config.sec60': '60초 (정밀 확인)',
+    'measure.config.sec15': '15초',
+    'measure.config.sec15sub': '빠른 확인',
+    'measure.config.sec30': '30초',
+    'measure.config.sec30sub': '권장 · 리듬 확인',
+    'measure.config.sec60': '60초',
+    'measure.config.sec60sub': '정밀 확인',
     'measure.config.cameraSelect': '카메라 선택',
 
     'measure.status.readyTitle': '검지를 후면 카메라와 플래시에 가볍게 대주세요',
@@ -90,9 +93,12 @@ export const dictionaries = {
     'app.nav.guide': 'Guide',
 
     'measure.config.durationLabel': 'Measurement Duration',
-    'measure.config.sec15': '15s (Quick Check)',
-    'measure.config.sec30': '30s (Recommended)',
-    'measure.config.sec60': '60s (Detailed)',
+    'measure.config.sec15': '15s',
+    'measure.config.sec15sub': 'Quick check',
+    'measure.config.sec30': '30s',
+    'measure.config.sec30sub': 'Recommended',
+    'measure.config.sec60': '60s',
+    'measure.config.sec60sub': 'Detailed',
     'measure.config.cameraSelect': 'Select Camera',
 
     'measure.status.readyTitle': 'Gently cover the rear camera and flash with your index finger',
