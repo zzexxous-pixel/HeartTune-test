@@ -35,6 +35,25 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     await expect(page.locator('#appTitleTrigger')).toContainText('오늘심박');
     await expect(page.locator('.waveform-title')).toHaveText('카메라 측정 파형');
 
+    const iconConfig = await page.evaluate(async () => {
+      const manifest = await fetch('./manifest.webmanifest').then((response) => response.json());
+      const favicon = document.querySelector('link[rel="icon"]').getAttribute('href');
+      return {
+        favicon,
+        icons: manifest.icons.map((icon) => ({
+          sizes: icon.sizes,
+          purpose: icon.purpose,
+          svg: decodeURIComponent(icon.src.slice(icon.src.indexOf(',') + 1))
+        }))
+      };
+    });
+    expect(iconConfig.favicon).toContain('translate(14 14) scale(.72)');
+    expect(iconConfig.icons.map((icon) => icon.sizes)).toEqual(['192x192', '512x512']);
+    for (const icon of iconConfig.icons) {
+      expect(icon.purpose).toContain('maskable');
+      expect(icon.svg).toContain('scale(.72)');
+    }
+
     // 첫 화면에는 법적 고지 푸터/탭이 없어야 한다 (결과 화면·시트로 이동)
     await expect(page.locator('.legal-footer')).toHaveCount(0);
     await expect(page.locator('.tab-nav')).toHaveCount(0);
@@ -47,6 +66,14 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     expect(box.width).toBeGreaterThanOrEqual(48);
 
     await expectNoPageScroll(page);
+
+    // 짧은 휴대폰 화면에서도 하단 메시지 영역이 CTA를 침범하지 않는다.
+    await page.setViewportSize({ width: 375, height: 568 });
+    const compactMessage = await page.locator('.message-area').boundingBox();
+    const compactCta = await page.locator('.cta-bar').boundingBox();
+    expect(compactMessage.height).toBeLessThanOrEqual(150);
+    expect(compactMessage.y + compactMessage.height).toBeLessThanOrEqual(compactCta.y + 0.5);
+    expect(compactCta.y + compactCta.height).toBeLessThanOrEqual(568);
   });
 
   test('2. 한국어(KO) ↔ 영어(EN) 다국어 실시간 전환 및 새로고침 후 유지 검증', async ({ page }) => {
@@ -216,6 +243,15 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     const legalText = await resultBanner.innerText();
     expect(legalText).toContain('참고용');
     expect(legalText).not.toContain('진단');
+
+    // 결과 상태에서도 짧은 휴대폰 화면의 메시지 상자가 CTA와 겹치지 않는다.
+    await page.setViewportSize({ width: 375, height: 568 });
+    const compactResult = await resultBanner.boundingBox();
+    const compactResultCta = await page.locator('.cta-bar').boundingBox();
+    expect(compactResult.height).toBeLessThanOrEqual(150);
+    expect(compactResult.y + compactResult.height).toBeLessThanOrEqual(compactResultCta.y + 0.5);
+    expect(compactResultCta.y + compactResultCta.height).toBeLessThanOrEqual(568);
+    await page.setViewportSize({ width: 375, height: 667 });
 
     // 결과가 떠도 한 화면(스크롤 없음)이고 하단 CTA가 화면 안에 있다.
     await expectNoPageScroll(page);

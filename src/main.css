@@ -1753,7 +1753,7 @@ body.has-result .bpm-row {
 :root {
   --ring-size: min(92vw, calc(100dvh - 444px), 340px);
   --main-wave-height: 102px;
-  --main-message-height: clamp(182px, 25dvh, 212px);
+  --main-message-height: clamp(152px, 22dvh, 176px);
 }
 
 .main-content {
@@ -1790,7 +1790,7 @@ body.is-measuring .stage-guide-text {
 }
 
 .message-area {
-  overflow: visible;
+  overflow: hidden;
 }
 
 .result-banner,
@@ -2080,7 +2080,7 @@ body.has-result .waveform-box {
   :root {
     --ring-size: min(92vw, calc(100dvh - 434px), 220px);
     --main-wave-height: 90px;
-    --main-message-height: 180px;
+    --main-message-height: 148px;
   }
 
   .waveform-box,
@@ -2090,19 +2090,34 @@ body.has-result .waveform-box {
 
   .result-banner,
   .result-banner.visible {
-    padding: 8px 10px;
+    padding: 5px 8px;
+    gap: 2px;
   }
 
   .result-title-row {
-    min-height: 44px;
-    font-size: 1rem;
+    min-height: 32px;
+    gap: 5px;
+    font-size: 0.88rem;
+  }
+
+  .btn-details {
+    min-height: 30px;
+    padding: 0 8px;
+    font-size: 0.7rem;
   }
 
   .result-desc {
-    font-size: 0.98rem;
+    font-size: 0.74rem;
+    line-height: 1.2;
+  }
+
+  .result-short-note {
+    font-size: 0.64rem;
+    line-height: 1.15;
   }
 
   .result-legal {
-    font-size: 0.9rem;
+    font-size: 0.62rem;
+    line-height: 1.15;
   }
 }
