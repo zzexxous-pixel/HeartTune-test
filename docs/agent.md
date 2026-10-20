@@ -170,11 +170,11 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
 |---|---|---|---|
 | 최신 main 커밋 | `fded047` (PR #3 머지 완료) | git log --oneline -5 | 2026-10-19 |
 | DSP 단위·회귀 | 15 / 15 통과 | npm run test:unit | 2026-10-19 |
-| Playwright E2E | 테스트 7개 구성 (로컬 Chromium 런타임 라이브러리 누락으로 실행 불가, CI 확인 대기) | `PW_LOCAL=1 npx playwright test` | 2026-10-19 |
+| Playwright E2E | 7 / 7 통과 (PR #4 GitHub Actions) | `verify.yml` → Playwright E2E | 2026-10-20 |
 | i18n 키 | 81개, ko/en 일치 | npm run test:i18n | 2026-10-19 |
 | 개발 배포 빌드 | `b5ad15d2` 서빙 중 | 개발 Pages 빌드 메타 확인 | 2026-10-19 |
 | dist 빌드 | 11개 파일, 빌드 해시 자동 | npm run build | 2026-10-19 |
-| 워크플로 | ci / verify / promote-to-production / preview-pr | ls .github/workflows | 2026-10-19 |
+| 워크플로 | ci / verify / promote-to-production / preview-pr (PR #4 검증 통과, Pages 배포는 environment branch policy 차단) | ls .github/workflows + Actions run #39266504825 | 2026-10-20 |
 | ① Dev CI (main) | success | Actions 탭 | 2026-10-19 |
 | ② Promote | ✅ 첫 이관 성공 (Re-run 1회로 성공) | Actions → ② 실행 이력 | 2026-10-19 |
 | 운영 배포 | ✅ 서빙 중 — https://zzexxous-pixel.github.io/HeartTune/ · 빌드 91282438 (`<meta name="hearttune-build" content="91282438">` 확인) | 운영 URL 소스에서 meta hearttune-build 확인 | 2026-10-19 |
@@ -203,7 +203,7 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
 
 | # | 우선 | 할 일 | 비고 |
 |---|---|---|---|
-| 1 | P1 | PR 미리보기 활성화 확인 | PR에서 `preview-pr.yml` 검증·배포 후 `/preview/` URL 및 Summary를 확인하고, 미병합 close 때 cleanup 되는지 확인 |
+| 1 | P0 | PR 미리보기 활성화 확인 | PR #4 `preview-pr.yml` 검증은 통과. 배포는 `github-pages` environment 가 `main`만 허용해 `refs/pull/4/merge`를 차단함. Settings → Environments → `github-pages` 에서 브랜치 제한을 해제한 뒤 Actions 재실행 및 `/preview/`·미병합 close cleanup 확인 필요 |
 | 2 | P1 | 이관 ③(smoke) 로직 개선 커밋 반영 | ✅ 완료(2026-10-19) — **지속 체계**: 빌드 해시 판정 / 10분 폴링·진단 로그 / 자산 10종(각 1분 재시도) + 모든 자산 내용에 `hearttune-build` 해시 주입(`build-dist.js`)으로 신/구버전 판별(시간 미의존) / Summary Re-run 안내 / timeout 20분 → `promote-to-production.yml`·`build-dist.js`·`docs/40` 8-1절 정리. PR 후 ② 재실행 시 안정성 검증 대기 |
 | 3 | P1 | 실기기(iOS/Android) 검증 결과 반영 | 원스크린 UI + 진입 카메라 미리보기가 iOS Safari/PWA에서도 동작하는지 확인 |
 | 4 | P1 | 실제 카메라 신호로 DSP 튜닝 | 디버그 콘솔 CSV 활용 |
@@ -295,7 +295,7 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
 | 2026-10-19 | 이관 ③ 지속 체계로 전환 — `createCameraController` 1회용 마커 제거 → 모든 자산에 빌드 해시 주입(`build-dist.js`) + 내용 기반 검증으로 교체 (시간 미의존) | ✅ 완료(로컬) — `scripts/build-dist.js` 모든 자산에 `hearttune-build` 주입·`manifest._build` 추가, `promote-to-production.yml` 자산 해시 검증으로 교체, `docs/40`·`agent.md` 갱신, 빌드 91282438 재검증 통과 | `arena/f50fd973-hearttune-test` 브랜치 |
 
 | 2026-10-19 | **원스크린 UX 개편** — 탭/설정카드/파형/지표/법적푸터를 첫 화면에서 제거하고 헤더·스테이지·하단 CTA 3단 `100dvh` 구성. ⚙️ 설정 시트·≡ 메뉴 시트·이력/안내/법적고지/상세 시트 신설(`src/features/sheets.js`). 후면 카메라 기본 + **진입 즉시 미리보기**(토치 OFF), 자동 시작 OFF, 브라우저 언어 기본, 결과 배너에 법적 고지, 디버그 창 상단 드래그 리사이즈(`--debug-height`) | ✅ 완료(로컬) — i18n 81키 / unit 15 / E2E 7(320×568~414×896·가로모드 스크롤 0 검증) / build 통과 | `arena/f50fd973-hearttune-test` 브랜치 |
-| 2026-10-19 | UI 가독성·헤더/설정 기본값 조정, PR `/preview/` 배포와 cleanup, `npm run preview --no-sw` 구현 | 작업 및 검증 진행 중 | `arena/c85567d7-hearttune-test` |
+| 2026-10-19 | UI 가독성·헤더/설정 기본값 조정, PR `/preview/` 배포와 cleanup, `npm run preview --no-sw` 구현 | lint/i18n 81/unit 15/15/build 11 files 및 PR E2E 7/7 통과. 실제 Pages 배포는 `github-pages` environment의 main-only 정책에 의해 차단되어 설정 변경 대기 | PR #4 · `arena/c85567d7-hearttune-test` |
 
 > **로그 규칙**: 최신이 아래. 항목이 20개를 넘으면 오래된 것은 `docs/changelog-archive.md` 로 옮긴다.
 
