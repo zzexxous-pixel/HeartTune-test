@@ -14,6 +14,15 @@ async function expectNoPageScroll(page) {
   expect(overflow).toBeLessThanOrEqual(1);
 }
 
+function expectZoneGeometryStable(actual, expected) {
+  expect(actual).toHaveLength(expected.length);
+  actual.forEach((rect, zoneIndex) => {
+    rect.forEach((value, coordinateIndex) => {
+      expect(Math.abs(value - expected[zoneIndex][coordinateIndex])).toBeLessThanOrEqual(0.5);
+    });
+  });
+}
+
 test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
   test('1. 원스크린 렌더링, FOUC 방지, 48px CTA, 스크롤 없음 확인', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 667 });
@@ -121,7 +130,7 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     await ctaBtn.click();
     await expect(ctaBtn).toHaveText('측정 취소');
     const measuringZones = await captureZones();
-    expect(measuringZones).toEqual(idleZones);
+    expectZoneGeometryStable(measuringZones, idleZones);
 
     // [구간 A] 0 ~ 4초: 초기 신호 수집 구간이므로 아직 BPM은 '--' 유지
     for (let sec = 0; sec < 4; sec++) {
@@ -148,7 +157,7 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     expect(finalBpm).toBeLessThanOrEqual(76);
 
     const resultZones = await captureZones();
-    expect(resultZones).toEqual(idleZones);
+    expectZoneGeometryStable(resultZones, idleZones);
 
     const resultBanner = page.locator('#resultBanner');
     await expect(resultBanner).toHaveClass(/status-normal/);

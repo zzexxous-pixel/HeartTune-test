@@ -343,7 +343,9 @@ export async function shareResultAsImage(record, { t, formatDateTime }) {
     const a = document.createElement('a');
     a.href = url;
     a.download = fileName;
+    document.body.appendChild(a);
     a.click();
+    a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 3000);
   }, 'image/png');
 }
