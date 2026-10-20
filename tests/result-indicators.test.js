@@ -75,10 +75,18 @@ test('History labels use one trailing suspicion suffix and share titles match bo
   assert.equal(suspectedKo(['arrhythmia', 'bradycardia']), '부정맥, 서맥 의심');
   assert.equal(suspectedKo(['arrhythmia', 'bradycardia', 'tachycardia']), '부정맥, 서맥, 빈맥 의심');
   assert.equal(t('share.card.title'), '❤️ 오늘심박 (HeartTune)');
+  assert.equal(t('measure.waveform.title'), '카메라 측정 파형');
+  assert.equal(t('guide.rhythm.url'), 'https://sev.severance.healthcare/sev/news/press/medical-report.do?mode=view&articleNo=129731&title=%5B%EC%84%B8%EB%B8%8C%EB%9E%80%EC%8A%A4%EB%B3%91%EC%9B%90%5D+%EB%B6%80%EC%A0%95%EB%A7%A5');
+  const combined = getHistoryPresentation({ status: 'irregular', irregular: true, bpm: 110 });
+  const combinedTerms = combined.signals.map((name) => t(`measure.indicator.${name}`)).join(', ');
+  assert.equal(t('result.signals.summary', { signals: combinedTerms }), '부정맥, 빈맥 참고 신호');
 
   setLang('en');
   const suspectedEn = t('history.status.suspected', { signals: 'Arrhythmia, Bradycardia' });
   assert.equal(suspectedEn, 'Possible Arrhythmia, Bradycardia');
   assert.equal(t('share.card.title'), '❤️ HeartTune');
+  assert.equal(t('measure.waveform.title'), 'Camera-measured waveform');
+  assert.equal(t('result.signals.summary', { signals: 'Arrhythmia, Tachycardia' }), 'Signals: Arrhythmia, Tachycardia');
+  assert.equal(t('guide.rhythm.url'), 'https://www.heart.org/en/health-topics/arrhythmia/about-arrhythmia');
   setLang('ko');
 });

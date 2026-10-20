@@ -90,7 +90,7 @@ function createLayout(ctx, record, { t, formatDateTime }) {
   y += bpmHeight + 32;
 
   ctx.font = '800 38px sans-serif';
-  const waveformTitle = wrapText(ctx, t('share.waveform.label'), CONTENT_WIDTH);
+  const waveformTitle = wrapText(ctx, t('measure.waveform.title'), CONTENT_WIDTH);
   const waveformTitleY = y;
   const waveformTitleLineHeight = 48;
   y += waveformTitle.length * waveformTitleLineHeight + 16;
@@ -238,7 +238,7 @@ function drawWaveform(ctx, record, x, y, width, height) {
   if (waveform.length > 2) {
     const min = Math.min(...waveform);
     const max = Math.max(...waveform);
-    const range = Math.max(0.001, max - min);
+    const range = Math.max(0.8, max - min);
     waveform.forEach((value, index) => {
       const pointX = x + 24 + (index / (waveform.length - 1)) * (width - 48);
       const pointY = y + height - 24 - ((value - min) / range) * (height - 48);

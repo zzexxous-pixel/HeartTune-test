@@ -147,7 +147,7 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
 | `src/main.js` | ~1,120 | 앱 상태·이벤트·측정 오케스트레이션·시트 연결 | E2E |
 | `src/features/result-indicators.js` | — | 현행 DSP 기준을 변경 없이 화면용 독립 플래그/신호 품질로 매핑 | 단위 |
 | `src/dsp.js` | ~816 | PPG 신호처리 순수 로직 (DOM 비의존, 임계값 변경 없음) | **단위** |
-| `src/i18n.js` | ~292 | ko/en 사전(96키), `t()`, **브라우저 언어 기본 감지**, 키 일치 검증 | 단위 1번 + `test:i18n` |
+| `src/i18n.js` | ~310 | ko/en 사전(103키), `t()`, **브라우저 언어 기본 감지**, 키 일치 검증 | 단위 1번 + `test:i18n` |
 | `src/features/camera.js` | ~150 | `getUserMedia`·torch·전/후면 전환·**진입 미리보기** | E2E 간접 |
 | `src/features/sheets.js` | ~95 | 바텀시트 열기/닫기·포커스 트랩·ESC·백드롭 | E2E |
 | `src/features/storage.js` | ~114 | 이력·캘리브레이션 localStorage 키/용량 관리 | 간접 |
@@ -173,7 +173,7 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
 | 최신 main 커밋 | `fded047` (PR #3 머지 완료) | git log --oneline -5 | 2026-10-19 |
 | DSP·표시 기준 단위·회귀 | 18 / 18 통과 | npm run test:unit | 2026-10-20 |
 | Playwright E2E | 이전 PR 코드 7/7 통과; 현재 8개는 로컬 Playwright 미설치로 미실행 | `verify.yml` → Playwright E2E | 2026-10-20 |
-| i18n 키 | 96개, ko/en 일치 | npm run test:i18n | 2026-10-20 |
+| i18n 키 | 103개, ko/en 일치 | npm run test:i18n | 2026-10-20 |
 | 개발 배포 빌드 | `b5ad15d2` 서빙 중 | 개발 Pages 빌드 메타 확인 | 2026-10-19 |
 | dist 빌드 | 12개 파일, 빌드 해시 자동 | npm run build | 2026-10-20 |
 | 워크플로 | ci / verify / promote-to-production / preview-pr (PR #4 미리보기 배포 성공; main 루트 유지 확인) | Actions run #39353161406 + 개발 Pages / `/preview/` | 2026-10-20 |
@@ -297,7 +297,7 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
 
 | 2026-10-19 | **원스크린 UX 개편** — 탭/설정카드/파형/지표/법적푸터를 첫 화면에서 제거하고 헤더·스테이지·하단 CTA 3단 `100dvh` 구성. ⚙️ 설정 시트·≡ 메뉴 시트·이력/안내/법적고지/상세 시트 신설(`src/features/sheets.js`). 후면 카메라 기본 + **진입 즉시 미리보기**(토치 OFF), 자동 시작 OFF, 브라우저 언어 기본, 결과 배너에 법적 고지, 디버그 창 상단 드래그 리사이즈(`--debug-height`) | ✅ 완료(로컬) — i18n 81키 / unit 15 / E2E 7(320×568~414×896·가로모드 스크롤 0 검증) / build 통과 | `arena/f50fd973-hearttune-test` 브랜치 |
 | 2026-10-19 | UI 가독성·헤더/설정 기본값 조정, PR `/preview/` 배포와 cleanup, `npm run preview --no-sw` 구현 | lint/i18n 81/unit 15/15/build 11 files 및 PR E2E 7/7 통과. `github-pages`에서 main + `refs/pull/*/merge` 허용 후 `/preview/` 배포 성공, 개발 루트는 main 콘텐츠 유지 확인. close cleanup은 PR 리뷰 중으로 미검증 | PR #4 · `arena/c85567d7-hearttune-test` |
-| 2026-10-20 | UX 후속 개선 — 고정 메시지 영역·결과 텍스트 정렬, 이력 정상/복수 의심 문구·점 색상/BPM 강조, 상세 시트의 일시·시간·BPM·파형·지표·품질, ko/en 공유 카드 레이아웃·큰 글씨·언어별 제목 | `src/dsp.js` 알고리즘과 60/100 BPM 경계 불변. lint, i18n 96키, unit 18/18, build 12개, E2E 구문·diff 검사 통과. 로컬 브라우저 E2E는 Playwright 미설치로 미실행; 원격 CI 확인 전 | PR #4 · `arena/c85567d7-hearttune-test` |
+| 2026-10-20 | UX 후속 — 고정 메시지 상자·파형 제목, 원시 파형 일치, 디버그 로그 자동 확장, 결과에 복수 참고 신호, 측정 안내의 심박 리듬 설명·ko/en 공식 자료 링크 | `src/dsp.js` 알고리즘과 경계 불변. lint/i18n 103/unit18/build 통과. 새 E2E 확인 후 기록 | PR #4 · `arena/c85567d7-hearttune-test` |
 
 > **로그 규칙**: 최신이 아래. 항목이 20개를 넘으면 오래된 것은 `docs/changelog-archive.md` 로 옮긴다.
 

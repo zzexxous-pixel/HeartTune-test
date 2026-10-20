@@ -33,6 +33,7 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     await expect(body).toHaveClass(/i18n-ready/);
 
     await expect(page.locator('#appTitleTrigger')).toContainText('오늘심박');
+    await expect(page.locator('.waveform-title')).toHaveText('카메라 측정 파형');
 
     // 첫 화면에는 법적 고지 푸터/탭이 없어야 한다 (결과 화면·시트로 이동)
     await expect(page.locator('.legal-footer')).toHaveCount(0);
@@ -64,6 +65,22 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     await page.reload();
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
     await expect(page.locator('#btnPrimaryMeasure')).toHaveText('Start Measure');
+
+    await page.locator('#btnMenu').click();
+    await page.locator('#menuGuide').click();
+    const guideLink = page.locator('#guideRhythmLink');
+    await expect(page.locator('#guideSheet')).toContainText('Arrhythmia');
+    await expect(page.locator('#guideSheet')).toContainText('Tachycardia');
+    await expect(page.locator('#guideSheet')).toContainText('Bradycardia');
+    await expect(guideLink).toHaveText('Learn more');
+    await expect(guideLink).toHaveAttribute('href', 'https://www.heart.org/en/health-topics/arrhythmia/about-arrhythmia');
+    await expect(guideLink).toHaveAttribute('target', '_blank');
+    await expect(guideLink).toHaveAttribute('rel', 'noopener noreferrer');
+    await page.locator('#guideSheet [data-sheet-close]').click();
+
+    await page.locator('#btnLangToggle').click();
+    await expect(page.locator('html')).toHaveAttribute('lang', 'ko');
+    await expect(guideLink).toHaveAttribute('href', 'https://sev.severance.healthcare/sev/news/press/medical-report.do?mode=view&articleNo=129731&title=%5B%EC%84%B8%EB%B8%8C%EB%9E%80%EC%8A%A4%EB%B3%91%EC%9B%90%5D+%EB%B6%80%EC%A0%95%EB%A7%A5');
   });
 
   test('3. 링·파형·메시지 3영역 고정 및 제거된 조명/파형 설정 확인', async ({ page }) => {
@@ -76,6 +93,7 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     await expect(ring).toBeVisible();
     await expect(waveform).toBeVisible();
     await expect(message).toBeVisible();
+    await expect(page.locator('.waveform-title')).toHaveText('카메라 측정 파형');
     await expect(page.locator('#btnScreenLight, #screenLightStrip, #btnWaveformToggle')).toHaveCount(0);
 
     const ringBox = await ring.boundingBox();
@@ -135,11 +153,17 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
       return [rect.x, rect.y, rect.width, rect.height];
     }));
     const idleZones = await captureZones();
+    const idleMessageBox = await page.locator('#stageGuideText').boundingBox();
     const ctaBtn = page.locator('#btnPrimaryMeasure');
     await ctaBtn.click();
     await expect(ctaBtn).toHaveText('측정 취소');
     const measuringZones = await captureZones();
     expectZoneGeometryStable(measuringZones, idleZones);
+    const measuringMessageBox = await page.locator('#stageGuideText').boundingBox();
+    expectZoneGeometryStable(
+      [[measuringMessageBox.x, measuringMessageBox.y, measuringMessageBox.width, measuringMessageBox.height]],
+      [[idleMessageBox.x, idleMessageBox.y, idleMessageBox.width, idleMessageBox.height]]
+    );
 
     // [구간 A] 0 ~ 4초: 초기 신호 수집 구간이므로 아직 BPM은 '--' 유지
     for (let sec = 0; sec < 4; sec++) {
@@ -167,10 +191,20 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
 
     const resultZones = await captureZones();
     expectZoneGeometryStable(resultZones, idleZones);
+    const resultMessageBox = await page.locator('#resultBanner').boundingBox();
+    expectZoneGeometryStable(
+      [[resultMessageBox.x, resultMessageBox.y, resultMessageBox.width, resultMessageBox.height]],
+      [[idleMessageBox.x, idleMessageBox.y, idleMessageBox.width, idleMessageBox.height]]
+    );
 
     const resultBanner = page.locator('#resultBanner');
     await expect(resultBanner).toHaveClass(/status-normal/);
     await expect(page.locator('#resultTitle')).toHaveText('정상 범위예요');
+    const waveformSampleCount = await page.evaluate(() => {
+      const record = JSON.parse(localStorage.getItem('hearttune_history_v1') || '[]')[0];
+      return record?.waveform?.length || 0;
+    });
+    expect(waveformSampleCount).toBe(90);
     await expect(page.locator('#resultShortNote')).toBeVisible();
     await expect(page.locator('#btnShareImage')).toBeVisible();
     await expect(page.locator('#btnDetails')).toBeVisible();
@@ -192,7 +226,7 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     await page.locator('#btnDetails').click();
     const detailsSheet = page.locator('#detailsSheet');
     await expect(detailsSheet).toHaveClass(/open/);
-    for (const label of ['측정일시', '측정시간', '맥박', '측정 파형', '부정맥', '서맥', '빈맥', '측정 신호 품질']) {
+    for (const label of ['측정일시', '측정시간', '맥박', '카메라 측정 파형', '부정맥', '서맥', '빈맥', '측정 신호 품질']) {
       await expect(detailsSheet).toContainText(label);
     }
     await expect(page.locator('#detailsDate')).not.toBeEmpty();
@@ -353,6 +387,7 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     await expect(debugConsole).toHaveClass(/open/);
 
     const before = await debugConsole.boundingBox();
+    const logBefore = await page.locator('#debugLogList').boundingBox();
     const handle = page.locator('#debugResizeHandle');
     const handleBox = await handle.boundingBox();
 
@@ -364,6 +399,9 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
 
     const after = await debugConsole.boundingBox();
     expect(after.height).toBeGreaterThan(before.height + 40);
+    const logAfter = await page.locator('#debugLogList').boundingBox();
+    // Logs expand with the console instead of staying capped at the old fixed height.
+    expect(logAfter.height).toBeGreaterThan(logBefore.height + 40);
     // --debug-height 변수로 크기가 제어된다.
     const cssVar = await page.evaluate(() =>
       getComputedStyle(document.documentElement).getPropertyValue('--debug-height').trim()

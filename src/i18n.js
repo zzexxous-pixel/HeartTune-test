@@ -53,7 +53,8 @@ export const dictionaries = {
     'measure.status.cameraUnavailable': '카메라를 켤 수 없어요. 측정 시작을 누르면 다시 시도합니다.',
 
     'measure.unit.bpm': '회/분',
-    'measure.waveform.accessible': '맥박 파형',
+    'measure.waveform.accessible': '카메라 측정 파형',
+    'measure.waveform.title': '카메라 측정 파형',
     'measure.status.readyTitle': '카메라 렌즈에 손가락을 가볍게 대주세요',
 
     'measure.cta.start': '측정 시작',
@@ -63,12 +64,10 @@ export const dictionaries = {
     'measure.cta.saveImage': '이미지 저장',
     'measure.result.details': '자세히 보기',
     'share.card.title': '❤️ 오늘심박 (HeartTune)',
-    'share.waveform.label': '카메라 맥박 파형',
     'details.measurementTime': '측정일시',
     'details.duration': '측정시간',
     'details.duration.value': '{seconds}초',
     'details.heartRate': '맥박',
-    'details.waveform': '측정 파형',
 
     'result.normal.title': '정상 범위예요',
     'result.normal.desc': '측정된 심박수가 일반적인 참고 범위에 있습니다.',
@@ -78,6 +77,7 @@ export const dictionaries = {
     'result.tachy.desc': '심박수가 분당 100회를 초과해 측정되었습니다. 결과는 참고용입니다.',
     'result.irregular.title': '부정맥 참고 신호',
     'result.irregular.desc': '박동 간격 변화가 크게 측정되었습니다. 결과는 참고용입니다.',
+    'result.signals.summary': '{signals} 참고 신호',
     'result.shortNote.text': '15초 측정 결과는 참고용입니다.',
 
     'error.camera.denied': '카메라 권한이 거부되었습니다. 브라우저 설정에서 카메라 권한을 허용해 주세요.',
@@ -103,6 +103,13 @@ export const dictionaries = {
     'guide.step2.desc': '측정 시작 후 5초 만에 첫 심박수를 포착하고, 종료될 때까지 내 맥박 주파수를 따라 필터가 자동 조절됩니다.',
     'guide.step3.title': '3. 가족에게 큰 글씨 이미지 공유',
     'guide.step3.desc': '측정이 끝나면 [이미지 저장] 버튼을 눌러 카카오톡 등으로 자녀나 부모님께 쉽게 전달하세요.',
+    'guide.rhythm.title': '부정맥·빈맥·서맥이란?',
+    'guide.rhythm.note': '아래 설명은 일반 건강 정보입니다. 이 앱의 측정 결과는 참고용 신호이며, 확정적인 의학적 판단을 대신하지 않습니다.',
+    'guide.rhythm.arrhythmia': '심장 박동의 속도나 리듬이 평소와 다르게 나타나는 여러 상태를 가리키는 말입니다.',
+    'guide.rhythm.tachycardia': '심장이 평소보다 빠르게 뛰는 상태를 가리키는 일반 용어입니다.',
+    'guide.rhythm.bradycardia': '심장이 평소보다 느리게 뛰는 상태를 가리키는 일반 용어입니다.',
+    'guide.rhythm.learnMore': '더 알아보기',
+    'guide.rhythm.url': 'https://sev.severance.healthcare/sev/news/press/medical-report.do?mode=view&articleNo=129731&title=%5B%EC%84%B8%EB%B8%8C%EB%9E%80%EC%8A%A4%EB%B3%91%EC%9B%90%5D+%EB%B6%80%EC%A0%95%EB%A7%A5',
 
     'legal.disclaimer.main': '본 앱은 의료기기가 아니며, 측정 결과는 참고용 정보입니다. 의학적 판단이나 진료를 대체할 수 없습니다.',
     'legal.disclaimer.short': '본 앱은 의료기기가 아니며, 결과는 참고용입니다.',
@@ -162,7 +169,8 @@ export const dictionaries = {
     'measure.status.cameraUnavailable': 'Camera unavailable. Press Start to try again.',
 
     'measure.unit.bpm': 'bpm',
-    'measure.waveform.accessible': 'Pulse waveform',
+    'measure.waveform.accessible': 'Camera-measured waveform',
+    'measure.waveform.title': 'Camera-measured waveform',
     'measure.status.readyTitle': 'Gently place your finger over the camera lens',
 
     'measure.cta.start': 'Start Measure',
@@ -172,12 +180,10 @@ export const dictionaries = {
     'measure.cta.saveImage': 'Save image',
     'measure.result.details': 'Show details',
     'share.card.title': '❤️ HeartTune',
-    'share.waveform.label': 'Camera pulse waveform',
     'details.measurementTime': 'Date and time',
     'details.duration': 'Measurement time',
     'details.duration.value': '{seconds} seconds',
     'details.heartRate': 'Heart rate',
-    'details.waveform': 'Measurement waveform',
 
     'result.normal.title': 'Within Normal Range',
     'result.normal.desc': 'The measured rate is within a typical reference range.',
@@ -187,6 +193,7 @@ export const dictionaries = {
     'result.tachy.desc': 'The measured rate was above 100 bpm. Results are for reference only.',
     'result.irregular.title': 'Arrhythmia signal',
     'result.irregular.desc': 'Substantial beat-interval variation was measured. Results are for reference only.',
+    'result.signals.summary': 'Signals: {signals}',
     'result.shortNote.text': '15s results are for reference.',
 
     'error.camera.denied': 'Camera permission denied. Please enable camera access in your browser settings.',
@@ -212,6 +219,13 @@ export const dictionaries = {
     'guide.step2.desc': 'Locks onto your pulse within 5 seconds and continuously adapts the filter band until completion.',
     'guide.step3.title': '3. Share Large-Print Image Card',
     'guide.step3.desc': 'Tap [Save image] after measuring to easily send a clear summary card to your family.',
+    'guide.rhythm.title': 'About arrhythmia, tachycardia and bradycardia',
+    'guide.rhythm.note': 'These are general health explanations. App readings are reference signals and do not replace professional medical judgment.',
+    'guide.rhythm.arrhythmia': 'A general term for changes in the speed or rhythm of the heartbeat.',
+    'guide.rhythm.tachycardia': 'A general term for a heart rate that is faster than usual.',
+    'guide.rhythm.bradycardia': 'A general term for a heart rate that is slower than usual.',
+    'guide.rhythm.learnMore': 'Learn more',
+    'guide.rhythm.url': 'https://www.heart.org/en/health-topics/arrhythmia/about-arrhythmia',
 
     'legal.disclaimer.main': 'This app is NOT a medical device. Results are for reference only and do not replace professional medical advice.',
     'legal.disclaimer.short': 'Not a medical device. Results are for reference only.',

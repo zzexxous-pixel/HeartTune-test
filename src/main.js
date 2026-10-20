@@ -261,6 +261,9 @@ function applyTranslations() {
   document.querySelectorAll('[data-i18n-aria]').forEach((el) => {
     el.setAttribute('aria-label', t(el.getAttribute('data-i18n-aria')));
   });
+  document.querySelectorAll('[data-i18n-href]').forEach((el) => {
+    el.setAttribute('href', t(el.getAttribute('data-i18n-href')));
+  });
 
   if (state.isMeasuring) {
     els.btnPrimaryMeasure.textContent = t('measure.cta.stop');
@@ -626,7 +629,8 @@ function finishMeasurement() {
     saveCalibrationSample(result.bpm, result.filterState, result.qualityScore);
   }
 
-  const wfSummary = Array.from(result.filteredSignal.slice(-60)).map((v) => Number(v.toFixed(2)));
+  // Keep the exact recent raw samples used by the live canvas so details/share show the same trace.
+  const wfSummary = state.rawSamples.slice(-90).map((point) => Number(point.v.toFixed(4)));
 
   const record = {
     id: `ht_${Date.now()}`,
@@ -710,15 +714,15 @@ function drawDetailsWaveform(record) {
   if (waveform.length < 2) return;
   const min = Math.min(...waveform);
   const max = Math.max(...waveform);
-  const range = Math.max(0.001, max - min);
+  const range = Math.max(0.8, max - min);
   ctx.strokeStyle = '#38BDF8';
-  ctx.lineWidth = 4;
+  ctx.lineWidth = 2.5;
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
   ctx.beginPath();
   waveform.forEach((value, index) => {
-    const x = 12 + (index / (waveform.length - 1)) * (width - 24);
-    const y = height - 12 - ((value - min) / range) * (height - 24);
+    const x = 8 + (index / (waveform.length - 1)) * (width - 16);
+    const y = height - 10 - ((value - min) / range) * (height - 20);
     if (index === 0) ctx.moveTo(x, y);
     else ctx.lineTo(x, y);
   });
@@ -737,7 +741,12 @@ function renderDetails(record) {
 function renderResultBanner(record) {
   els.resultBanner.className = `result-banner visible status-${record.status}`;
   els.resultIcon.innerHTML = RESULT_ICONS[record.status] || RESULT_ICONS.normal;
-  els.resultTitle.textContent = t(`result.${record.status}.title`);
+  const presentation = getHistoryPresentation(record);
+  els.resultTitle.textContent = presentation.signals.length
+    ? t('result.signals.summary', {
+      signals: presentation.signals.map((name) => t(`measure.indicator.${name}`)).join(', ')
+    })
+    : t(`result.${record.status}.title`);
   els.resultDesc.textContent = t(`result.${record.status}.desc`);
   els.resultShortNote.hidden = !record.isShortMeasurement;
   renderResultIndicators(record);

@@ -1751,9 +1751,9 @@ body.has-result .bpm-row {
    Result/history readability refinements
    -------------------------------------------------------------------------- */
 :root {
-  --ring-size: min(92vw, calc(100dvh - 432px), 340px);
-  --main-wave-height: 82px;
-  --main-message-height: clamp(190px, 26dvh, 220px);
+  --ring-size: min(92vw, calc(100dvh - 444px), 340px);
+  --main-wave-height: 102px;
+  --main-message-height: clamp(182px, 25dvh, 212px);
 }
 
 .main-content {
@@ -1763,13 +1763,30 @@ body.has-result .bpm-row {
 .stage-guide-text {
   min-height: 0;
   width: 100%;
-  padding: 12px 14px;
+  height: 100%;
+  max-width: none;
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #93C5FD;
   border-radius: 14px;
   background: #E8F0FB;
+  color: var(--primary);
   font-size: clamp(1.08rem, 4.6vw, 1.24rem);
   font-weight: 700;
   line-height: 1.4;
+  text-align: center;
   overflow-wrap: anywhere;
+}
+
+body.is-measuring .stage-guide-text {
+  border-color: #60A5FA;
+  background: #EFF6FF;
+}
+
+.message-area > * {
+  height: 100%;
 }
 
 .message-area {
@@ -1960,11 +1977,105 @@ body.has-result .bpm-row {
   font-size: 0.94rem;
 }
 
+.guide-rhythm-card {
+  background: #F8FAFC;
+  border: 1px solid var(--border-color);
+}
+
+.guide-rhythm-note {
+  color: var(--text-sub) !important;
+  font-size: 0.9rem !important;
+}
+
+.guide-rhythm-list {
+  display: grid;
+  gap: 10px;
+}
+
+.guide-rhythm-list > div {
+  display: grid;
+  gap: 3px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-color);
+}
+
+.guide-rhythm-list dt {
+  color: var(--primary);
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.guide-rhythm-list dd {
+  color: var(--text-main);
+  font-size: 0.96rem;
+  line-height: 1.45;
+}
+
+.guide-external-link {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 10px;
+  background: #E8F0FB;
+  color: var(--primary);
+  font-size: 1rem;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.waveform-box,
+body.has-result .waveform-box {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: min(100%, 440px);
+  height: 100%;
+  max-width: 440px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.waveform-title {
+  flex: 0 0 22px;
+  color: var(--text-sub);
+  font-size: 0.98rem;
+  font-weight: 800;
+  line-height: 22px;
+  text-align: center;
+}
+
+#waveformCanvas {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  height: auto;
+  display: block;
+  border: 1px solid #263449;
+  border-radius: 14px;
+  background: #0F172A;
+}
+
+#debugConsole {
+  overflow: hidden;
+}
+
+#debugLogList {
+  flex: 1 1 auto;
+  min-height: 72px;
+  max-height: none;
+  width: 100%;
+}
+
 @media (max-height: 600px) and (orientation: portrait) {
   :root {
-    --ring-size: min(92vw, calc(100dvh - 422px), 220px);
-    --main-wave-height: 70px;
-    --main-message-height: 188px;
+    --ring-size: min(92vw, calc(100dvh - 434px), 220px);
+    --main-wave-height: 90px;
+    --main-message-height: 180px;
   }
 
   .waveform-box,
