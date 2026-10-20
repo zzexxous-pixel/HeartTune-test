@@ -201,6 +201,14 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
 
     // 브라우저별 다운로드 UI는 다르므로, 클릭된 Blob URL을 읽어 실제 PNG를 검증한다.
     await page.evaluate(() => {
+      window.__shareDiagnostics = { buttonClicked: false, error: null };
+      window.addEventListener('error', (event) => { window.__shareDiagnostics.error = event.message; });
+      window.addEventListener('unhandledrejection', (event) => {
+        window.__shareDiagnostics.error = String(event.reason?.stack || event.reason);
+      });
+      document.querySelector('#btnShareImage').addEventListener('click', () => {
+        window.__shareDiagnostics.buttonClicked = true;
+      }, { capture: true });
       const nativeClick = HTMLAnchorElement.prototype.click;
       HTMLAnchorElement.prototype.click = function click(...args) {
         if (this.hasAttribute('download')) {
@@ -210,7 +218,9 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
       };
     });
     await page.locator('#btnShareImage').click();
-    await expect.poll(() => page.evaluate(() => Boolean(window.__shareDownload?.href))).toBe(true);
+    await page.waitForFunction(() => window.__shareDownload?.href || window.__shareDiagnostics.error, null, { timeout: 5000 }).catch(() => {});
+    const shareDiagnostics = await page.evaluate(() => ({ ...window.__shareDiagnostics, href: window.__shareDownload?.href }));
+    expect(shareDiagnostics.href, JSON.stringify(shareDiagnostics)).toBeTruthy();
     const pngBytes = await page.evaluate(async () => {
       const response = await fetch(window.__shareDownload.href);
       return Array.from(new Uint8Array(await response.arrayBuffer()));
