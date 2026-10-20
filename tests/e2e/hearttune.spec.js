@@ -94,6 +94,10 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
 
   test('4. 스텔스 디버그 + 5초 고속 캘리브레이션(TRACKING) + 결과/법적 고지/이력 저장 검증', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 667 });
+    // OS 공유 시트 지원 여부에 의존하지 않고 PNG 다운로드 폴백을 직접 검증한다.
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, 'canShare', { configurable: true, value: () => false });
+    });
     // 가상 클록 설치로 5초 초기 포착 및 15초 측정 완료를 고속 검증
     await page.clock.install();
     await page.goto('./');
