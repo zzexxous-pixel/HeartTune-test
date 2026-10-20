@@ -21,7 +21,7 @@ import {
   saveCalibrationSample
 } from './features/storage.js';
 import { createCameraController } from './features/camera.js';
-import { getResultIndicators } from './features/result-indicators.js';
+import { getResultIndicators, getHistoryPresentation } from './features/result-indicators.js';
 import { createSheetController } from './features/sheets.js';
 import { shareResultAsImage } from './features/share.js';
 
@@ -109,6 +109,11 @@ const els = {
   guideSheet: document.getElementById('guideSheet'),
   legalSheet: document.getElementById('legalSheet'),
   detailsSheet: document.getElementById('detailsSheet'),
+  detailsDate: document.getElementById('detailsDate'),
+  detailsDuration: document.getElementById('detailsDuration'),
+  detailsBpm: document.getElementById('detailsBpm'),
+  detailsBpmUnit: document.getElementById('detailsBpmUnit'),
+  detailsWaveformCanvas: document.getElementById('detailsWaveformCanvas'),
   debugConsole: document.getElementById('debugConsole'),
   debugResizeHandle: document.getElementById('debugResizeHandle'),
   btnCloseDebug: document.getElementById('btnCloseDebug'),
@@ -685,6 +690,50 @@ function renderResultIndicators(record) {
   els.indicatorQualityState.textContent = t(`measure.indicator.quality.${indicators.quality}`);
 }
 
+function drawDetailsWaveform(record) {
+  const canvas = els.detailsWaveformCanvas;
+  const ctx = canvas.getContext('2d');
+  const width = canvas.width;
+  const height = canvas.height;
+  ctx.clearRect(0, 0, width, height);
+  ctx.fillStyle = '#0F172A';
+  ctx.fillRect(0, 0, width, height);
+
+  ctx.strokeStyle = 'rgba(148, 163, 184, 0.22)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, height / 2);
+  ctx.lineTo(width, height / 2);
+  ctx.stroke();
+
+  const waveform = Array.isArray(record.waveform) ? record.waveform : [];
+  if (waveform.length < 2) return;
+  const min = Math.min(...waveform);
+  const max = Math.max(...waveform);
+  const range = Math.max(0.001, max - min);
+  ctx.strokeStyle = '#38BDF8';
+  ctx.lineWidth = 4;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  waveform.forEach((value, index) => {
+    const x = 12 + (index / (waveform.length - 1)) * (width - 24);
+    const y = height - 12 - ((value - min) / range) * (height - 24);
+    if (index === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+}
+
+function renderDetails(record) {
+  if (!record) return;
+  els.detailsDate.textContent = formatDateTime(record.timestamp);
+  els.detailsDuration.textContent = t('details.duration.value', { seconds: record.duration });
+  els.detailsBpm.textContent = formatNumber(record.bpm);
+  drawDetailsWaveform(record);
+  renderResultIndicators(record);
+}
+
 function renderResultBanner(record) {
   els.resultBanner.className = `result-banner visible status-${record.status}`;
   els.resultIcon.innerHTML = RESULT_ICONS[record.status] || RESULT_ICONS.normal;
@@ -734,25 +783,27 @@ function renderHistory() {
   list.slice(0, 30).forEach((item) => {
     const li = document.createElement('li');
     li.className = 'history-item';
+    const presentation = getHistoryPresentation(item);
     const indicators = getResultIndicators(item);
-    const flags = ['arrhythmia', 'bradycardia', 'tachycardia']
-      .filter((name) => indicators[name])
-      .map((name) => t(`measure.indicator.${name}`));
     const detail = document.createElement('div');
     detail.className = 'history-detail';
     const signalText = document.createElement('div');
-    signalText.className = 'history-signals';
-    signalText.textContent = flags.length ? flags.join(' · ') : t('history.indicators.none');
+    signalText.className = `history-signals ${presentation.isAbnormal ? 'is-abnormal' : 'is-normal'}`;
+    signalText.textContent = presentation.isAbnormal
+      ? t('history.status.suspected', {
+        signals: presentation.signals.map((name) => t(`measure.indicator.${name}`)).join(', ')
+      })
+      : t('history.status.normal');
     const qualityText = document.createElement('div');
     qualityText.className = 'history-quality';
     qualityText.textContent = `${t('measure.indicator.signalQuality')}: ${t(`measure.indicator.quality.${indicators.quality}`)}`;
     const meta = document.createElement('div');
     meta.className = 'history-meta';
-    meta.textContent = `${formatDateTime(item.timestamp)} · ${item.duration}s`;
+    meta.textContent = `${formatDateTime(item.timestamp)} · ${t('details.duration.value', { seconds: item.duration })}`;
     detail.append(signalText, qualityText, meta);
 
     const bpm = document.createElement('div');
-    bpm.className = 'history-bpm';
+    bpm.className = `history-bpm${presentation.abnormalRate ? ' is-abnormal-rate' : ''}`;
     bpm.append(document.createTextNode(formatNumber(item.bpm)));
     const unit = document.createElement('span');
     unit.className = 'unit';
@@ -791,9 +842,9 @@ function drawTrendChart(records) {
   records.forEach((rec, i) => {
     const x = records.length === 1 ? w / 2 : 24 + (i / (records.length - 1)) * (w - 48);
     const y = h - 22 - ((rec.bpm - minB) / span) * (h - 44);
-    ctx.fillStyle = '#0F4C81';
+    ctx.fillStyle = getHistoryPresentation(rec).isAbnormal ? '#DC2626' : '#16A34A';
     ctx.beginPath();
-    ctx.arc(x, y, 5, 0, Math.PI * 2);
+    ctx.arc(x, y, 8, 0, Math.PI * 2);
     ctx.fill();
   });
 }
@@ -879,6 +930,7 @@ els.menuLegal.addEventListener('click', () => {
 });
 
 els.btnDetails.addEventListener('click', () => {
+  renderDetails(state.lastResult);
   sheets.open(els.detailsSheet, els.btnDetails);
 });
 

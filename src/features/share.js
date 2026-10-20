@@ -3,7 +3,7 @@
  * HeartTune — 센터 정렬 결과 카드 (BPM, 파형, 참고 신호, 읽을 수 있는 고지)
  */
 
-import { getResultIndicators } from './result-indicators.js';
+import { getResultIndicators, getHistoryPresentation } from './result-indicators.js';
 
 const CARD_WIDTH = 1080;
 const CARD_SIDE = 60;
@@ -51,17 +51,17 @@ function getPillRows(ctx, pills, maxWidth) {
   const rows = [];
   let row = [];
   let usedWidth = 0;
-  ctx.font = '700 30px sans-serif';
+  ctx.font = '700 34px sans-serif';
 
   pills.forEach((pill) => {
-    const width = Math.min(maxWidth, ctx.measureText(pill.text).width + 44);
-    if (row.length && usedWidth + 18 + width > maxWidth) {
+    const width = Math.min(maxWidth, ctx.measureText(pill.text).width + 48);
+    if (row.length && usedWidth + 20 + width > maxWidth) {
       rows.push(row);
       row = [];
       usedWidth = 0;
     }
     row.push({ ...pill, width });
-    usedWidth += (row.length > 1 ? 18 : 0) + width;
+    usedWidth += (row.length > 1 ? 20 : 0) + width;
   });
   if (row.length) rows.push(row);
   return rows;
@@ -70,66 +70,74 @@ function getPillRows(ctx, pills, maxWidth) {
 function createLayout(ctx, record, { t, formatDateTime }) {
   const centerX = CARD_WIDTH / 2;
   const contentX = (CARD_WIDTH - CONTENT_WIDTH) / 2;
-  let y = 112;
+  let y = 72;
 
-  ctx.font = '800 56px sans-serif';
+  ctx.font = '800 62px sans-serif';
   const title = wrapText(ctx, t('share.card.title'), CONTENT_WIDTH);
   const titleY = y;
-  const titleLineHeight = 68;
-  y += title.length * titleLineHeight + 18;
-
-  ctx.font = '500 30px sans-serif';
-  const date = wrapText(ctx, formatDateTime(record.timestamp), CONTENT_WIDTH);
-  const dateY = y;
-  const dateLineHeight = 42;
-  y += date.length * dateLineHeight + 56;
-
-  const bpmY = y;
-  y += 275;
-  const unitY = y + 64;
-  y += 100;
-
-  ctx.font = '800 36px sans-serif';
-  const waveformTitle = wrapText(ctx, t('share.waveform.label'), CONTENT_WIDTH);
-  const waveformTitleY = y;
-  const waveformTitleLineHeight = 46;
-  y += waveformTitle.length * waveformTitleLineHeight + 18;
-  const graphY = y;
-  const graphHeight = 230;
-  y += graphHeight + 52;
-
-  ctx.font = '800 48px sans-serif';
-  const resultTitle = wrapText(ctx, t(`result.${record.status}.title`), CONTENT_WIDTH);
-  const resultTitleY = y;
-  const resultTitleLineHeight = 60;
-  y += resultTitle.length * resultTitleLineHeight + 16;
+  const titleLineHeight = 74;
+  y += title.length * titleLineHeight + 20;
 
   ctx.font = '500 32px sans-serif';
+  const date = wrapText(ctx, formatDateTime(record.timestamp), CONTENT_WIDTH);
+  const dateY = y;
+  const dateLineHeight = 44;
+  y += date.length * dateLineHeight + 26;
+
+  const bpmY = y;
+  const bpmHeight = 270;
+  const unitY = bpmY + 220;
+  y += bpmHeight + 32;
+
+  ctx.font = '800 38px sans-serif';
+  const waveformTitle = wrapText(ctx, t('share.waveform.label'), CONTENT_WIDTH);
+  const waveformTitleY = y;
+  const waveformTitleLineHeight = 48;
+  y += waveformTitle.length * waveformTitleLineHeight + 16;
+  const graphY = y;
+  const graphHeight = 230;
+  y += graphHeight + 42;
+
+  ctx.font = '800 50px sans-serif';
+  const resultTitle = wrapText(ctx, t(`result.${record.status}.title`), CONTENT_WIDTH);
+  const resultTitleY = y;
+  const resultTitleLineHeight = 62;
+  y += resultTitle.length * resultTitleLineHeight + 14;
+
+  ctx.font = '500 36px sans-serif';
   const resultDescription = wrapText(ctx, t(`result.${record.status}.desc`), CONTENT_WIDTH);
   const resultDescriptionY = y;
-  const descriptionLineHeight = 44;
-  y += resultDescription.length * descriptionLineHeight + 26;
+  const descriptionLineHeight = 48;
+  y += resultDescription.length * descriptionLineHeight + 24;
 
   const indicators = getResultIndicators(record);
-  const flags = ['arrhythmia', 'bradycardia', 'tachycardia'].filter((name) => indicators[name]);
-  const pills = flags.length
-    ? flags.map((name) => ({ text: t(`measure.indicator.${name}`), kind: 'flag' }))
-    : [{ text: t('history.indicators.none'), kind: 'neutral' }];
-  pills.push({
-    text: `${t('measure.indicator.signalQuality')}: ${t(`measure.indicator.quality.${indicators.quality}`)}`,
-    kind: 'quality'
-  });
+  const history = getHistoryPresentation(record);
+  const flags = history.signals.length
+    ? [{
+      text: t('history.status.suspected', {
+        signals: history.signals.map((name) => t(`measure.indicator.${name}`)).join(', ')
+      }),
+      kind: 'flag'
+    }]
+    : [];
+  const pills = [
+    ...flags,
+    {
+      text: `${t('measure.indicator.signalQuality')}: ${t(`measure.indicator.quality.${indicators.quality}`)}`,
+      kind: 'quality'
+    }
+  ];
   const pillRows = getPillRows(ctx, pills, CONTENT_WIDTH);
   const pillsY = y;
-  const pillHeight = 58;
+  const pillHeight = 66;
   const pillGap = 14;
-  y += pillRows.length * pillHeight + Math.max(0, pillRows.length - 1) * pillGap + 44;
+  y += pillRows.length * pillHeight + Math.max(0, pillRows.length - 1) * pillGap + 34;
 
-  ctx.font = '500 28px sans-serif';
+  ctx.font = '500 32px sans-serif';
   const legal = wrapText(ctx, t('legal.disclaimer.main'), CONTENT_WIDTH);
   const legalY = y;
-  const legalLineHeight = 40;
-  y += legal.length * legalLineHeight + 72;
+  const legalLineHeight = 42;
+  y += legal.length * legalLineHeight + 64;
 
   return {
     centerX,
@@ -160,7 +168,7 @@ function createLayout(ctx, record, { t, formatDateTime }) {
     legal,
     legalY,
     legalLineHeight,
-    height: Math.max(1420, y)
+    height: Math.max(1320, y)
   };
 }
 
@@ -176,7 +184,7 @@ function drawPills(ctx, rows, centerX, startY, pillHeight, rowGap) {
   };
 
   rows.forEach((row, rowIndex) => {
-    const totalWidth = row.reduce((sum, pill) => sum + pill.width, 0) + Math.max(0, row.length - 1) * 18;
+    const totalWidth = row.reduce((sum, pill) => sum + pill.width, 0) + Math.max(0, row.length - 1) * 20;
     let x = centerX - totalWidth / 2;
     const y = startY + rowIndex * (pillHeight + rowGap);
     row.forEach((pill) => {
@@ -189,11 +197,11 @@ function drawPills(ctx, rows, centerX, startY, pillHeight, rowGap) {
       ctx.fill();
       ctx.stroke();
       ctx.fillStyle = color.fg;
-      ctx.font = '700 26px sans-serif';
+      ctx.font = '700 30px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(pill.text, x + pill.width / 2, y + pillHeight / 2, pill.width - 24);
-      x += pill.width + 18;
+      x += pill.width + 20;
     });
   });
 }
@@ -257,7 +265,7 @@ function drawResultCard(ctx, record, layout, { t }) {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
   ctx.fillStyle = '#0F4C81';
-  ctx.font = '800 56px sans-serif';
+  ctx.font = '800 62px sans-serif';
   drawCenteredLines(ctx, layout.title, centerX, layout.titleY, layout.titleLineHeight);
 
   ctx.fillStyle = '#64748B';
@@ -265,10 +273,10 @@ function drawResultCard(ctx, record, layout, { t }) {
   drawCenteredLines(ctx, layout.date, centerX, layout.dateY, layout.dateLineHeight);
 
   ctx.fillStyle = '#111827';
-  ctx.font = '900 220px sans-serif';
+  ctx.font = '900 230px sans-serif';
   const bpm = String(record.bpm);
   ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
+  ctx.textBaseline = 'top';
   ctx.fillText(bpm, centerX, layout.bpmY);
   ctx.fillStyle = '#475569';
   ctx.font = '800 54px sans-serif';
@@ -276,7 +284,7 @@ function drawResultCard(ctx, record, layout, { t }) {
 
   ctx.textBaseline = 'top';
   ctx.fillStyle = '#0F4C81';
-  ctx.font = '800 36px sans-serif';
+  ctx.font = '800 38px sans-serif';
   drawCenteredLines(ctx, layout.waveformTitle, centerX, layout.waveformTitleY, layout.waveformTitleLineHeight);
   drawWaveform(ctx, record, contentX, layout.graphY, CONTENT_WIDTH, layout.graphHeight);
 
@@ -293,13 +301,13 @@ function drawResultCard(ctx, record, layout, { t }) {
   drawCenteredLines(ctx, layout.resultTitle, centerX, layout.resultTitleY, layout.resultTitleLineHeight);
 
   ctx.fillStyle = '#334155';
-  ctx.font = '500 32px sans-serif';
+  ctx.font = '500 36px sans-serif';
   drawCenteredLines(ctx, layout.resultDescription, centerX, layout.resultDescriptionY, layout.descriptionLineHeight);
 
   drawPills(ctx, layout.pillRows, centerX, layout.pillsY, layout.pillHeight, layout.pillGap);
 
   ctx.fillStyle = '#64748B';
-  ctx.font = '500 28px sans-serif';
+  ctx.font = '500 32px sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
   drawCenteredLines(ctx, layout.legal, centerX, layout.legalY, layout.legalLineHeight);

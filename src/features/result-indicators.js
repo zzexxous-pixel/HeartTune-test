@@ -16,3 +16,14 @@ export function getResultIndicators(record = {}) {
       : 'unknown'
   };
 }
+
+/** History-only presentation flags; these reuse existing UI thresholds, not new DSP rules. */
+export function getHistoryPresentation(record = {}) {
+  const indicators = getResultIndicators(record);
+  const signals = ['arrhythmia', 'bradycardia', 'tachycardia'].filter((name) => indicators[name]);
+  return {
+    signals,
+    isAbnormal: signals.length > 0,
+    abnormalRate: indicators.bradycardia || indicators.tachycardia
+  };
+}

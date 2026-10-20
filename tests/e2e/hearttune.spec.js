@@ -192,9 +192,12 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     await page.locator('#btnDetails').click();
     const detailsSheet = page.locator('#detailsSheet');
     await expect(detailsSheet).toHaveClass(/open/);
-    for (const label of ['부정맥', '서맥', '빈맥', '측정 신호 품질']) {
+    for (const label of ['측정일시', '측정시간', '맥박', '측정 파형', '부정맥', '서맥', '빈맥', '측정 신호 품질']) {
       await expect(detailsSheet).toContainText(label);
     }
+    await expect(page.locator('#detailsDate')).not.toBeEmpty();
+    await expect(page.locator('#detailsDuration')).toHaveText('15초');
+    await expect(page.locator('#detailsBpm')).not.toBeEmpty();
     const detailsText = await detailsSheet.innerText();
     expect(detailsText).not.toMatch(/\bCV\b|검출 박동|활성 채널|스트레스/);
     await detailsSheet.locator('[data-sheet-close]').click();
@@ -228,7 +231,7 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     const png = Buffer.from(pngBytes);
     expect(png.subarray(0, 8)).toEqual(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
     expect(png.readUInt32BE(16)).toBe(1080);
-    expect(png.readUInt32BE(20)).toBeGreaterThanOrEqual(1420);
+    expect(png.readUInt32BE(20)).toBeGreaterThanOrEqual(1280);
 
     // [검증 D] 최근 30건 캘리브레이션 학습 큐(hearttune_calibration_v1)에 1건 저장
     await expect(page.locator('#calibStatusText')).toContainText('최근 1건 학습');
@@ -239,13 +242,52 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     await expect(page.locator('#historySheet')).toHaveClass(/open/);
     const historyItems = page.locator('#historyList .history-item');
     await expect(historyItems).toHaveCount(1);
-    await expect(historyItems.first()).toContainText('표시 신호 없음');
+    await expect(historyItems.first()).toContainText('정상');
+    await expect(historyItems.first().locator('.history-signals')).toHaveClass(/is-normal/);
+    await expect(historyItems.first()).not.toContainText('표시 신호 없음');
     await expect(historyItems.first()).toContainText('측정 신호 품질');
     await expect(historyItems.first()).not.toContainText('CV');
     await expect(historyItems.first()).not.toHaveClass(/is-active|is-clear/);
   });
 
-  test('5. 디버그 샌드박스 수동 필터 슬라이더 조작 시 MANUAL 모드 전환 및 자동 복귀 검증', async ({ page }) => {
+  test('5. 이력 의심 문구·색상과 그래프 점 색상 검증', async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('hearttune_history_v1', JSON.stringify([
+        { timestamp: 1792454400000, duration: 15, bpm: 55, status: 'irregular', irregular: true, quality: 80, waveform: [0, 1, 0, -1] },
+        { timestamp: 1792368000000, duration: 30, bpm: 72, status: 'normal', irregular: false, quality: 75, waveform: [0, 1, 0, -1] },
+        { timestamp: 1792281600000, duration: 30, bpm: 110, status: 'tachy', irregular: false, quality: 60, waveform: [0, 1, 0, -1] }
+      ]));
+    });
+    await page.goto('./');
+    await page.locator('#btnMenu').click();
+    await page.locator('#menuHistory').click();
+
+    const items = page.locator('#historyList .history-item');
+    await expect(items).toHaveCount(3);
+    await expect(items.nth(0).locator('.history-signals')).toHaveText('부정맥, 서맥 의심');
+    await expect(items.nth(0).locator('.history-signals')).toHaveClass(/is-abnormal/);
+    await expect(items.nth(0).locator('.history-bpm')).toHaveClass(/is-abnormal-rate/);
+    await expect(items.nth(1).locator('.history-signals')).toHaveText('정상');
+    await expect(items.nth(1).locator('.history-signals')).toHaveClass(/is-normal/);
+    await expect(items.nth(2).locator('.history-signals')).toHaveText('빈맥 의심');
+    await expect(items.nth(2).locator('.history-bpm')).toHaveClass(/is-abnormal-rate/);
+
+    const textColors = await page.evaluate(() => [...document.querySelectorAll('.history-signals, .history-bpm')]
+      .map((node) => getComputedStyle(node).color));
+    expect(textColors).toContain('rgb(185, 28, 28)');
+    expect(textColors).toContain('rgb(21, 128, 61)');
+    expect(textColors).toContain('rgb(220, 38, 38)');
+
+    const pointColors = await page.locator('#trendCanvas').evaluate((canvas) => {
+      const ctx = canvas.getContext('2d');
+      return [[24, 27], [220, 69], [416, 87]].map(([x, y]) => [...ctx.getImageData(x, y, 1, 1).data].slice(0, 3));
+    });
+    expect(pointColors[0]).toEqual([220, 38, 38]);
+    expect(pointColors[1]).toEqual([22, 163, 74]);
+    expect(pointColors[2]).toEqual([220, 38, 38]);
+  });
+
+  test('6. 디버그 샌드박스 수동 필터 슬라이더 조작 시 MANUAL 모드 전환 및 자동 복귀 검증', async ({ page }) => {
     await page.goto('./');
 
     // 타이틀 5연타로 디버그 콘솔 오픈

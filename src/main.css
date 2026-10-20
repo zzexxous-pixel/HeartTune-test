@@ -1746,3 +1746,247 @@ body.has-result .bpm-row {
     padding: 10px;
   }
 }
+
+/* --------------------------------------------------------------------------
+   Result/history readability refinements
+   -------------------------------------------------------------------------- */
+:root {
+  --ring-size: min(92vw, calc(100dvh - 432px), 340px);
+  --main-wave-height: 82px;
+  --main-message-height: clamp(190px, 26dvh, 220px);
+}
+
+.main-content {
+  grid-template-rows: minmax(var(--ring-size), 1fr) var(--main-wave-height) var(--main-message-height);
+}
+
+.stage-guide-text {
+  min-height: 0;
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #E8F0FB;
+  font-size: clamp(1.08rem, 4.6vw, 1.24rem);
+  font-weight: 700;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.message-area {
+  overflow: visible;
+}
+
+.result-banner,
+.result-banner.visible {
+  padding: 10px 12px;
+  gap: 4px;
+  border-width: 1px;
+  justify-content: initial;
+  text-align: left;
+}
+
+.result-banner.visible {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  align-items: stretch;
+}
+
+.result-title-row {
+  min-height: 48px;
+  gap: 8px;
+  font-size: clamp(1.02rem, 4.4vw, 1.2rem);
+  line-height: 1.25;
+}
+
+#resultTitle {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.btn-details {
+  flex: 0 0 auto;
+  min-height: 48px;
+  padding: 0 12px;
+  font-size: clamp(0.9rem, 3.8vw, 1rem);
+}
+
+.result-body {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 4px;
+  text-align: left;
+}
+
+.result-desc {
+  font-size: clamp(1rem, 4vw, 1.12rem);
+  line-height: 1.35;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.result-short-note {
+  padding-top: 2px;
+  font-size: 0.94rem;
+  line-height: 1.3;
+}
+
+.result-legal {
+  margin-top: 0;
+  font-size: 0.9rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.history-signals {
+  font-size: 1.06rem;
+  line-height: 1.35;
+}
+
+.history-signals.is-normal {
+  color: #15803D;
+}
+
+.history-signals.is-abnormal {
+  color: #B91C1C;
+}
+
+.history-bpm.is-abnormal-rate {
+  color: #DC2626;
+}
+
+.history-quality,
+.history-meta {
+  font-size: 0.92rem;
+  line-height: 1.4;
+}
+
+.details-body {
+  gap: 14px;
+}
+
+.details-overview {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+}
+
+.details-overview-item {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  background: #F8FAFC;
+}
+
+.details-overview-bpm {
+  grid-column: 1 / -1;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.details-label {
+  color: var(--text-sub);
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.details-value {
+  color: var(--text-main);
+  font-size: 1.08rem;
+  font-weight: 800;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.details-bpm-value {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  color: var(--primary);
+}
+
+.details-bpm-value strong {
+  font-size: 1.7rem;
+  font-weight: 900;
+}
+
+.details-bpm-value span {
+  color: var(--text-sub);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.details-waveform-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.details-waveform-section h3 {
+  color: var(--primary);
+  font-size: 1.08rem;
+}
+
+#detailsWaveformCanvas {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 14px;
+  border: 1px solid #263449;
+}
+
+.indicator-label {
+  font-size: 1rem;
+}
+
+.indicator-state {
+  font-size: 0.95rem;
+}
+
+.indicator-desc {
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.details-legal {
+  font-size: 0.94rem;
+}
+
+@media (max-height: 600px) and (orientation: portrait) {
+  :root {
+    --ring-size: min(92vw, calc(100dvh - 422px), 220px);
+    --main-wave-height: 70px;
+    --main-message-height: 188px;
+  }
+
+  .waveform-box,
+  body.has-result .waveform-box {
+    height: var(--main-wave-height);
+  }
+
+  .result-banner,
+  .result-banner.visible {
+    padding: 8px 10px;
+  }
+
+  .result-title-row {
+    min-height: 44px;
+    font-size: 1rem;
+  }
+
+  .result-desc {
+    font-size: 0.98rem;
+  }
+
+  .result-legal {
+    font-size: 0.9rem;
+  }
+}

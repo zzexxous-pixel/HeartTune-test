@@ -80,13 +80,15 @@
               자세히 보기
             </button>
           </div>
-          <p id="resultDesc" class="result-desc"></p>
-          <p id="resultShortNote" class="result-short-note" hidden data-i18n="result.shortNote.text">
-            짧은 측정(15초) 결과는 참고용입니다.
-          </p>
-          <p class="result-legal" data-i18n="legal.disclaimer.short">
-            본 앱은 의료기기가 아니며, 결과는 참고용입니다.
-          </p>
+          <div class="result-body">
+            <p id="resultDesc" class="result-desc"></p>
+            <p id="resultShortNote" class="result-short-note" hidden data-i18n="result.shortNote.text">
+              짧은 측정(15초) 결과는 참고용입니다.
+            </p>
+            <p class="result-legal" data-i18n="legal.disclaimer.short">
+              본 앱은 의료기기가 아니며, 결과는 참고용입니다.
+            </p>
+          </div>
         </section>
       </div>
     </main>
@@ -276,7 +278,25 @@
         </svg>
       </button>
     </div>
-    <div class="sheet-body">
+    <div class="sheet-body details-body">
+      <div class="details-overview">
+        <div class="details-overview-item">
+          <span class="details-label" data-i18n="details.measurementTime">측정일시</span>
+          <strong id="detailsDate" class="details-value"></strong>
+        </div>
+        <div class="details-overview-item">
+          <span class="details-label" data-i18n="details.duration">측정시간</span>
+          <strong id="detailsDuration" class="details-value"></strong>
+        </div>
+        <div class="details-overview-item details-overview-bpm">
+          <span class="details-label" data-i18n="details.heartRate">맥박</span>
+          <div class="details-bpm-value"><strong id="detailsBpm"></strong><span id="detailsBpmUnit" data-i18n="measure.unit.bpm">회/분</span></div>
+        </div>
+      </div>
+      <section class="details-waveform-section">
+        <h3 data-i18n="details.waveform">측정 파형</h3>
+        <canvas id="detailsWaveformCanvas" width="440" height="128" data-i18n-aria="measure.waveform.accessible"></canvas>
+      </section>
       <div class="indicator-grid" data-i18n-aria="measure.indicator.group">
         <div class="indicator-card" id="indicatorArrhythmia" data-indicator="arrhythmia">
           <span class="indicator-light" aria-hidden="true"></span>
