@@ -139,6 +139,7 @@ function injectBuildHashIntoAssets(buildHash) {
     'src/i18n.js',
     'src/features/camera.js',
     'src/features/result-indicators.js',
+    'src/features/sheets.js',
     'src/features/storage.js',
     'src/features/share.js',
     'sw.js'

@@ -30,6 +30,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: write
 
 # 운영 반영은 동시에 두 번 일어나면 안 됩니다. 진행 중인 이관은 취소하지 않습니다.
 concurrency:
@@ -172,7 +173,7 @@ jobs:
             exit 1
           fi
 
-      - name: Verify runtime assets (10종, 각 1분 재시도 + 빌드 해시 지속 검증)
+      - name: Verify runtime assets (11종, 각 1분 재시도 + 빌드 해시 지속 검증)
         env:
           PROD_URL: ${{ env.PROD_URL }}
         run: |
@@ -192,13 +193,14 @@ jobs:
             "src/dsp.js"
             "src/i18n.js"
             "src/features/camera.js"
+            "src/features/result-indicators.js"
             "src/features/sheets.js"
             "src/features/storage.js"
             "src/features/share.js"
             "sw.js"
             "manifest.webmanifest"
           )
-          echo "검증 대상 자산 10종:"
+          echo "검증 대상 자산 11종:"
           printf '  - %s\n' "${assets[@]}"
           for asset in "${assets[@]}"; do
             ok_asset=0
@@ -232,7 +234,7 @@ jobs:
             echo "::error title=런타임 자산 누락/구버전::운영 저장소에 일부 파일이 없거나 구버전을 서빙 중입니다. HeartTune 저장소 main 브랜치와 Pages 빌드 상태를 확인하세요."
             exit 1
           fi
-          echo "✅ 모든 자산(10종) 200 + 빌드 해시 확인"
+          echo "✅ 모든 자산(11종) 200 + 빌드 해시 확인"
 
       - name: Compare served index.html with built artifact
         continue-on-error: true
