@@ -4,7 +4,6 @@
  * 실행 명령어: npx playwright test
  */
 import { test, expect } from '@playwright/test';
-import { readFile } from 'node:fs/promises';
 
 /** 문서가 실제로 스크롤되지 않는지(원스크린) 확인한다. */
 async function expectNoPageScroll(page) {
@@ -194,11 +193,23 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     expect(detailsText).not.toMatch(/\bCV\b|검출 박동|활성 채널|스트레스/);
     await detailsSheet.locator('[data-sheet-close]').click();
 
-    // 공유 PNG의 폭/가변 높이를 확인해 긴 텍스트도 고정 높이에서 잘리지 않도록 한다.
-    const downloadPromise = page.waitForEvent('download');
+    // 브라우저별 다운로드 UI는 다르므로, 클릭된 Blob URL을 읽어 실제 PNG를 검증한다.
+    await page.evaluate(() => {
+      const nativeClick = HTMLAnchorElement.prototype.click;
+      HTMLAnchorElement.prototype.click = function click(...args) {
+        if (this.hasAttribute('download')) {
+          window.__shareDownload = { href: this.href, fileName: this.download };
+        }
+        return nativeClick.apply(this, args);
+      };
+    });
     await page.locator('#btnShareImage').click();
-    const download = await downloadPromise;
-    const png = await readFile(await download.path());
+    await expect.poll(() => page.evaluate(() => Boolean(window.__shareDownload?.href))).toBe(true);
+    const pngBytes = await page.evaluate(async () => {
+      const response = await fetch(window.__shareDownload.href);
+      return Array.from(new Uint8Array(await response.arrayBuffer()));
+    });
+    const png = Buffer.from(pngBytes);
     expect(png.subarray(0, 8)).toEqual(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
     expect(png.readUInt32BE(16)).toBe(1080);
     expect(png.readUInt32BE(20)).toBeGreaterThanOrEqual(1420);
