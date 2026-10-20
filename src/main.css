@@ -2069,7 +2069,8 @@ body.has-result .waveform-box {
 }
 
 #debugLogList {
-  flex: 1 0 72px;
+  flex: 0 0 auto;
+  height: clamp(72px, calc(var(--debug-height, 50dvh) - 280px), 320px);
   min-height: 72px;
   max-height: none;
   width: 100%;
