@@ -5,7 +5,7 @@
 > 5~7절(현재 상태 / 할 일 / 미결정)을 확인하고 작업을 시작하세요.
 > 대화 기록은 사라져도 이 문서와 저장소(코드·PR·커밋)는 남습니다. **여기가 유일한 기억입니다.**
 
-- 최종 갱신: 2026-10-20 (KST) — 설치 아이콘 안전 여백과 모바일 메시지 영역 겹침 수정
+- 최종 갱신: 2026-10-20 (KST) — PR #4 사용자 승인 병합을 위한 변경·검증·승인 상태 기록
 - 갱신자: Arena 에이전트 세션 `arena/c85567d7-hearttune-test` (PR #4 미리보기 공개, UX 후속 구현)
 - 저장소: `zzexxous-pixel/HeartTune-test` (개발) / `zzexxous-pixel/HeartTune` (운영)
 
@@ -298,7 +298,7 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
 | 2026-10-19 | **원스크린 UX 개편** — 탭/설정카드/파형/지표/법적푸터를 첫 화면에서 제거하고 헤더·스테이지·하단 CTA 3단 `100dvh` 구성. ⚙️ 설정 시트·≡ 메뉴 시트·이력/안내/법적고지/상세 시트 신설(`src/features/sheets.js`). 후면 카메라 기본 + **진입 즉시 미리보기**(토치 OFF), 자동 시작 OFF, 브라우저 언어 기본, 결과 배너에 법적 고지, 디버그 창 상단 드래그 리사이즈(`--debug-height`) | ✅ 완료(로컬) — i18n 81키 / unit 15 / E2E 7(320×568~414×896·가로모드 스크롤 0 검증) / build 통과 | `arena/f50fd973-hearttune-test` 브랜치 |
 | 2026-10-19 | UI 가독성·헤더/설정 기본값 조정, PR `/preview/` 배포와 cleanup, `npm run preview --no-sw` 구현 | lint/i18n 81/unit 15/15/build 11 files 및 PR E2E 7/7 통과. `github-pages`에서 main + `refs/pull/*/merge` 허용 후 `/preview/` 배포 성공, 개발 루트는 main 콘텐츠 유지 확인. close cleanup은 PR 리뷰 중으로 미검증 | PR #4 · `arena/c85567d7-hearttune-test` |
 | 2026-10-20 | UX 후속 — 고정 메시지 상자·파형 제목, 원시 파형 일치, 디버그 로그 자동 확장, 결과에 복수 참고 신호, 측정 안내의 심박 리듬 설명·ko/en 공식 자료 링크 | lint/i18n 103/unit18/build 통과, GitHub Actions E2E 8/8 통과, PR 미리보기 `/preview/` 배포 성공 | PR #4 · `arena/c85567d7-hearttune-test` |
-| 2026-10-20 | 설치 아이콘 안전 영역에 맞춰 하트/파형 크기 축소, 짧은 휴대폰에서 메시지 상자를 148px로 줄이고 버튼 영역과 분리 | lint/i18n 103/unit18/build 통과, GitHub Actions E2E 8/8 및 PR 미리보기 통과 | PR #4 · `arena/c85567d7-hearttune-test` |
+| 2026-10-20 | 설치 아이콘 안전 영역에 맞춰 하트/파형 축소, 짧은 휴대폰에서 메시지 상자를 148px로 줄이고 CTA 겹침 방지. 사용자가 PR #4 병합을 승인했으며, 이 기록을 병합 전에 반영함 | lint/i18n 103/unit18/build 통과, GitHub Actions E2E 8/8 ([39384251603](https://github.com/zzexxous-pixel/HeartTune-test/actions/runs/39384251603)); PR 미리보기 성공 ([39384251595](https://github.com/zzexxous-pixel/HeartTune-test/actions/runs/39384251595)). 병합 전 최신 docs 커밋 CI 확인 후 merge 예정 | PR #4 · `arena/c85567d7-hearttune-test` |
 
 > **로그 규칙**: 최신이 아래. 항목이 20개를 넘으면 오래된 것은 `docs/changelog-archive.md` 로 옮긴다.
 
