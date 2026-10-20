@@ -194,8 +194,6 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     expect(detailsText).not.toMatch(/\bCV\b|검출 박동|활성 채널|스트레스/);
     await detailsSheet.locator('[data-sheet-close]').click();
 
-    // canvas.toBlob/download는 브라우저 실시간 작업 큐를 사용하므로, 가상 측정 시계를 해제한다.
-    await page.clock.uninstall();
     // 공유 PNG의 폭/가변 높이를 확인해 긴 텍스트도 고정 높이에서 잘리지 않도록 한다.
     const downloadPromise = page.waitForEvent('download');
     await page.locator('#btnShareImage').click();

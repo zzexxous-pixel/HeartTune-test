@@ -321,31 +321,38 @@ export async function shareResultAsImage(record, { t, formatDateTime }) {
   const ctx = canvas.getContext('2d');
   drawResultCard(ctx, record, layout);
 
-  canvas.toBlob(async (blob) => {
-    if (!blob) return;
-    const fileName = `HeartTune_${record.bpm}bpm_${Date.now()}.png`;
-    const file = new File([blob], fileName, { type: 'image/png' });
+  // toBlob()의 비동기 콜백 뒤에는 모바일 브라우저의 사용자 활성화가 만료될 수 있어
+  // Web Share 호출이나 다운로드 클릭이 무시된다. 카드가 작으므로 동기 PNG 인코딩을 사용한다.
+  const dataUrl = canvas.toDataURL('image/png');
+  const base64 = dataUrl.slice(dataUrl.indexOf(',') + 1);
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  const blob = new Blob([bytes], { type: 'image/png' });
+  const fileName = `HeartTune_${record.bpm}bpm_${Date.now()}.png`;
+  const file = new File([blob], fileName, { type: 'image/png' });
 
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      try {
-        await navigator.share({
-          title: t('share.card.title'),
-          text: `${t('share.card.title')}: ${record.bpm} ${t('measure.unit.bpm')} (${t(`result.${record.status}.title`)})`,
-          files: [file]
-        });
-        return;
-      } catch (_) {
-        // 공유 취소 시 다운로드 폴백 진행
-      }
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({
+        title: t('share.card.title'),
+        text: `${t('share.card.title')}: ${record.bpm} ${t('measure.unit.bpm')} (${t(`result.${record.status}.title`)})`,
+        files: [file]
+      });
+      return;
+    } catch (_) {
+      // 공유 취소 시 다운로드 폴백 진행
     }
+  }
 
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = fileName;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 3000);
-  }, 'image/png');
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 3000);
 }
