@@ -2061,11 +2061,15 @@ body.has-result .waveform-box {
 }
 
 #debugConsole {
-  overflow: hidden;
+  overflow-y: auto;
+}
+
+#debugConsole > :not(#debugLogList) {
+  flex: 0 0 auto;
 }
 
 #debugLogList {
-  flex: 1 1 auto;
+  flex: 1 0 72px;
   min-height: 72px;
   max-height: none;
   width: 100%;
