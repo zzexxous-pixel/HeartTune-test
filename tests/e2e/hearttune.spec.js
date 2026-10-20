@@ -96,10 +96,16 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     // OS 공유 시트 지원 여부에 의존하지 않고 PNG 다운로드 폴백을 직접 검증한다.
     await page.addInitScript(() => {
       Object.defineProperty(navigator, 'canShare', { configurable: true, value: () => false });
+      Object.defineProperty(navigator, 'share', { configurable: true, value: undefined });
     });
     // 가상 클록 설치로 5초 초기 포착 및 15초 측정 완료를 고속 검증
     await page.clock.install();
     await page.goto('./');
+    // 공유 시트를 배제하고 fallback 분기에서 브라우저가 PNG를 만드는지 검사한다.
+    expect(await page.evaluate(() => ({
+      share: typeof navigator.share,
+      canShare: navigator.canShare({ files: [new File([], 'test.png', { type: 'image/png' })] })
+    }))).toEqual({ share: 'undefined', canShare: false });
 
     // 측정 시간 15초 선택은 설정 시트에서 한다.
     await page.locator('#btnSettings').click();

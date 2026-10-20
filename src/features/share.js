@@ -334,7 +334,9 @@ export async function shareResultAsImage(record, { t, formatDateTime }) {
   const fileName = `HeartTune_${record.bpm}bpm_${Date.now()}.png`;
   const file = new File([blob], fileName, { type: 'image/png' });
 
-  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+  if (typeof navigator.share === 'function'
+    && navigator.canShare
+    && navigator.canShare({ files: [file] })) {
     try {
       await navigator.share({
         title: t('share.card.title'),
