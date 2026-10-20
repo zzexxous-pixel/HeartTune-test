@@ -16,6 +16,8 @@ on:
 
 permissions:
   contents: read
+  # E2E 실패 진단을 PR 이슈 코멘트에 남길 수 있도록 reusable workflow에도 권한을 명시한다.
+  pull-requests: write
 
 jobs:
   # ── 검증 ①: 정적 검사 + 단위 테스트 (가장 빠른 피드백) ────────────────────
@@ -107,8 +109,8 @@ jobs:
             tail -n 120 e2e.log 2>/dev/null || echo "(로그 없음)"
             echo '```'
           } > /tmp/e2e-failure.md
-          gh pr comment "${{ github.event.pull_request.number }}" \
-            --repo "$GITHUB_REPOSITORY" --body-file /tmp/e2e-failure.md
+          gh api "repos/$GITHUB_REPOSITORY/issues/${{ github.event.pull_request.number }}/comments" \
+            --method POST --field body="$(cat /tmp/e2e-failure.md)"
 
       - name: Upload Playwright report (실패 시)
         if: failure()

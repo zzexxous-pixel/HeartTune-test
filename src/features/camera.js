@@ -13,7 +13,7 @@
 
 const VALID_FACING = new Set(['environment', 'user']);
 
-export function createCameraController({ videoEl, log = () => {}, onNoTorch = () => {} }) {
+export function createCameraController({ videoEl, log = () => {} }) {
   let stream = null;
   let videoTrack = null;
   let facingMode = 'environment';
@@ -70,15 +70,14 @@ export function createCameraController({ videoEl, log = () => {}, onNoTorch = ()
 
   /**
    * 카메라를 연다. 이미 열려 있으면 torch 상태만 갱신한다.
-   * @param {{ torch?: boolean, notifyNoTorch?: boolean }} options
+   * @param {{ torch?: boolean }} options
    * @returns {Promise<{torchEnabled: boolean}>}
    */
-  async function open({ torch = false, notifyNoTorch = false } = {}) {
+  async function open({ torch = false } = {}) {
     // 동시에 두 번 호출되면(진입 시 미리보기 + 측정 시작) 같은 스트림을 공유한다.
     if (opening) await opening;
     if (stream) {
       const torchEnabled = torch ? await applyTorch(true) : torchOn;
-      if (torch && !torchEnabled && notifyNoTorch) onNoTorch();
       return { torchEnabled };
     }
 
@@ -119,7 +118,6 @@ export function createCameraController({ videoEl, log = () => {}, onNoTorch = ()
     }
 
     const torchEnabled = torch ? await applyTorch(true) : false;
-    if (torch && !torchEnabled && notifyNoTorch) onNoTorch();
     return { torchEnabled };
   }
 

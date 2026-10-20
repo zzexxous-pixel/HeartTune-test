@@ -26,6 +26,7 @@ const RUNTIME_FILES = [
   'src/dsp.js',
   'src/i18n.js',
   'src/features/camera.js',
+  'src/features/result-indicators.js',
   'src/features/sheets.js',
   'src/features/share.js',
   'src/features/storage.js'
@@ -137,6 +138,7 @@ function injectBuildHashIntoAssets(buildHash) {
     'src/dsp.js',
     'src/i18n.js',
     'src/features/camera.js',
+    'src/features/result-indicators.js',
     'src/features/storage.js',
     'src/features/share.js',
     'sw.js'
