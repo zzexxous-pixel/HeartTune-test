@@ -244,7 +244,7 @@ function drawWaveform(ctx, record, x, y, width, height) {
   ctx.stroke();
 }
 
-function drawResultCard(ctx, record, layout) {
+function drawResultCard(ctx, record, layout, { t }) {
   const { centerX, contentX } = layout;
   const cardHeight = layout.height - 80;
   ctx.fillStyle = '#EAF1F8';
@@ -319,7 +319,7 @@ export async function shareResultAsImage(record, { t, formatDateTime }) {
   const layout = createLayout(measureCtx, record, { t, formatDateTime });
   canvas.height = layout.height;
   const ctx = canvas.getContext('2d');
-  drawResultCard(ctx, record, layout);
+  drawResultCard(ctx, record, layout, { t });
 
   // toBlob()의 비동기 콜백 뒤에는 모바일 브라우저의 사용자 활성화가 만료될 수 있어
   // Web Share 호출이나 다운로드 클릭이 무시된다. 카드가 작으므로 동기 PNG 인코딩을 사용한다.
