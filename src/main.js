@@ -21,6 +21,7 @@ import {
   saveCalibrationSample
 } from './features/storage.js';
 import { createCameraController } from './features/camera.js';
+import { getResultIndicators } from './features/result-indicators.js';
 import { createSheetController } from './features/sheets.js';
 import { shareResultAsImage } from './features/share.js';
 
@@ -42,14 +43,12 @@ const state = {
   rawSamples: [],
   frameHandle: null,
   usingRVFC: false,
-  screenLightOn: true,
   simMode: 'camera',
   syntheticPrebuffer: null,
   lastResult: null,
   stealthClicks: 0,
   stealthTimer: null,
   facingMode: 'environment',
-  showWaveform: true,
   cameraState: 'idle', // idle | starting | ready | error
   previewToken: 0,
 
@@ -69,14 +68,10 @@ const state = {
 
 // DOM 참조
 const els = {
-  screenLightStrip: document.getElementById('screenLightStrip'),
   appTitleTrigger: document.getElementById('appTitleTrigger'),
   btnMenu: document.getElementById('btnMenu'),
   btnSettings: document.getElementById('btnSettings'),
   btnLangToggle: document.getElementById('btnLangToggle'),
-  btnScreenLight: document.getElementById('btnScreenLight'),
-  btnWaveformToggle: document.getElementById('btnWaveformToggle'),
-  waveformBox: document.getElementById('waveformBox'),
   durBtns: document.querySelectorAll('.dur-btn'),
   camBtns: document.querySelectorAll('.cam-btn'),
   langBtns: document.querySelectorAll('.lang-btn'),
@@ -91,15 +86,12 @@ const els = {
   activeBandText: document.getElementById('activeBandText'),
   waveformCanvas: document.getElementById('waveformCanvas'),
   samplingCanvas: document.getElementById('samplingCanvas'),
-  metricQuality: document.getElementById('metricQuality'),
-  metricBeats: document.getElementById('metricBeats'),
-  metricCv: document.getElementById('metricCv'),
-  metricChannel: document.getElementById('metricChannel'),
   resultBanner: document.getElementById('resultBanner'),
   resultIcon: document.getElementById('resultIcon'),
   resultTitle: document.getElementById('resultTitle'),
   resultDesc: document.getElementById('resultDesc'),
   resultShortNote: document.getElementById('resultShortNote'),
+  indicatorQualityState: document.getElementById('indicatorQualityState'),
   btnDetails: document.getElementById('btnDetails'),
   btnPrimaryMeasure: document.getElementById('btnPrimaryMeasure'),
   btnShareImage: document.getElementById('btnShareImage'),
@@ -163,8 +155,7 @@ function hideAlert() {
 // 카메라 제어(스트림/토치/전면·후면 전환)는 features/camera.js 로 분리
 const camera = createCameraController({
   videoEl: els.cameraVideo,
-  log: (msg) => logDebug(msg),
-  onNoTorch: () => showAlert(t('error.webcam.notice'))
+  log: (msg) => logDebug(msg)
 });
 
 // 바텀시트(설정·메뉴·이력·안내·법적 고지·상세)는 features/sheets.js 가 관리
@@ -245,11 +236,6 @@ function syncConfigUI() {
   });
   syncCameraButtons();
   syncLangButtons();
-  els.btnWaveformToggle.setAttribute('aria-checked', String(state.showWaveform));
-  els.waveformBox.hidden = !(state.showWaveform && state.isMeasuring);
-  document.body.classList.toggle('waveform-off', !state.showWaveform);
-  els.btnScreenLight.setAttribute('aria-checked', String(state.screenLightOn));
-  applyScreenLight();
 }
 
 function setConfigBusy(busy) {
@@ -259,7 +245,6 @@ function setConfigBusy(busy) {
   els.camBtns.forEach((btn) => {
     btn.disabled = busy;
   });
-  els.btnWaveformToggle.disabled = busy;
 }
 
 function applyTranslations() {
@@ -285,25 +270,11 @@ function applyTranslations() {
   }
 
   syncConfigUI();
+  drawLiveWaveform();
   updateCalibBannerUI();
   renderHistory();
   document.body.classList.add('i18n-ready');
 }
-
-function applyScreenLight() {
-  const available = state.facingMode === 'user' && state.simMode === 'camera';
-  const active = Boolean(state.screenLightOn) && available;
-  els.screenLightStrip.classList.toggle('active', active);
-  els.btnScreenLight.classList.toggle('is-idle', !available);
-}
-
-function setScreenLight(enabled) {
-  state.screenLightOn = Boolean(enabled);
-  syncConfigUI();
-  logDebug(`Screen light Strip: ${state.screenLightOn ? 'ON' : 'OFF'}`);
-}
-
-window.camera = { setScreenLight };
 
 function formatTimer(secLeft) {
   const s = Math.max(0, Math.ceil(secLeft));
@@ -409,8 +380,6 @@ function onFrameTick() {
       const imgData = samplingCtx.getImageData(0, 0, 64, 64).data;
       const sample = extractFrameSample(imgData, 64, 64);
 
-      els.metricChannel.textContent = sample.channel;
-
       if (!sample.isFingerDetected) {
         if (sample.qualityHint === 'tooDark') showAlert(t('error.signal.tooDark'));
         else if (sample.qualityHint === 'tooBright') showAlert(t('error.signal.tooBright'));
@@ -426,11 +395,10 @@ function onFrameTick() {
         Math.floor(elapsedSec * TARGET_FS)
       );
       const simVal = state.syntheticPrebuffer[sampleIdx];
-      els.metricChannel.textContent = 'SIM';
       state.rawSamples.push({ t: now, v: simVal });
     }
 
-    if (state.showWaveform) drawLiveWaveform();
+    drawLiveWaveform();
   }
 
   const remainingSec = Math.max(0, state.durationSec - elapsedSec);
@@ -459,8 +427,6 @@ function onFrameTick() {
 
       if (liveAnalysis.bpm > 0) {
         els.bpmNumber.textContent = formatNumber(liveAnalysis.bpm);
-        els.metricQuality.textContent = `${liveAnalysis.qualityScore}%`;
-        els.metricBeats.textContent = String(liveAnalysis.beatCount);
         els.stageGuideText.textContent = t('measure.status.measuringLive');
         if (isFirstLock) {
           playTone(660, 110);
@@ -498,7 +464,7 @@ async function openIdleCamera() {
   updateIdleGuide();
 
   try {
-    await camera.open({ torch: false, notifyNoTorch: false });
+    await camera.open({ torch: false });
     if (token !== state.previewToken) {
       // 그 사이 시뮬레이션 모드로 바뀌었거나 화면이 숨겨진 경우에만 스트림을 정리한다.
       if (state.simMode !== 'camera' || document.hidden) camera.stop();
@@ -537,6 +503,7 @@ async function startMeasurement() {
   };
 
   state.rawSamples = [];
+  drawLiveWaveform();
   state.lastAdaptiveTickSec = 0;
   state.lastResult = null;
   document.body.classList.remove('has-result');
@@ -544,9 +511,6 @@ async function startMeasurement() {
   els.resultShortNote.hidden = true;
   els.btnShareImage.hidden = true;
   els.bpmNumber.textContent = '--';
-  els.metricQuality.textContent = '--';
-  els.metricBeats.textContent = '0';
-  els.metricCv.textContent = '--';
   els.timerBadge.textContent = formatTimer(state.durationSec);
   updateProgressRing(0);
   updateCalibBannerUI();
@@ -559,9 +523,9 @@ async function startMeasurement() {
     state.cameraState = 'starting';
     updateIdleGuide();
     try {
-      const { torchEnabled } = await camera.open({ torch: true, notifyNoTorch: true });
+      await camera.open({ torch: state.facingMode === 'environment' });
       state.cameraState = 'ready';
-      if (torchEnabled) hideAlert();
+      hideAlert();
     } catch (err) {
       logDebug(`Camera open error: ${err.name} - ${err.message}`);
       state.cameraState = 'error';
@@ -624,6 +588,8 @@ function cancelMeasurement() {
   els.btnPrimaryMeasure.classList.remove('measuring');
   els.btnPrimaryMeasure.textContent = t('measure.cta.start');
   els.stageGuideText.textContent = t('measure.status.readyTitle');
+  state.rawSamples = [];
+  drawLiveWaveform();
   els.timerBadge.textContent = formatTimer(state.durationSec);
   updateProgressRing(0);
   updateCalibBannerUI();
@@ -675,10 +641,8 @@ function finishMeasurement() {
   state.lastResult = record;
   document.body.classList.add('has-result');
   els.bpmNumber.textContent = formatNumber(record.bpm);
-  els.metricQuality.textContent = `${record.quality}%`;
-  els.metricBeats.textContent = String(record.beatCount);
-  els.metricCv.textContent = String(record.cv);
   els.stageGuideText.textContent = t('measure.status.completed');
+  drawLiveWaveform();
 
   updateCalibBannerUI();
   renderResultBanner(record);
@@ -703,12 +667,31 @@ const RESULT_ICONS = {
   irregular: SVG_ALERT
 };
 
+function renderResultIndicators(record) {
+  const indicators = getResultIndicators(record);
+  ['arrhythmia', 'bradycardia', 'tachycardia'].forEach((name) => {
+    const card = document.querySelector(`[data-indicator="${name}"]`);
+    const active = indicators[name];
+    card.classList.toggle('is-active', active);
+    card.classList.toggle('is-clear', !active);
+    card.setAttribute('aria-label', `${t(`measure.indicator.${name}`)}: ${t(active ? 'measure.indicator.detected' : 'measure.indicator.notDetected')}`);
+    card.querySelector('[data-indicator-state]').textContent = t(active ? 'measure.indicator.detected' : 'measure.indicator.notDetected');
+  });
+
+  const qualityCard = document.querySelector('[data-indicator="signal-quality"]');
+  qualityCard.classList.remove('quality-good', 'quality-fair', 'quality-poor', 'quality-unknown');
+  qualityCard.classList.add(`quality-${indicators.quality}`);
+  qualityCard.setAttribute('aria-label', `${t('measure.indicator.signalQuality')}: ${t(`measure.indicator.quality.${indicators.quality}`)}`);
+  els.indicatorQualityState.textContent = t(`measure.indicator.quality.${indicators.quality}`);
+}
+
 function renderResultBanner(record) {
   els.resultBanner.className = `result-banner visible status-${record.status}`;
   els.resultIcon.innerHTML = RESULT_ICONS[record.status] || RESULT_ICONS.normal;
   els.resultTitle.textContent = t(`result.${record.status}.title`);
   els.resultDesc.textContent = t(`result.${record.status}.desc`);
   els.resultShortNote.hidden = !record.isShortMeasurement;
+  renderResultIndicators(record);
 }
 
 function saveRecordToHistory(record) {
@@ -751,14 +734,31 @@ function renderHistory() {
   list.slice(0, 30).forEach((item) => {
     const li = document.createElement('li');
     li.className = 'history-item';
-    const statusTitle = t(`result.${item.status}.title`);
-    li.innerHTML = `
-      <div>
-        <div style="font-weight:800; font-size:1.02rem;">${statusTitle}</div>
-        <div style="font-size:0.86rem; color:var(--text-sub);">${formatDateTime(item.timestamp)} · ${item.duration}s · CV ${item.cv}</div>
-      </div>
-      <div class="history-bpm">${formatNumber(item.bpm)}<span class="unit">${t('measure.unit.bpm')}</span></div>
-    `;
+    const indicators = getResultIndicators(item);
+    const flags = ['arrhythmia', 'bradycardia', 'tachycardia']
+      .filter((name) => indicators[name])
+      .map((name) => t(`measure.indicator.${name}`));
+    const detail = document.createElement('div');
+    detail.className = 'history-detail';
+    const signalText = document.createElement('div');
+    signalText.className = 'history-signals';
+    signalText.textContent = flags.length ? flags.join(' · ') : t('history.indicators.none');
+    const qualityText = document.createElement('div');
+    qualityText.className = 'history-quality';
+    qualityText.textContent = `${t('measure.indicator.signalQuality')}: ${t(`measure.indicator.quality.${indicators.quality}`)}`;
+    const meta = document.createElement('div');
+    meta.className = 'history-meta';
+    meta.textContent = `${formatDateTime(item.timestamp)} · ${item.duration}s`;
+    detail.append(signalText, qualityText, meta);
+
+    const bpm = document.createElement('div');
+    bpm.className = 'history-bpm';
+    bpm.append(document.createTextNode(formatNumber(item.bpm)));
+    const unit = document.createElement('span');
+    unit.className = 'unit';
+    unit.textContent = t('measure.unit.bpm');
+    bpm.append(unit);
+    li.append(detail, bpm);
     els.historyList.appendChild(li);
   });
 }
@@ -791,7 +791,7 @@ function drawTrendChart(records) {
   records.forEach((rec, i) => {
     const x = records.length === 1 ? w / 2 : 24 + (i / (records.length - 1)) * (w - 48);
     const y = h - 22 - ((rec.bpm - minB) / span) * (h - 44);
-    ctx.fillStyle = rec.status === 'normal' ? '#10B981' : '#E11D48';
+    ctx.fillStyle = '#0F4C81';
     ctx.beginPath();
     ctx.arc(x, y, 5, 0, Math.PI * 2);
     ctx.fill();
@@ -806,7 +806,6 @@ async function switchCamera(facing) {
   state.facingMode = facing;
   camera.setFacing(facing);
   syncCameraButtons();
-  applyScreenLight();
   logDebug(`Camera facing switched to: ${facing}`);
 
   if (state.simMode !== 'camera') return;
@@ -815,7 +814,7 @@ async function switchCamera(facing) {
   state.cameraState = 'starting';
   updateIdleGuide();
   try {
-    await camera.open({ torch: false, notifyNoTorch: false });
+    await camera.open({ torch: false });
     if (token === state.previewToken) state.cameraState = 'ready';
   } catch (err) {
     if (token === state.previewToken) {
@@ -855,15 +854,6 @@ els.langBtns.forEach((btn) => {
     setLang(lang);
     applyTranslations();
   });
-});
-
-els.btnScreenLight.addEventListener('click', () => {
-  setScreenLight(!state.screenLightOn);
-});
-
-els.btnWaveformToggle.addEventListener('click', () => {
-  state.showWaveform = !state.showWaveform;
-  syncConfigUI();
 });
 
 els.btnSettings.addEventListener('click', () => {
@@ -936,8 +926,7 @@ els.simPresetBtns.forEach((btn) => {
   btn.addEventListener('click', () => {
     state.simMode = btn.getAttribute('data-sim');
     els.simPresetBtns.forEach((b) => b.classList.toggle('active', b === btn));
-    applyScreenLight();
-    logDebug(`Simulation mode switched to: ${state.simMode}`);
+      logDebug(`Simulation mode switched to: ${state.simMode}`);
 
     if (state.simMode !== 'camera') {
       state.previewToken++;

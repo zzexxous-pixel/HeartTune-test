@@ -4,6 +4,7 @@
  * 실행 명령어: npx playwright test
  */
 import { test, expect } from '@playwright/test';
+import { readFile } from 'node:fs/promises';
 
 /** 문서가 실제로 스크롤되지 않는지(원스크린) 확인한다. */
 async function expectNoPageScroll(page) {
@@ -57,37 +58,29 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     await expect(page.locator('#btnPrimaryMeasure')).toHaveText('Start Measure');
   });
 
-  test('3. 화면 조명 스위치(기본 ON·전면 전용)', async ({ page }) => {
+  test('3. 링·파형·메시지 3영역 고정 및 제거된 조명/파형 설정 확인', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 667 });
     await page.goto('./');
 
-    const settingsSheet = page.locator('#settingsSheet');
+    const ring = page.locator('.ring-zone');
+    const waveform = page.locator('#waveformBox');
+    const message = page.locator('.message-area');
+    await expect(ring).toBeVisible();
+    await expect(waveform).toBeVisible();
+    await expect(message).toBeVisible();
+    await expect(page.locator('#btnScreenLight, #screenLightStrip, #btnWaveformToggle')).toHaveCount(0);
+
+    const ringBox = await ring.boundingBox();
+    const waveformBox = await waveform.boundingBox();
+    const messageBox = await message.boundingBox();
+    expect(ringBox.y).toBeLessThan(waveformBox.y);
+    expect(waveformBox.y).toBeLessThan(messageBox.y);
+
     await page.locator('#btnSettings').click();
-    await expect(settingsSheet).toHaveClass(/open/);
-
-    const lightStrip = page.locator('#screenLightStrip');
-    const lightBtn = page.locator('#btnScreenLight');
-    await expect(lightBtn).toHaveAttribute('aria-checked', 'true');
-    await expect(lightBtn).toHaveClass(/is-idle/);
-    await expect(lightStrip).not.toHaveClass(/active/);
-
-    await page.locator('.cam-btn[data-facing="user"]').click();
-    await expect(lightBtn).not.toHaveClass(/is-idle/);
-    await expect(lightStrip).toHaveClass(/active/);
-
-    await page.locator('.cam-btn[data-facing="environment"]').click();
-    await expect(lightBtn).toHaveClass(/is-idle/);
-    await expect(lightStrip).not.toHaveClass(/active/);
-
-    await lightBtn.click();
-    await expect(lightBtn).toHaveAttribute('aria-checked', 'false');
-    await page.locator('.cam-btn[data-facing="user"]').click();
-    await expect(lightStrip).not.toHaveClass(/active/);
-    await lightBtn.click();
-    await expect(lightBtn).toHaveAttribute('aria-checked', 'true');
-    await expect(lightStrip).toHaveClass(/active/);
-
-    await settingsSheet.locator('[data-sheet-close]').click();
-    await expect(settingsSheet).not.toHaveClass(/open/);
+    await expect(page.locator('#settingsSheet')).toHaveClass(/open/);
+    await expect(page.locator('#settingsSheet')).not.toContainText('화면 조명');
+    await expect(page.locator('#settingsSheet')).not.toContainText('파형 보기');
+    await page.locator('#settingsSheet [data-sheet-close]').click();
   });
 
   test('4. 스텔스 디버그 + 5초 고속 캘리브레이션(TRACKING) + 결과/법적 고지/이력 저장 검증', async ({ page }) => {
@@ -119,9 +112,16 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     await expect(debugConsole).not.toHaveClass(/open/);
 
     // 측정 시작 클릭
+    const captureZones = () => page.evaluate(() => ['.ring-zone', '#waveformBox', '.message-area'].map((selector) => {
+      const rect = document.querySelector(selector).getBoundingClientRect();
+      return [rect.x, rect.y, rect.width, rect.height];
+    }));
+    const idleZones = await captureZones();
     const ctaBtn = page.locator('#btnPrimaryMeasure');
     await ctaBtn.click();
     await expect(ctaBtn).toHaveText('측정 취소');
+    const measuringZones = await captureZones();
+    expect(measuringZones).toEqual(idleZones);
 
     // [구간 A] 0 ~ 4초: 초기 신호 수집 구간이므로 아직 BPM은 '--' 유지
     for (let sec = 0; sec < 4; sec++) {
@@ -147,12 +147,18 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     expect(finalBpm).toBeGreaterThanOrEqual(68);
     expect(finalBpm).toBeLessThanOrEqual(76);
 
+    const resultZones = await captureZones();
+    expect(resultZones).toEqual(idleZones);
+
     const resultBanner = page.locator('#resultBanner');
     await expect(resultBanner).toHaveClass(/status-normal/);
     await expect(page.locator('#resultTitle')).toHaveText('정상 범위예요');
     await expect(page.locator('#resultShortNote')).toBeVisible();
     await expect(page.locator('#btnShareImage')).toBeVisible();
     await expect(page.locator('#btnDetails')).toBeVisible();
+    for (const type of ['arrhythmia', 'bradycardia', 'tachycardia']) {
+      await expect(page.locator(`[data-indicator="${type}"]`)).toHaveClass(/is-clear/);
+    }
 
     // 결과 화면에 참고용 의료 고지가 보이고 "진단" 단어는 쓰지 않는다.
     const legalText = await resultBanner.innerText();
@@ -164,6 +170,26 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     const shareBox = await page.locator('#btnShareImage').boundingBox();
     expect(shareBox.y + shareBox.height).toBeLessThanOrEqual(667);
 
+    // 상세에는 사용자용 네 가지 항목만 표시하고, 기술용 지표와 스트레스 항목은 제외한다.
+    await page.locator('#btnDetails').click();
+    const detailsSheet = page.locator('#detailsSheet');
+    await expect(detailsSheet).toHaveClass(/open/);
+    for (const label of ['부정맥', '서맥', '빈맥', '측정 신호 품질']) {
+      await expect(detailsSheet).toContainText(label);
+    }
+    const detailsText = await detailsSheet.innerText();
+    expect(detailsText).not.toMatch(/\bCV\b|검출 박동|활성 채널|스트레스/);
+    await detailsSheet.locator('[data-sheet-close]').click();
+
+    // 공유 PNG의 폭/가변 높이를 확인해 긴 텍스트도 고정 높이에서 잘리지 않도록 한다.
+    const downloadPromise = page.waitForEvent('download');
+    await page.locator('#btnShareImage').click();
+    const download = await downloadPromise;
+    const png = await readFile(await download.path());
+    expect(png.subarray(0, 8)).toEqual(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+    expect(png.readUInt32BE(16)).toBe(1080);
+    expect(png.readUInt32BE(20)).toBeGreaterThanOrEqual(1420);
+
     // [검증 D] 최근 30건 캘리브레이션 학습 큐(hearttune_calibration_v1)에 1건 저장
     await expect(page.locator('#calibStatusText')).toContainText('최근 1건 학습');
 
@@ -173,7 +199,10 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     await expect(page.locator('#historySheet')).toHaveClass(/open/);
     const historyItems = page.locator('#historyList .history-item');
     await expect(historyItems).toHaveCount(1);
-    await expect(historyItems.first()).toContainText('정상 범위예요');
+    await expect(historyItems.first()).toContainText('표시 신호 없음');
+    await expect(historyItems.first()).toContainText('측정 신호 품질');
+    await expect(historyItems.first()).not.toContainText('CV');
+    await expect(historyItems.first()).not.toHaveClass(/is-active|is-clear/);
   });
 
   test('5. 디버그 샌드박스 수동 필터 슬라이더 조작 시 MANUAL 모드 전환 및 자동 복귀 검증', async ({ page }) => {
@@ -211,9 +240,8 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     await page.locator('#btnSettings').click();
     await expect(page.locator('#settingsSheet')).toHaveClass(/open/);
     await expect(page.locator('.cam-btn[data-facing="environment"]')).toHaveAttribute('aria-pressed', 'true');
-    await expect(page.locator('#btnWaveformToggle')).toHaveAttribute('aria-checked', 'true');
-    await expect(page.locator('#btnScreenLight')).toHaveAttribute('aria-checked', 'true');
-    await expect(page.locator('#waveformBox')).toBeHidden();
+    await expect(page.locator('.cam-btn')).toHaveCount(2);
+    await expect(page.locator('#waveformBox')).toBeVisible();
     await page.locator('#settingsSheet [data-sheet-close]').click();
 
     // 페이지 진입 시 카메라 미리보기가 자동으로 켜진다 (측정 시작 전 손가락 위치 조정).

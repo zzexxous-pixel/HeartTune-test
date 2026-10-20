@@ -15,11 +15,6 @@
 </head>
 <body>
   <div class="app-shell">
-    <!-- 전면 카메라용 상단 조명 (필요할 때만 표시) -->
-    <div id="screenLightStrip" role="status" aria-live="polite" data-i18n="measure.screenLight.hint">
-      💡 카메라에 손가락을 가볍게 대주세요 (화면 조명 작동 중)
-    </div>
-
     <!-- 헤더: 메뉴 → 로고 → 언어 → 설정 (탭 없음) -->
     <header class="app-header">
       <button type="button" id="btnMenu" class="icon-btn menu-btn" aria-label="메뉴" data-i18n-aria="app.menu.title">
@@ -45,54 +40,55 @@
       </div>
     </header>
 
-    <!-- 한 화면 스테이지: 스크롤 없음 -->
+    <!-- 항상 같은 세 영역: 링 → 파형 → 상태 메시지 -->
     <main class="main-content">
-      <p id="stageGuideText" class="stage-guide-text" data-i18n="measure.status.readyTitle">
-        검지를 후면 카메라와 플래시에 가볍게 대주세요
-      </p>
+      <div class="ring-zone">
+        <div class="ring-container">
+          <svg class="progress-ring" viewBox="0 0 240 240" aria-hidden="true">
+            <circle class="progress-ring-bg" cx="120" cy="120" r="106"></circle>
+            <circle id="progressRingBar" class="progress-ring-bar" cx="120" cy="120" r="106"></circle>
+          </svg>
 
-      <div class="ring-container">
-        <svg class="progress-ring" viewBox="0 0 240 240" aria-hidden="true">
-          <circle class="progress-ring-bg" cx="120" cy="120" r="106"></circle>
-          <circle id="progressRingBar" class="progress-ring-bar" cx="120" cy="120" r="106"></circle>
-        </svg>
-
-        <div class="ring-center-content">
-          <div class="camera-preview-badge">
-            <video id="cameraVideo" playsinline muted autoplay></video>
+          <div class="ring-center-content">
+            <div class="camera-preview-badge">
+              <video id="cameraVideo" playsinline muted autoplay></video>
+            </div>
+            <div class="bpm-row">
+              <span id="heartBeatIcon" class="heart-icon" aria-hidden="true">♥</span>
+              <span id="bpmNumber" class="bpm-value">--</span>
+              <span class="bpm-unit" data-i18n="measure.unit.bpm">회/분</span>
+            </div>
+            <div id="timerBadge" class="timer-badge">00:30</div>
           </div>
-          <div class="bpm-row">
-            <span id="heartBeatIcon" class="heart-icon" aria-hidden="true">♥</span>
-            <span id="bpmNumber" class="bpm-value">--</span>
-            <span class="bpm-unit" data-i18n="measure.unit.bpm">회/분</span>
-          </div>
-          <div id="timerBadge" class="timer-badge">00:30</div>
         </div>
       </div>
 
-      <!-- 옵션에서 켤 때만 표시되는 실시간 파형 -->
-      <div id="waveformBox" class="waveform-box" hidden>
+      <div id="waveformBox" class="waveform-box" data-i18n-aria="measure.waveform.accessible">
         <canvas id="waveformCanvas" width="440" height="84"></canvas>
       </div>
 
+      <div class="message-area">
+        <p id="stageGuideText" class="stage-guide-text" data-i18n="measure.status.readyTitle">
+          카메라 렌즈에 손가락을 가볍게 대주세요
+        </p>
 
-      <!-- 결과: 링 아래에만 표시. 법적 고지 포함 -->
-      <section id="resultBanner" class="result-banner" role="region" aria-live="polite">
-        <div class="result-title-row">
-          <span id="resultIcon" aria-hidden="true">✅</span>
-          <span id="resultTitle">정상 범위예요</span>
-        </div>
-        <p id="resultDesc" class="result-desc"></p>
-        <p id="resultShortNote" class="result-short-note" hidden data-i18n="result.shortNote.text">
-          짧은 측정(15초)이라 리듬 결과는 참고만 하세요.
-        </p>
-        <button type="button" id="btnDetails" class="btn btn-outline btn-details" data-i18n="measure.result.details" aria-haspopup="dialog">
-          자세히 보기
-        </button>
-        <p class="result-legal" data-i18n="legal.disclaimer.short">
-          본 앱은 의료기기가 아니며, 결과는 참고용입니다.
-        </p>
-      </section>
+        <section id="resultBanner" class="result-banner" role="region" aria-live="polite">
+          <div class="result-title-row">
+            <span id="resultIcon" aria-hidden="true">✅</span>
+            <span id="resultTitle">정상 범위예요</span>
+            <button type="button" id="btnDetails" class="btn btn-outline btn-details" data-i18n="measure.result.details" aria-haspopup="dialog">
+              자세히 보기
+            </button>
+          </div>
+          <p id="resultDesc" class="result-desc"></p>
+          <p id="resultShortNote" class="result-short-note" hidden data-i18n="result.shortNote.text">
+            짧은 측정(15초) 결과는 참고용입니다.
+          </p>
+          <p class="result-legal" data-i18n="legal.disclaimer.short">
+            본 앱은 의료기기가 아니며, 결과는 참고용입니다.
+          </p>
+        </section>
+      </div>
     </main>
 
     <!-- 하단 고정 CTA: 결과일 때만 [이미지 저장] + [다시 측정] -->
@@ -150,23 +146,6 @@
             전면 카메라
           </button>
         </div>
-      </div>
-
-      <div class="setting-block">
-        <div class="setting-row">
-          <span id="lblScreenLight" class="setting-label" data-i18n="app.header.screenLight">화면 조명</span>
-          <button type="button" id="btnScreenLight" class="switch" role="switch" aria-checked="true" aria-labelledby="lblScreenLight">
-            <span class="switch-track" aria-hidden="true"><span class="switch-knob"></span></span>
-          </button>
-        </div>
-        <p class="setting-hint" data-i18n="measure.config.screenLightHint">전면 카메라일 때만 켜집니다. 후면 카메라는 플래시를 사용합니다.</p>
-      </div>
-
-      <div class="setting-row">
-        <span id="lblWaveform" class="setting-label" data-i18n="measure.config.waveform">측정 중 파형 보기</span>
-        <button type="button" id="btnWaveformToggle" class="switch" role="switch" aria-checked="true" aria-labelledby="lblWaveform">
-          <span class="switch-track" aria-hidden="true"><span class="switch-knob"></span></span>
-        </button>
       </div>
 
       <div class="setting-block">
@@ -287,7 +266,7 @@
     </div>
   </section>
 
-  <!-- 측정 상세 시트 (기술 지표는 결과 이후에만) -->
+  <!-- 측정 상세 시트: 사용자용 참고 신호와 측정 신호 품질 -->
   <section id="detailsSheet" class="sheet sheet-compact" role="dialog" aria-modal="true" aria-labelledby="detailsSheetTitle" aria-hidden="true">
     <div class="sheet-header">
       <h2 id="detailsSheetTitle" data-i18n="measure.result.details">자세히 보기</h2>
@@ -298,26 +277,34 @@
       </button>
     </div>
     <div class="sheet-body">
-      <div class="metrics-strip">
-        <div class="metric-pill">
-          <span class="metric-pill-label" data-i18n="measure.metric.signalQuality">신호 품질</span>
-          <span id="metricQuality" class="metric-pill-val">--</span>
+      <div class="indicator-grid" data-i18n-aria="measure.indicator.group">
+        <div class="indicator-card" id="indicatorArrhythmia" data-indicator="arrhythmia">
+          <span class="indicator-light" aria-hidden="true"></span>
+          <span class="indicator-label" data-i18n="measure.indicator.arrhythmia">부정맥</span>
+          <span class="indicator-state" data-indicator-state="arrhythmia"></span>
+          <p class="indicator-desc" data-i18n="measure.indicator.arrhythmiaHint"></p>
         </div>
-        <div class="metric-pill">
-          <span class="metric-pill-label" data-i18n="measure.metric.beatsDetected">검출 박동</span>
-          <span id="metricBeats" class="metric-pill-val">0</span>
+        <div class="indicator-card" id="indicatorBradycardia" data-indicator="bradycardia">
+          <span class="indicator-light" aria-hidden="true"></span>
+          <span class="indicator-label" data-i18n="measure.indicator.bradycardia">서맥</span>
+          <span class="indicator-state" data-indicator-state="bradycardia"></span>
+          <p class="indicator-desc" data-i18n="measure.indicator.bradycardiaHint"></p>
         </div>
-        <div class="metric-pill">
-          <span class="metric-pill-label" data-i18n="measure.metric.rhythmCv">리듬 변동(CV)</span>
-          <span id="metricCv" class="metric-pill-val">--</span>
+        <div class="indicator-card" id="indicatorTachycardia" data-indicator="tachycardia">
+          <span class="indicator-light" aria-hidden="true"></span>
+          <span class="indicator-label" data-i18n="measure.indicator.tachycardia">빈맥</span>
+          <span class="indicator-state" data-indicator-state="tachycardia"></span>
+          <p class="indicator-desc" data-i18n="measure.indicator.tachycardiaHint"></p>
         </div>
-        <div class="metric-pill">
-          <span class="metric-pill-label" data-i18n="measure.metric.channel">활성 채널</span>
-          <span id="metricChannel" class="metric-pill-val">R/G</span>
+        <div class="indicator-card" id="indicatorSignalQuality" data-indicator="signal-quality">
+          <span class="indicator-light" aria-hidden="true"></span>
+          <span class="indicator-label" data-i18n="measure.indicator.signalQuality">측정 신호 품질</span>
+          <span id="indicatorQualityState" class="indicator-state"></span>
+          <p class="indicator-desc" data-i18n="measure.indicator.signalQualityHint"></p>
         </div>
       </div>
-      <p class="sheet-note" data-i18n="legal.disclaimer.short">
-        본 앱은 의료기기가 아니며, 결과는 참고용입니다.
+      <p class="details-legal" data-i18n="legal.disclaimer.main">
+        본 앱은 의료기기가 아니며, 측정 결과는 참고용 정보입니다. 의학적 판단이나 진료를 대체할 수 없습니다.
       </p>
     </div>
   </section>

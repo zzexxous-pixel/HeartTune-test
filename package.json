@@ -5,9 +5,9 @@
   "type": "module",
   "description": "오늘심박 (HeartTune) — PPG 심박수 측정 웹앱 개발 및 CI/CD 저장소",
   "scripts": {
-    "lint": "node --check src/dsp.js && node --check src/i18n.js && node --check src/main.js && node --check src/features/camera.js && node --check src/features/sheets.js && node --check src/features/share.js && node --check src/features/storage.js && node --check scripts/build-dist.js && node --check scripts/serve.js && node --check sw.js && node --check tests/dsp.test.js",
+    "lint": "node --check src/dsp.js && node --check src/i18n.js && node --check src/main.js && node --check src/features/camera.js && node --check src/features/result-indicators.js && node --check src/features/sheets.js && node --check src/features/share.js && node --check src/features/storage.js && node --check scripts/build-dist.js && node --check scripts/serve.js && node --check sw.js && node --check tests/dsp.test.js && node --check tests/result-indicators.test.js",
     "test:i18n": "node --input-type=module -e \"import { validateI18nKeyParity } from './src/i18n.js'; const res = validateI18nKeyParity(); if (!res.valid) { console.error('i18n Key Parity Failed:', res); process.exit(1); } console.log('i18n Key Parity OK (' + res.totalKeys + ' keys)');\"",
-    "test:unit": "node --test tests/dsp.test.js",
+    "test:unit": "node --test tests/*.test.js",
     "test:e2e": "playwright test",
     "build": "node scripts/build-dist.js",
     "serve": "node scripts/serve.js 8080 .",

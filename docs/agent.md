@@ -5,8 +5,8 @@
 > 5~7절(현재 상태 / 할 일 / 미결정)을 확인하고 작업을 시작하세요.
 > 대화 기록은 사라져도 이 문서와 저장소(코드·PR·커밋)는 남습니다. **여기가 유일한 기억입니다.**
 
-- 최종 갱신: 2026-10-19 (KST) — 원스크린(한 화면) UX 개편 반영
-- 갱신자: Arena 에이전트 세션 `arena/f50fd973-hearttune-test` (이전 PR #1, #2 → Promote 첫 성공)
+- 최종 갱신: 2026-10-20 (KST) — 고정 3영역 파형/상세 지표/공유 카드 UX 구현
+- 갱신자: Arena 에이전트 세션 `arena/c85567d7-hearttune-test` (PR #4 미리보기 공개, UX 후속 구현)
 - 저장소: `zzexxous-pixel/HeartTune-test` (개발) / `zzexxous-pixel/HeartTune` (운영)
 
 ---
@@ -17,7 +17,7 @@
 git log --oneline -10                 # 최근에 무슨 일이 있었는지
 git status -sb                        # 미커밋 변경이 있는지
 npm run lint && npm run test:i18n     # 구문 / i18n 키
-npm run test:unit                     # DSP 단위·회귀 (현재 15개)
+npm run test:unit                     # DSP·표시 기준 단위·회귀 (현재 16개)
 npm run build                         # 배포 산출물 + 경로/자산 검증
 ```
 
@@ -41,11 +41,11 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
 | 형태 | **1페이지 SPA 웹앱**, 프레임워크 없음(Vanilla JS + ES Modules), 빌드 번들러 없음 |
 | 핵심 기능 | 스마트폰 후면 카메라 + 플래시로 **손가락 PPG** 측정 → BPM + 리듬(부정맥 아님) 참고 정보 |
 | 측정 시간 | 기본 30초 / 15초(빠른 확인, 리듬은 참고) / 60초(정밀) |
-| 표시 규칙 | 0~15초는 값 숨김 → **15초에 첫 BPM** → 이후 2초 주기 갱신 → 종료 시 최종 확정 + 리듬 1회 판정 |
+| 표시 규칙 | 5초부터 BPM 표시 → 이후 2초 주기 갱신 → 종료 시 최종 확정 + 리듬 판정 |
 | 저장 | `localStorage`만 (서버 없음, 영상 전송 없음) |
 | 공유 | 결과를 **큰 글씨 PNG**로 생성 → Web Share / 다운로드 |
 | 타깃 | **중장년** (+ 자녀가 부모님 확인) |
-| 언어 | ko 기본 / en (i18n 키 81개, 구조로 다국어 확장 가능) |
+| 언어 | ko 기본 / en (i18n 키 90개, ko/en 집합 일치) |
 | 호스팅 | GitHub Pages (HTTPS 필수: 카메라 API) |
 
 ---
@@ -55,18 +55,18 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
 ### 2-1. 제품·의료 표현
 1. **"진단"이라는 단어를 쓰지 않는다.** → "정상 범위예요", "리듬이 고르지 않아요" 수준
 2. 결과는 **참고용 정보**임을 항상 병기한다 (`legal.disclaimer.main`).
-3. 부정맥을 단정하지 않는다. "부정맥입니다" ❌ / "리듬이 고르지 않아요. 의사와 상담해 보세요" ⭕
+3. 부정맥을 단정하지 않는다. UI 용어 "부정맥"은 표시 가능하되 "부정맥입니다"처럼 확정 문구는 금지한다.
 4. 카메라 영상은 **브라우저 밖으로 나가지 않는다**. 서버 전송·외부 API 호출 금지.
 5. 영문 표기는 **`HeartTune`** (가운데 띄어쓰기·하이픈 금지).
 
 ### 2-2. 접근성·UX (중장년)
-- **첫 화면은 100dvh 한 화면(스크롤 없음)** — 옵션·이력·안내·기술 지표는 바텀시트로만 (10-spec 4-5b)
-- 기본값은 **후면 카메라 / 30초 / 자동 시작 OFF / 파형 ON / 화면 조명 ON**, 언어는 **브라우저 언어**
+- **첫 화면은 100dvh 한 화면(스크롤 없음)** — 링·파형·메시지 세 영역의 순서/크기를 대기·측정·결과에서 고정. 상세·이력·안내는 시트로 (10-spec 4-5b)
+- 기본값은 **후면 카메라 / 30초 / 자동 시작 OFF**, 언어는 **브라우저 언어**. 파형은 상시 표시(토글 없음), 화면 조명 UI·토치 미지원 경고 없음
 - 카메라 미리보기 **54px 변경 금지** (사용자 지정)
 - 헤더 순서는 **[≡ 메뉴] [❤️ 로고] [EN] [⚙️]** — 로고가 남는 공간을 차지한다.
 - 기본 글자 **18px 이상**, 핵심 수치(BPM) **64px 이상**
 - 탭 영역 최소 **48×48px**, 인접 버튼 간격 8px 이상
-- 상태를 **색만으로** 전달 금지 → 색 + 아이콘 + 문구 동시 사용
+- 부정맥·서맥·빈맥 상세 지표는 빨강/초록 표시등 + 상태 문구. 신호 품질은 별도 색 체계, 이력은 텍스트만
 - 이벤트는 **`click` 단일화** (`mousedown`/`touchstart` 직접 사용 금지 → 이중 발화 버그)
 - `:hover` 단독 상태 표현 금지 → `:focus-visible` 병행
 
@@ -94,7 +94,7 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
    │  push
    ▼
 ① Dev CI (ci.yml)  →  verify.yml 재사용
-   ├ 검증① lint · i18n · DSP 단위(15)
+   ├ 검증① lint · i18n · DSP/UI 단위(16)
    ├ 검증② Playwright E2E(7)
    ├ 검증③ dist 빌드(+경로/자산 검증, 캐시 해시 자동)
    └ ✅ 전부 통과 시에만 → 개발 미리보기 배포 (GitHub Actions Pages)
@@ -145,16 +145,18 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
 | `index.html` | ~400 | **마크업만** (원스크린 + 바텀시트 6종) | E2E |
 | `src/main.css` | ~900 | 원스크린 레이아웃·시트·디버그 리사이즈, 중장년 접근성 | E2E |
 | `src/main.js` | ~900 | 앱 상태·이벤트·측정 오케스트레이션·시트 연결 | E2E |
-| `src/dsp.js` | ~816 | PPG 신호처리 순수 로직 (DOM 비의존) | **단위 15개** |
-| `src/i18n.js` | ~240 | ko/en 사전(81키), `t()`, **브라우저 언어 기본 감지**, 키 일치 검증 | 단위 1번 + `test:i18n` |
+| `src/features/result-indicators.js` | — | 현행 DSP 기준을 변경 없이 화면용 독립 플래그/신호 품질로 매핑 | 단위 |
+| `src/dsp.js` | ~816 | PPG 신호처리 순수 로직 (DOM 비의존, 임계값 변경 없음) | **단위** |
+| `src/i18n.js` | ~240 | ko/en 사전(90키), `t()`, **브라우저 언어 기본 감지**, 키 일치 검증 | 단위 1번 + `test:i18n` |
 | `src/features/camera.js` | ~150 | `getUserMedia`·torch·전/후면 전환·**진입 미리보기** | E2E 간접 |
 | `src/features/sheets.js` | ~95 | 바텀시트 열기/닫기·포커스 트랩·ESC·백드롭 | E2E |
 | `src/features/storage.js` | ~114 | 이력·캘리브레이션 localStorage 키/용량 관리 | 간접 |
-| `src/features/share.js` | ~120 | 결과 PNG 생성 + Web Share/다운로드 | — |
+| `src/features/share.js` | — | 중앙 정렬·동적 높이·줄바꿈 결과 PNG + Web Share/다운로드 | E2E 다운로드/PNG 크기 |
 | `scripts/serve.js` | ~63 | **의존성 0** 정적 서버(로컬·E2E) | — |
 | `scripts/build-dist.js` | ~143 | dist 생성 + 빌드 해시 + 캐시 자동화 + 경로/자산 검증 | `npm run build` |
 | `sw.js` | ~75 | 오프라인. 문서=네트워크 우선, 자산=캐시 우선 | — |
-| `tests/dsp.test.js` | ~233 | DSP 회귀 15개 | `test:unit` |
+| `tests/dsp.test.js` | — | DSP 회귀 | `test:unit` |
+| `tests/result-indicators.test.js` | — | 독립 결과 플래그·신호 품질 경계(1개) | `test:unit` |
 | `tests/e2e/hearttune.spec.js` | ~250 | E2E 7개 | `test:e2e` |
 
 **분리 기준**: DOM 모름 → `dsp.js` / 화면 문구 → `i18n.js` / 부수효과 1개 캡슐화 → `features/*` / 앱 상태·이벤트 → `main.js`
@@ -169,11 +171,11 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
 | 항목 | 값 | 검증 명령 | 확인일 |
 |---|---|---|---|
 | 최신 main 커밋 | `fded047` (PR #3 머지 완료) | git log --oneline -5 | 2026-10-19 |
-| DSP 단위·회귀 | 15 / 15 통과 | npm run test:unit | 2026-10-19 |
-| Playwright E2E | 7 / 7 통과 (PR #4 GitHub Actions) | `verify.yml` → Playwright E2E | 2026-10-20 |
-| i18n 키 | 81개, ko/en 일치 | npm run test:i18n | 2026-10-19 |
+| DSP·표시 기준 단위·회귀 | 16 / 16 통과 | npm run test:unit | 2026-10-20 |
+| Playwright E2E | 이전 PR 코드 7/7 통과; UX 변경 코드 CI 대기 | `verify.yml` → Playwright E2E | 2026-10-20 |
+| i18n 키 | 89개, ko/en 일치 | npm run test:i18n | 2026-10-20 |
 | 개발 배포 빌드 | `b5ad15d2` 서빙 중 | 개발 Pages 빌드 메타 확인 | 2026-10-19 |
-| dist 빌드 | 11개 파일, 빌드 해시 자동 | npm run build | 2026-10-19 |
+| dist 빌드 | 11개 파일, 빌드 해시 자동 | npm run build | 2026-10-20 |
 | 워크플로 | ci / verify / promote-to-production / preview-pr (PR #4 미리보기 배포 성공; main 루트 유지 확인) | Actions run #39353161406 + 개발 Pages / `/preview/` | 2026-10-20 |
 | ① Dev CI (main) | success | Actions 탭 | 2026-10-19 |
 | ② Promote | ✅ 첫 이관 성공 (Re-run 1회로 성공) | Actions → ② 실행 이력 | 2026-10-19 |
@@ -217,12 +219,11 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
 | 항목 | 선택지 | 결정 |
 |---|---|---|
 | 색상 테마 | 차분한 의료 블루(현재) / 다크+레드 / 민트 파스텔 | **미정** (현재 블루) |
-| 원스크린 UI | 3단(헤더/스테이지/CTA) + 시트 | ✅ 확정(2026-10-19) — 10-spec 4-5b |
+| 고정 3영역 UX | 링 → 파형 → 메시지, 조명 UI 제거, 결과/이력/공유 개선 | ✅ 구현(2026-10-20), PR #4 리뷰 전 — 10-spec 4-5b |
 | 자동 시작 | OFF(버튼 필요) / 손가락 감지 시 자동 | ✅ **OFF** 확정 |
 | 카메라 진입 미리보기 | 페이지 진입 즉시 ON / 측정 시작 시 ON | ✅ **진입 즉시 ON** 확정(토치 OFF) |
 | 이력 보관 개수 | 200건(현재) / 100건 / 무제한(불가) | 200건 임시 |
 | 15초 측정의 리듬 노출 | 참고 문구만 / 숨김 | 참고 문구(현재) |
-| 전면 카메라 폴백 안내 문구 | 현재 `error.webcam.notice` 사용 | 재검토 여지 |
 | 커스텀 도메인 | 미사용 | — |
 | 운영 저장소 README 처리 | 첫 이관 시 사라짐(현재 설계) | 재확인 필요 |
 
@@ -296,6 +297,7 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
 
 | 2026-10-19 | **원스크린 UX 개편** — 탭/설정카드/파형/지표/법적푸터를 첫 화면에서 제거하고 헤더·스테이지·하단 CTA 3단 `100dvh` 구성. ⚙️ 설정 시트·≡ 메뉴 시트·이력/안내/법적고지/상세 시트 신설(`src/features/sheets.js`). 후면 카메라 기본 + **진입 즉시 미리보기**(토치 OFF), 자동 시작 OFF, 브라우저 언어 기본, 결과 배너에 법적 고지, 디버그 창 상단 드래그 리사이즈(`--debug-height`) | ✅ 완료(로컬) — i18n 81키 / unit 15 / E2E 7(320×568~414×896·가로모드 스크롤 0 검증) / build 통과 | `arena/f50fd973-hearttune-test` 브랜치 |
 | 2026-10-19 | UI 가독성·헤더/설정 기본값 조정, PR `/preview/` 배포와 cleanup, `npm run preview --no-sw` 구현 | lint/i18n 81/unit 15/15/build 11 files 및 PR E2E 7/7 통과. `github-pages`에서 main + `refs/pull/*/merge` 허용 후 `/preview/` 배포 성공, 개발 루트는 main 콘텐츠 유지 확인. close cleanup은 PR 리뷰 중으로 미검증 | PR #4 · `arena/c85567d7-hearttune-test` |
+| 2026-10-20 | UX 후속 구현 — 고정 링/파형/메시지 3영역, 항상 보이는 결과 파형, 독립 빨강/초록 결과 지표 + 별도 신호 품질, 텍스트 전용 이력, 조명 UI/토치 경고 제거, 중앙 정렬·가변 높이 공유 이미지 | 소스 적용. `src/dsp.js` 알고리즘과 60/100 BPM 경계 불변. lint/i18n 89/unit 16/build 통과; 새 E2E는 원격 CI 검증 대기 | PR #4 · `arena/c85567d7-hearttune-test` |
 
 > **로그 규칙**: 최신이 아래. 항목이 20개를 넘으면 오래된 것은 `docs/changelog-archive.md` 로 옮긴다.
 
