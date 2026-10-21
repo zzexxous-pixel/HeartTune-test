@@ -61,15 +61,10 @@ export function appendRecordToHistory(record) {
   return trimmed;
 }
 
-/**
- * 목록 인덱스(최신순, loadHistory 기준)의 기록 하나를 삭제한다.
- * 삭제된 뒤의 최신 목록을 반환한다.
- */
-export function deleteHistoryAt(index) {
+/** id 가 일치하는 측정 기록 하나를 삭제하고, 삭제 후 최신순 목록을 반환한다. */
+export function deleteHistoryById(id) {
   const storage = getStorage();
-  const list = loadHistory();
-  if (!Number.isInteger(index) || index < 0 || index >= list.length) return list;
-  list.splice(index, 1);
+  const list = loadHistory().filter((record) => record.id !== id);
   if (storage) {
     try {
       storage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(list));

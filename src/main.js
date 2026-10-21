@@ -17,7 +17,7 @@ import {
 import {
   loadHistory,
   appendRecordToHistory,
-  deleteHistoryAt,
+  deleteHistoryById,
   clearStoredData,
   loadCalibrationBaseline,
   saveCalibrationSample
@@ -98,6 +98,14 @@ const els = {
   btnPrimaryMeasure: document.getElementById('btnPrimaryMeasure'),
   btnShareImage: document.getElementById('btnShareImage'),
   btnClearHistory: document.getElementById('btnClearHistory'),
+  btnDetailsShare: document.getElementById('btnDetailsShare'),
+  historyUndoToast: document.getElementById('historyUndoToast'),
+  btnUndoDelete: document.getElementById('btnUndoDelete'),
+  btnHistoryBack: document.getElementById('btnHistoryBack'),
+  btnHistoryDetailShare: document.getElementById('btnHistoryDetailShare'),
+  btnHistoryDetailDelete: document.getElementById('btnHistoryDetailDelete'),
+  historyDetailBody: document.getElementById('historyDetailBody'),
+  historyAdSlot: document.getElementById('historyAdSlot'),
   trendYAxis: document.getElementById('trendYAxis'),
   trendScroll: document.getElementById('trendScroll'),
   trendCanvas: document.getElementById('trendCanvas'),
@@ -170,7 +178,10 @@ const camera = createCameraController({
 const sheets = createSheetController({
   backdrop: els.sheetBackdrop,
   onOpen: (sheet) => logDebug(`Sheet opened: ${sheet.id}`),
-  onClose: (sheet) => logDebug(`Sheet closed: ${sheet.id}`),
+  onClose: (sheet) => {
+    logDebug(`Sheet closed: ${sheet.id}`);
+    if (sheet === els.historySheet) onHistorySheetClosed();
+  },
   log: () => {}
 });
 
@@ -684,10 +695,10 @@ const RESULT_ICONS = {
   irregular: SVG_ALERT
 };
 
-function renderResultIndicators(record) {
+function renderResultIndicators(record, root = els.detailsSheet) {
   const indicators = getResultIndicators(record);
   ['arrhythmia', 'bradycardia', 'tachycardia'].forEach((name) => {
-    const card = document.querySelector(`[data-indicator="${name}"]`);
+    const card = root.querySelector(`[data-indicator="${name}"]`);
     const active = indicators[name];
     card.classList.toggle('is-active', active);
     card.classList.toggle('is-clear', !active);
@@ -695,15 +706,15 @@ function renderResultIndicators(record) {
     card.querySelector('[data-indicator-state]').textContent = t(active ? 'measure.indicator.detected' : 'measure.indicator.notDetected');
   });
 
-  const qualityCard = document.querySelector('[data-indicator="signal-quality"]');
+  const qualityCard = root.querySelector('[data-indicator="signal-quality"]');
   qualityCard.classList.remove('quality-good', 'quality-fair', 'quality-poor', 'quality-unknown');
   qualityCard.classList.add(`quality-${indicators.quality}`);
   qualityCard.setAttribute('aria-label', `${t('measure.indicator.signalQuality')}: ${t(`measure.indicator.quality.${indicators.quality}`)}`);
-  els.indicatorQualityState.textContent = t(`measure.indicator.quality.${indicators.quality}`);
+  root.querySelector('[data-indicator-state="signal-quality"]').textContent = t(`measure.indicator.quality.${indicators.quality}`);
 }
 
-function drawDetailsWaveform(record) {
-  const canvas = els.detailsWaveformCanvas;
+function drawDetailsWaveform(record, root = els.detailsSheet) {
+  const canvas = root.querySelector('[data-role="waveform"]');
   const ctx = canvas.getContext('2d');
   const width = canvas.width;
   const height = canvas.height;
@@ -737,13 +748,14 @@ function drawDetailsWaveform(record) {
   ctx.stroke();
 }
 
-function renderDetails(record) {
+/** 측정 상세 내용을 root(측정 상세 시트 또는 이력 자세히 보기) 안에 채운다. */
+function renderDetails(record, root = els.detailsSheet) {
   if (!record) return;
-  els.detailsDate.textContent = formatDateTime(record.timestamp);
-  els.detailsDuration.textContent = t('details.duration.value', { seconds: record.duration });
-  els.detailsBpm.textContent = formatNumber(record.bpm);
-  drawDetailsWaveform(record);
-  renderResultIndicators(record);
+  root.querySelector('[data-role="date"]').textContent = formatDateTime(record.timestamp);
+  root.querySelector('[data-role="duration"]').textContent = t('details.duration.value', { seconds: record.duration });
+  root.querySelector('[data-role="bpm"]').textContent = formatNumber(record.bpm);
+  drawDetailsWaveform(record, root);
+  renderResultIndicators(record, root);
 }
 
 function renderResultBanner(record) {
@@ -870,8 +882,19 @@ function closeOpenHistoryRows(except = null) {
   });
 }
 
-/** 목록 한 줄: 탭 = 측정 결과 다시 보기, 왼쪽으로 밀기 = 삭제 버튼 노출 */
-function buildHistoryItem(item, index) {
+/* ── 측정이력: 목록 · 자세히 보기(같은 시트 안 화면 전환) · 삭제 대기(실행 취소) ── */
+
+const UNDO_DELETE_MS = 3000; // 삭제 후 이 시간 안에 취소하지 않으면 실제로 지운다
+
+/** 화면 상태. detailRecord 가 있으면 "자세히 보기" 화면, pendingId 는 삭제 대기 중인 기록. */
+const historyView = {
+  detailRecord: null,
+  pendingId: null,
+  pendingTimer: null
+};
+
+/** 목록 한 줄: 탭 = 자세히 보기, 왼쪽으로 밀기 = 삭제 버튼(끝까지 밀면 바로 삭제 대기) */
+function buildHistoryItem(item) {
   const presentation = getHistoryPresentation(item);
   const li = document.createElement('li');
   li.className = 'history-item';
@@ -917,9 +940,7 @@ function buildHistoryItem(item, index) {
   delBtn.textContent = t('history.action.delete');
   delBtn.addEventListener('click', (event) => {
     event.stopPropagation();
-    if (!window.confirm(t('history.confirm.deleteOne'))) return;
-    deleteHistoryAt(index);
-    renderHistory();
+    scheduleDelete(item);
   });
 
   // 가로 스와이프 제스처 (Pointer Events — 탭은 click 으로만 처리)
@@ -939,6 +960,7 @@ function buildHistoryItem(item, index) {
       row.setPointerCapture(event.pointerId);
       closeOpenHistoryRows(li);
       row.classList.add('is-dragging');
+      li.classList.add('is-swiping'); // 드래그 중에도 빨간 삭제 버튼이 보이도록
     }
     drag.dx = dx;
     const base = drag.wasOpen ? -SWIPE_MAX_PX : 0;
@@ -951,10 +973,17 @@ function buildHistoryItem(item, index) {
     drag = null;
     row.classList.remove('is-dragging');
     row.style.transform = '';
+    li.classList.remove('is-swiping');
     if (!active) return;
     suppressClick = true;
     window.setTimeout(() => { suppressClick = false; }, 300);
     const position = (wasOpen ? -SWIPE_MAX_PX : 0) + dx;
+    if (position <= -SWIPE_MAX_PX + 1) {
+      // 끝까지 밀었을 때만 삭제 대기 (중간에 놓으면 삭제하지 않는다)
+      li.classList.remove('is-open');
+      scheduleDelete(item);
+      return;
+    }
     li.classList.toggle('is-open', position < -SWIPE_OPEN_PX);
   };
   row.addEventListener('pointerup', endDrag);
@@ -966,7 +995,7 @@ function buildHistoryItem(item, index) {
       li.classList.remove('is-open');
       return;
     }
-    replayRecord(item);
+    openHistoryDetail(item);
   });
   row.addEventListener('keydown', (event) => {
     if (event.key === 'Enter' || event.key === ' ') {
@@ -979,8 +1008,13 @@ function buildHistoryItem(item, index) {
   return li;
 }
 
+/** 삭제 대기 중인 기록은 목록·그래프에서 숨긴다. */
+function getVisibleHistory() {
+  return loadHistory().filter((record) => record.id !== historyView.pendingId);
+}
+
 function renderHistory() {
-  const list = loadHistory(); // 최신순
+  const list = getVisibleHistory(); // 최신순
   els.btnClearHistory.disabled = list.length === 0;
   drawTrendChart(list.slice().reverse());
 
@@ -992,29 +1026,96 @@ function renderHistory() {
     els.historyList.appendChild(empty);
     return;
   }
-  list.forEach((item, index) => els.historyList.appendChild(buildHistoryItem(item, index)));
+  list.forEach((item) => els.historyList.appendChild(buildHistoryItem(item)));
 }
 
-/** 저장된 측정 결과를 메인 화면(링·BPM·파형·결과 문구)에 그대로 다시 표시한다. */
-function showRecordOnMain(record) {
-  state.lastResult = record;
-  document.body.classList.add('has-result');
-  els.bpmNumber.textContent = formatNumber(record.bpm);
-  els.stageGuideText.textContent = t('measure.status.completed');
-  els.btnPrimaryMeasure.textContent = t('measure.cta.remeasure');
-  els.btnShareImage.hidden = false;
-  updateProgressRing(1);
-  drawWaveformValues(Array.isArray(record.waveform) ? record.waveform : []);
-  renderResultBanner(record);
+/* ── 삭제 대기 · 실행 취소 ─────────────────────────────────────────────── */
+
+function placeUndoToast() {
+  // 광고 영역 바로 위에 띄운다 (광고 높이가 바뀌어도 따라감)
+  els.historyUndoToast.style.bottom = `${els.historyAdSlot.offsetHeight + 12}px`;
 }
 
-function replayRecord(record) {
-  if (state.isMeasuring || state.isStarting) {
-    showAlert(t('history.replay.busy'));
-    return;
-  }
-  sheets.close();
-  showRecordOnMain(record);
+function showUndoToast() {
+  els.historyUndoToast.hidden = false;
+  placeUndoToast();
+}
+
+function hideUndoToast() {
+  els.historyUndoToast.hidden = true;
+}
+
+/** 대기 중인 삭제를 실제로 저장소에서 지운다. (타이머 만료, 시트 닫힘, 다른 삭제 시작 시) */
+function commitPendingDelete() {
+  if (historyView.pendingId == null) return;
+  window.clearTimeout(historyView.pendingTimer);
+  deleteHistoryById(historyView.pendingId);
+  historyView.pendingId = null;
+  historyView.pendingTimer = null;
+  hideUndoToast();
+}
+
+/** 기록을 목록에서 숨기고 3초 뒤 실제로 삭제한다. 그 사이 [삭제 취소]로 복구할 수 있다. */
+function scheduleDelete(record) {
+  commitPendingDelete();
+  historyView.pendingId = record.id;
+  historyView.pendingTimer = window.setTimeout(() => {
+    commitPendingDelete();
+    renderHistory();
+  }, UNDO_DELETE_MS);
+  showUndoToast();
+  renderHistory();
+}
+
+function undoPendingDelete() {
+  if (historyView.pendingId == null) return;
+  window.clearTimeout(historyView.pendingTimer);
+  historyView.pendingId = null;
+  historyView.pendingTimer = null;
+  hideUndoToast();
+  renderHistory();
+}
+
+/** 전체 삭제처럼 저장소를 통째로 지우는 경우: 대기 중인 삭제는 따로 실행하지 않고 취소한다. */
+function cancelPendingDelete() {
+  window.clearTimeout(historyView.pendingTimer);
+  historyView.pendingId = null;
+  historyView.pendingTimer = null;
+  hideUndoToast();
+}
+
+/* ── 자세히 보기 (같은 시트 안에서 왼쪽으로 밀려 들어오는 화면) ────────── */
+
+function buildHistoryDetailBody() {
+  // 측정 상세 시트의 본문을 복제해 쓴다. 중복 id 를 피하려고 id 는 모두 제거하고,
+  // 값 채우기는 data-role / data-indicator 속성으로 찾는다.
+  const copy = els.detailsSheet.querySelector('.details-body').cloneNode(true);
+  copy.removeAttribute('id');
+  copy.querySelectorAll('[id]').forEach((node) => node.removeAttribute('id'));
+  els.historyDetailBody.appendChild(copy);
+}
+
+function openHistoryDetail(record) {
+  historyView.detailRecord = record;
+  renderDetails(record, els.historyDetailBody);
+  els.historyDetailBody.parentElement.scrollTop = 0;
+  els.historySheet.classList.add('is-detail');
+}
+
+function closeHistoryDetail() {
+  historyView.detailRecord = null;
+  els.historySheet.classList.remove('is-detail');
+}
+
+/** 시트가 닫힐 때: 대기 중인 삭제를 마무리하고 목록 화면으로 되돌린다. */
+function onHistorySheetClosed() {
+  commitPendingDelete();
+  closeHistoryDetail();
+}
+
+function shareRecord(record) {
+  if (!record) return;
+  shareResultAsImage(record, { t, formatDateTime, formatNumber });
 }
 
 async function switchCamera(facing) {
@@ -1056,8 +1157,17 @@ els.btnPrimaryMeasure.addEventListener('click', () => {
   startMeasurement();
 });
 
-els.btnShareImage.addEventListener('click', () => {
-  shareResultAsImage(state.lastResult, { t, formatDateTime });
+els.btnShareImage.addEventListener('click', () => shareRecord(state.lastResult));
+els.btnDetailsShare.addEventListener('click', () => shareRecord(state.lastResult));
+els.btnHistoryDetailShare.addEventListener('click', () => shareRecord(historyView.detailRecord));
+
+els.btnUndoDelete.addEventListener('click', () => undoPendingDelete());
+els.btnHistoryBack.addEventListener('click', () => closeHistoryDetail());
+els.btnHistoryDetailDelete.addEventListener('click', () => {
+  const record = historyView.detailRecord;
+  if (!record) return;
+  closeHistoryDetail();
+  scheduleDelete(record);
 });
 
 els.btnLangToggle.addEventListener('click', () => {
@@ -1085,6 +1195,7 @@ els.btnMenu.addEventListener('click', () => {
 });
 
 els.menuHistory.addEventListener('click', () => {
+  closeHistoryDetail();
   renderHistory();
   sheets.open(els.historySheet, els.btnMenu);
 });
@@ -1120,6 +1231,7 @@ els.camBtns.forEach((btn) => {
 els.btnClearHistory.addEventListener('click', () => {
   if (loadHistory().length === 0) return;
   if (!window.confirm(t('history.confirm.clearAll'))) return;
+  cancelPendingDelete();
   clearStoredData();
   updateCalibBannerUI();
   renderHistory();
@@ -1273,6 +1385,7 @@ document.addEventListener('visibilitychange', () => {
 function initApp() {
   const parity = validateI18nKeyParity();
   logDebug(`i18n parity check: valid=${parity.valid} (${parity.totalKeys} keys)`);
+  buildHistoryDetailBody();
   applyTranslations();
   sheets.bind();
   syncConfigUI();

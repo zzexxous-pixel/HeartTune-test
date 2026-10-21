@@ -236,7 +236,7 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     await expect(page.locator('#btnShareImage')).toBeVisible();
     await expect(page.locator('#btnDetails')).toBeVisible();
     for (const type of ['arrhythmia', 'bradycardia', 'tachycardia']) {
-      await expect(page.locator(`[data-indicator="${type}"]`)).toHaveClass(/is-clear/);
+      await expect(page.locator(`#detailsSheet [data-indicator="${type}"]`)).toHaveClass(/is-clear/);
     }
 
     // 결과 화면에 참고용 의료 고지가 보이고 "진단" 단어는 쓰지 않는다.
@@ -465,26 +465,48 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     // 하단 광고 영역에는 법적 고지가 있다
     await expect(page.locator('#historyAdSlot')).toContainText('의료기기가 아니며');
 
-    // 스와이프로 삭제 버튼 노출 → 삭제
     const row = items.nth(2).locator('.history-row');
     await row.scrollIntoViewIfNeeded();
     const box = await row.boundingBox();
-    await page.mouse.move(box.x + box.width - 20, box.y + box.height / 2);
+    const cy = box.y + box.height / 2;
+    const startX = box.x + box.width - 20;
+
+    // 드래그 중에도 빨간 삭제 버튼이 보이고, 중간에 놓으면 삭제하지 않는다
+    await page.mouse.move(startX, cy);
     await page.mouse.down();
-    await page.mouse.move(box.x + box.width - 140, box.y + box.height / 2, { steps: 8 });
+    await page.mouse.move(startX - 40, cy, { steps: 6 });
+    await expect(items.nth(2).locator('.history-delete')).toBeVisible();
     await page.mouse.up();
-    await expect(items.nth(2)).toHaveClass(/is-open/);
-    // 스와이프 삭제는 확인 창을 거친다: 취소하면 유지, 확인하면 삭제
-    page.once('dialog', (dialog) => {
-      expect(dialog.message()).toBe('이 측정 기록을 삭제하시겠습니까?');
-      dialog.dismiss();
-    });
-    await items.nth(2).locator('.history-delete').click();
     await expect(items).toHaveCount(3);
-    await expect(items.nth(2)).toHaveClass(/is-open/);
-    page.once('dialog', (dialog) => dialog.accept());
-    await items.nth(2).locator('.history-delete').click();
+    await expect(items.nth(2)).not.toHaveClass(/is-open/);
+
+    // 끝까지 밀면 삭제 대기: 목록에서 숨기고 "삭제를 취소하시겠습니까?" 메시지
+    const box2 = await items.nth(2).locator('.history-row').boundingBox();
+    const cy2 = box2.y + box2.height / 2;
+    await page.mouse.move(box2.x + box2.width - 20, cy2);
+    await page.mouse.down();
+    await page.mouse.move(box2.x - 60, cy2, { steps: 10 });
+    await page.mouse.up();
     await expect(items).toHaveCount(2);
+    await expect(page.locator('#historyUndoToast')).toBeVisible();
+    await expect(page.locator('#historyUndoToast')).toContainText('삭제를 취소하시겠습니까?');
+    // 삭제 취소: 목록에 복구되고 저장소에는 그대로 남아 있다
+    await page.locator('#btnUndoDelete').click();
+    await expect(items).toHaveCount(3);
+    await expect(page.locator('#historyUndoToast')).toBeHidden();
+
+    // 다시 끝까지 밀고 3초 기다리면 실제로 삭제된다
+    const box3 = await items.nth(2).locator('.history-row').boundingBox();
+    const cy3 = box3.y + box3.height / 2;
+    await page.mouse.move(box3.x + box3.width - 20, cy3);
+    await page.mouse.down();
+    await page.mouse.move(box3.x - 60, cy3, { steps: 10 });
+    await page.mouse.up();
+    await expect(page.locator('#historyUndoToast')).toBeVisible();
+    await expect(page.locator('#historyUndoToast')).toBeHidden({ timeout: 5000 });
+    await expect(items).toHaveCount(2);
+    const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('hearttune_history_v1')).length);
+    expect(stored).toBe(2);
 
     // 전체 삭제: 확인 취소 시 유지, 확인 시 비워짐
     page.once('dialog', (dialog) => {
@@ -520,10 +542,36 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     await page.locator('#menuHistory').click();
     await page.locator('#historyList .history-row').first().click();
 
-    await expect(page.locator('#historySheet')).not.toHaveClass(/open/);
-    await expect(page.locator('body')).toHaveClass(/has-result/);
-    await expect(page.locator('#bpmNumber')).toHaveText('64');
-    await expect(page.locator('#resultBanner')).toHaveClass(/status-brady/);
-    await expect(page.locator('#btnShareImage')).toBeVisible();
+    // 같은 시트 안에서 자세히 보기 화면으로 전환 (메인 결과 화면은 바뀌지 않는다)
+    await expect(page.locator('#historySheet')).toHaveClass(/is-detail/);
+    await expect(page.locator('#historySheet')).toHaveClass(/open/);
+    await expect(page.locator('#historyDetailBody [data-role="bpm"]')).toHaveText('64');
+    await expect(page.locator('#historyDetailBody [data-indicator="bradycardia"]')).toHaveClass(/is-active/);
+    await expect(page.locator('body')).not.toHaveClass(/has-result/);
+    await expect(page.locator('#btnHistoryDetailShare')).toBeVisible();
+    await expect(page.locator('#btnHistoryDetailDelete')).toBeVisible();
+
+    // 뒤로가기: 측정이력 목록으로 복귀
+    await page.locator('#btnHistoryBack').click();
+    await expect(page.locator('#historySheet')).not.toHaveClass(/is-detail/);
+    await expect(page.locator('#historyList .history-row')).toHaveCount(1);
+  });
+
+  test('11. 자세히 보기에서 이미지 공유(저장) 버튼으로 PNG 내보내기', async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('hearttune_history_v1', JSON.stringify([
+        { id: 'ht_s', timestamp: new Date(2026, 9, 21, 14, 5, 3).getTime(), bpm: 80, status: 'normal', irregular: false, quality: 80, duration: 30, waveform: [0, 1, 0, -1, 0.5, 0] }
+      ]));
+    });
+    await page.goto('./');
+    await page.locator('#btnMenu').click();
+    await page.locator('#menuHistory').click();
+    await page.locator('#historyList .history-row').first().click();
+    await expect(page.locator('#historySheet')).toHaveClass(/is-detail/);
+    const [download] = await Promise.all([
+      page.waitForEvent('download'),
+      page.locator('#btnHistoryDetailShare').click()
+    ]);
+    expect(download.suggestedFilename()).toMatch(/^HeartTune_80bpm_\d+\.png$/);
   });
 });

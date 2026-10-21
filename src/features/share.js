@@ -1,13 +1,31 @@
 /**
  * src/features/share.js
- * HeartTune — 센터 정렬 결과 카드 (BPM, 파형, 참고 신호, 읽을 수 있는 고지)
+ * HeartTune — 공유 이미지: 제목 + "자세히 보기" 화면과 같은 내용 (측정일시부터 참고 고지까지)
  */
 
-import { getResultIndicators, getHistoryPresentation } from './result-indicators.js';
+import { getResultIndicators } from './result-indicators.js';
 
 const CARD_WIDTH = 1080;
 const CARD_SIDE = 60;
 const CONTENT_WIDTH = 840;
+const PAD = 40;
+
+const COLORS = {
+  page: '#F4F8FC',
+  card: '#FFFFFF',
+  ink: '#0F172A',
+  sub: '#475569',
+  line: '#D6E0EA',
+  wave: '#0F172A',
+  waveLine: '#38BDF8',
+  clearFg: '#15803D',
+  clearBg: '#F0FDF4',
+  activeFg: '#B91C1C',
+  activeBg: '#FEF2F2',
+  fair: '#B45309',
+  unknownFg: '#475569',
+  unknownBg: '#F1F5F9'
+};
 
 function wrapText(ctx, text, maxWidth) {
   const words = String(text ?? '').trim().split(/\s+/).filter(Boolean);
@@ -36,298 +54,218 @@ function wrapText(ctx, text, maxWidth) {
       return;
     }
     if (line) lines.push(line);
-    if (ctx.measureText(word).width > maxWidth) {
-      line = pushLongWord(word);
-    } else {
-      line = word;
-    }
+    line = ctx.measureText(word).width > maxWidth ? pushLongWord(word) : word;
   });
   if (line) lines.push(line);
   return lines.length ? lines : [''];
 }
 
-
-function getPillRows(ctx, pills, maxWidth) {
+/** 세로 배치 계산: 같은 함수로 높이를 재고(측정), 같은 순서로 그린다(그리기). */
+function buildLayout(ctx, record, { t, formatDateTime, formatNumber }) {
+  const indicators = getResultIndicators(record);
   const rows = [];
-  let row = [];
-  let usedWidth = 0;
-  ctx.font = '700 34px sans-serif';
-
-  pills.forEach((pill) => {
-    const width = Math.min(maxWidth, ctx.measureText(pill.text).width + 48);
-    if (row.length && usedWidth + 20 + width > maxWidth) {
-      rows.push(row);
-      row = [];
-      usedWidth = 0;
-    }
-    row.push({ ...pill, width });
-    usedWidth += (row.length > 1 ? 20 : 0) + width;
-  });
-  if (row.length) rows.push(row);
-  return rows;
-}
-
-function createLayout(ctx, record, { t, formatDateTime }) {
-  const centerX = CARD_WIDTH / 2;
-  const contentX = (CARD_WIDTH - CONTENT_WIDTH) / 2;
-  let y = 72;
+  let y = PAD + 40;
 
   ctx.font = '800 62px sans-serif';
   const title = wrapText(ctx, t('share.card.title'), CONTENT_WIDTH);
-  const titleY = y;
-  const titleLineHeight = 74;
-  y += title.length * titleLineHeight + 20;
+  rows.push({ type: 'title', lines: title, y });
+  y += title.length * 74 + 36;
 
-  ctx.font = '500 32px sans-serif';
-  const date = wrapText(ctx, formatDateTime(record.timestamp), CONTENT_WIDTH);
-  const dateY = y;
-  const dateLineHeight = 44;
-  y += date.length * dateLineHeight + 26;
+  // 측정일시 · 측정시간
+  const meta = [
+    { label: t('details.measurementTime'), value: formatDateTime(record.timestamp) },
+    { label: t('details.duration'), value: t('details.duration.value', { seconds: record.duration }) }
+  ];
+  rows.push({ type: 'meta', items: meta, y });
+  y += meta.length * 64 + 16;
 
-  const bpmY = y;
-  const bpmHeight = 270;
-  const unitY = bpmY + 220;
-  y += bpmHeight + 32;
+  // 맥박 (큰 숫자)
+  rows.push({ type: 'bpm', label: t('details.heartRate'), value: formatNumber(record.bpm), unit: t('measure.unit.bpm'), y });
+  y += 250;
 
+  // 파형
   ctx.font = '800 38px sans-serif';
-  const waveformTitle = wrapText(ctx, t('measure.waveform.title'), CONTENT_WIDTH);
-  const waveformTitleY = y;
-  const waveformTitleLineHeight = 48;
-  y += waveformTitle.length * waveformTitleLineHeight + 16;
-  const graphY = y;
-  const graphHeight = 230;
-  y += graphHeight + 42;
+  const waveTitle = wrapText(ctx, t('measure.waveform.title'), CONTENT_WIDTH);
+  rows.push({ type: 'sectionTitle', lines: waveTitle, y });
+  y += waveTitle.length * 48 + 12;
+  rows.push({ type: 'wave', y, height: 200 });
+  y += 200 + 40;
 
-  ctx.font = '800 50px sans-serif';
-  const resultTitle = wrapText(ctx, t(`result.${record.status}.title`), CONTENT_WIDTH);
-  const resultTitleY = y;
-  const resultTitleLineHeight = 62;
-  y += resultTitle.length * resultTitleLineHeight + 14;
-
-  ctx.font = '500 36px sans-serif';
-  const resultDescription = wrapText(ctx, t(`result.${record.status}.desc`), CONTENT_WIDTH);
-  const resultDescriptionY = y;
-  const descriptionLineHeight = 48;
-  y += resultDescription.length * descriptionLineHeight + 24;
-
-  const indicators = getResultIndicators(record);
-  const history = getHistoryPresentation(record);
-  const flags = history.signals.length
-    ? [{
-      text: t('history.status.suspected', {
-        signals: history.signals.map((name) => t(`measure.indicator.${name}`)).join(', ')
-      }),
-      kind: 'flag'
-    }]
-    : [];
-  const pills = [
-    ...flags,
+  // 지표 카드 (부정맥·서맥·빈맥·신호 품질)
+  const cards = [
+    { key: 'arrhythmia', label: t('measure.indicator.arrhythmia'), active: indicators.arrhythmia, hint: t('measure.indicator.arrhythmiaHint') },
+    { key: 'bradycardia', label: t('measure.indicator.bradycardia'), active: indicators.bradycardia, hint: t('measure.indicator.bradycardiaHint') },
+    { key: 'tachycardia', label: t('measure.indicator.tachycardia'), active: indicators.tachycardia, hint: t('measure.indicator.tachycardiaHint') },
     {
-      text: `${t('measure.indicator.signalQuality')}: ${t(`measure.indicator.quality.${indicators.quality}`)}`,
-      kind: 'quality'
+      key: 'quality',
+      label: t('measure.indicator.signalQuality'),
+      quality: indicators.quality,
+      state: t(`measure.indicator.quality.${indicators.quality}`),
+      hint: t('measure.indicator.signalQualityHint')
     }
   ];
-  const pillRows = getPillRows(ctx, pills, CONTENT_WIDTH);
-  const pillsY = y;
-  const pillHeight = 66;
-  const pillGap = 14;
-  y += pillRows.length * pillHeight + Math.max(0, pillRows.length - 1) * pillGap + 34;
-
-  ctx.font = '500 32px sans-serif';
-  const legal = wrapText(ctx, t('legal.disclaimer.main'), CONTENT_WIDTH);
-  const legalY = y;
-  const legalLineHeight = 42;
-  y += legal.length * legalLineHeight + 64;
-
-  return {
-    centerX,
-    contentX,
-    title,
-    titleY,
-    titleLineHeight,
-    date,
-    dateY,
-    dateLineHeight,
-    bpmY,
-    unitY,
-    waveformTitle,
-    waveformTitleY,
-    waveformTitleLineHeight,
-    graphY,
-    graphHeight,
-    resultTitle,
-    resultTitleY,
-    resultTitleLineHeight,
-    resultDescription,
-    resultDescriptionY,
-    descriptionLineHeight,
-    pillRows,
-    pillsY,
-    pillHeight,
-    pillGap,
-    legal,
-    legalY,
-    legalLineHeight,
-    height: Math.max(1320, y)
-  };
-}
-
-function drawCenteredLines(ctx, lines, centerX, y, lineHeight) {
-  lines.forEach((line, index) => ctx.fillText(line, centerX, y + index * lineHeight));
-}
-
-function drawPills(ctx, rows, centerX, startY, pillHeight, rowGap) {
-  const colors = {
-    flag: { bg: '#FEE2E2', fg: '#991B1B', border: '#FCA5A5' },
-    quality: { bg: '#EFF6FF', fg: '#1E40AF', border: '#93C5FD' },
-    neutral: { bg: '#F1F5F9', fg: '#334155', border: '#CBD5E1' }
-  };
-
-  rows.forEach((row, rowIndex) => {
-    const totalWidth = row.reduce((sum, pill) => sum + pill.width, 0) + Math.max(0, row.length - 1) * 20;
-    let x = centerX - totalWidth / 2;
-    const y = startY + rowIndex * (pillHeight + rowGap);
-    row.forEach((pill) => {
-      const color = colors[pill.kind];
-      ctx.fillStyle = color.bg;
-      ctx.strokeStyle = color.border;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.roundRect(x, y, pill.width, pillHeight, 26);
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = color.fg;
-      ctx.font = '700 30px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(pill.text, x + pill.width / 2, y + pillHeight / 2, pill.width - 24);
-      x += pill.width + 20;
-    });
+  cards.forEach((card) => {
+    const cardState = card.quality
+      ? t(`measure.indicator.quality.${card.quality}`)
+      : t(card.active ? 'measure.indicator.detected' : 'measure.indicator.notDetected');
+    ctx.font = '800 36px sans-serif';
+    const labelLines = wrapText(ctx, card.label, CONTENT_WIDTH - 120);
+    ctx.font = '500 28px sans-serif';
+    const hintLines = wrapText(ctx, card.hint, CONTENT_WIDTH - 60);
+    const height = 36 + labelLines.length * 46 + 10 + 40 + hintLines.length * 40 + 30;
+    rows.push({ type: 'card', card, state: cardState, labelLines, hintLines, y, height });
+    y += height + 18;
   });
+  y += 18;
+
+  // 참고 고지
+  ctx.font = '500 30px sans-serif';
+  const legal = wrapText(ctx, t('legal.disclaimer.main'), CONTENT_WIDTH);
+  rows.push({ type: 'legal', lines: legal, y });
+  y += legal.length * 42 + PAD + 40;
+
+  return { rows, height: y + CARD_SIDE };
+}
+
+function cardColors(card) {
+  if (card.quality) {
+    if (card.quality === 'good') return { fg: COLORS.clearFg, bg: COLORS.clearBg };
+    if (card.quality === 'fair') return { fg: COLORS.fair, bg: '#FFFBEB' };
+    if (card.quality === 'poor') return { fg: COLORS.activeFg, bg: COLORS.activeBg };
+    return { fg: COLORS.unknownFg, bg: COLORS.unknownBg };
+  }
+  return card.active
+    ? { fg: COLORS.activeFg, bg: COLORS.activeBg }
+    : { fg: COLORS.clearFg, bg: COLORS.clearBg };
 }
 
 function drawWaveform(ctx, record, x, y, width, height) {
-  ctx.fillStyle = '#0F172A';
+  ctx.fillStyle = COLORS.wave;
   ctx.beginPath();
   ctx.roundRect(x, y, width, height, 24);
   ctx.fill();
 
   ctx.strokeStyle = 'rgba(148, 163, 184, 0.22)';
-  ctx.lineWidth = 1;
-  for (let column = 1; column < 8; column += 1) {
-    const gridX = x + (width * column) / 8;
-    ctx.beginPath();
-    ctx.moveTo(gridX, y + 18);
-    ctx.lineTo(gridX, y + height - 18);
-    ctx.stroke();
-  }
-  for (let row = 1; row < 4; row += 1) {
-    const gridY = y + (height * row) / 4;
-    ctx.beginPath();
-    ctx.moveTo(x + 18, gridY);
-    ctx.lineTo(x + width - 18, gridY);
-    ctx.stroke();
-  }
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(x, y + height / 2);
+  ctx.lineTo(x + width, y + height / 2);
+  ctx.stroke();
 
   const waveform = Array.isArray(record.waveform) ? record.waveform : [];
-  ctx.strokeStyle = '#38BDF8';
+  if (waveform.length < 2) return;
+  const min = Math.min(...waveform);
+  const max = Math.max(...waveform);
+  const range = Math.max(0.8, max - min);
+  ctx.strokeStyle = COLORS.waveLine;
   ctx.lineWidth = 5;
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
   ctx.beginPath();
-  if (waveform.length > 2) {
-    const min = Math.min(...waveform);
-    const max = Math.max(...waveform);
-    const range = Math.max(0.8, max - min);
-    waveform.forEach((value, index) => {
-      const pointX = x + 24 + (index / (waveform.length - 1)) * (width - 48);
-      const pointY = y + height - 24 - ((value - min) / range) * (height - 48);
-      if (index === 0) ctx.moveTo(pointX, pointY);
-      else ctx.lineTo(pointX, pointY);
-    });
-  } else {
-    ctx.moveTo(x + 24, y + height / 2);
-    ctx.lineTo(x + width - 24, y + height / 2);
-  }
+  waveform.forEach((value, index) => {
+    const px = x + 20 + (index / (waveform.length - 1)) * (width - 40);
+    const py = y + height - 20 - ((value - min) / range) * (height - 40);
+    if (index === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  });
   ctx.stroke();
 }
 
-function drawResultCard(ctx, record, layout, { t }) {
-  const { centerX, contentX } = layout;
-  const cardHeight = layout.height - 80;
-  ctx.fillStyle = '#EAF1F8';
+function drawLayout(ctx, record, layout) {
+  const centerX = CARD_WIDTH / 2;
+  const contentX = (CARD_WIDTH - CONTENT_WIDTH) / 2;
+
+  ctx.fillStyle = COLORS.page;
   ctx.fillRect(0, 0, CARD_WIDTH, layout.height);
-  ctx.fillStyle = '#FFFFFF';
+
+  ctx.fillStyle = COLORS.card;
   ctx.beginPath();
-  ctx.roundRect(CARD_SIDE, 40, CARD_WIDTH - CARD_SIDE * 2, cardHeight, 40);
+  ctx.roundRect(CARD_SIDE, 40, CARD_WIDTH - CARD_SIDE * 2, layout.height - 80, 40);
   ctx.fill();
 
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
-  ctx.fillStyle = '#0F4C81';
-  ctx.font = '800 62px sans-serif';
-  drawCenteredLines(ctx, layout.title, centerX, layout.titleY, layout.titleLineHeight);
 
-  ctx.fillStyle = '#64748B';
-  ctx.font = '500 30px sans-serif';
-  drawCenteredLines(ctx, layout.date, centerX, layout.dateY, layout.dateLineHeight);
-
-  ctx.fillStyle = '#111827';
-  ctx.font = '900 230px sans-serif';
-  const bpm = String(record.bpm);
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'top';
-  ctx.fillText(bpm, centerX, layout.bpmY);
-  ctx.fillStyle = '#475569';
-  ctx.font = '800 54px sans-serif';
-  ctx.fillText(t('measure.unit.bpm'), centerX, layout.unitY);
-
-  ctx.textBaseline = 'top';
-  ctx.fillStyle = '#0F4C81';
-  ctx.font = '800 38px sans-serif';
-  drawCenteredLines(ctx, layout.waveformTitle, centerX, layout.waveformTitleY, layout.waveformTitleLineHeight);
-  drawWaveform(ctx, record, contentX, layout.graphY, CONTENT_WIDTH, layout.graphHeight);
-
-  const badge = {
-    normal: { bg: '#ECFDF5', fg: '#065F46' },
-    brady: { bg: '#EFF6FF', fg: '#1E40AF' },
-    tachy: { bg: '#FFFBEB', fg: '#92400E' },
-    irregular: { bg: '#FFF1F2', fg: '#9F1239' }
-  }[record.status] || { bg: '#EFF6FF', fg: '#1E40AF' };
-  ctx.fillStyle = badge.fg;
-  ctx.font = '800 48px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'top';
-  drawCenteredLines(ctx, layout.resultTitle, centerX, layout.resultTitleY, layout.resultTitleLineHeight);
-
-  ctx.fillStyle = '#334155';
-  ctx.font = '500 36px sans-serif';
-  drawCenteredLines(ctx, layout.resultDescription, centerX, layout.resultDescriptionY, layout.descriptionLineHeight);
-
-  drawPills(ctx, layout.pillRows, centerX, layout.pillsY, layout.pillHeight, layout.pillGap);
-
-  ctx.fillStyle = '#64748B';
-  ctx.font = '500 32px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'top';
-  drawCenteredLines(ctx, layout.legal, centerX, layout.legalY, layout.legalLineHeight);
+  layout.rows.forEach((row) => {
+    if (row.type === 'title') {
+      ctx.fillStyle = COLORS.ink;
+      ctx.font = '800 62px sans-serif';
+      row.lines.forEach((line, i) => ctx.fillText(line, centerX, row.y + i * 74));
+    } else if (row.type === 'meta') {
+      row.items.forEach((item, i) => {
+        const yy = row.y + i * 64;
+        ctx.textAlign = 'left';
+        ctx.fillStyle = COLORS.sub;
+        ctx.font = '500 32px sans-serif';
+        ctx.fillText(item.label, contentX, yy + 8);
+        ctx.textAlign = 'right';
+        ctx.fillStyle = COLORS.ink;
+        ctx.font = '700 36px sans-serif';
+        ctx.fillText(item.value, contentX + CONTENT_WIDTH, yy + 4);
+      });
+      ctx.textAlign = 'center';
+    } else if (row.type === 'bpm') {
+      ctx.fillStyle = COLORS.sub;
+      ctx.font = '600 34px sans-serif';
+      ctx.fillText(row.label, centerX, row.y);
+      ctx.fillStyle = COLORS.ink;
+      ctx.font = '800 170px sans-serif';
+      ctx.fillText(row.value, centerX, row.y + 44);
+      ctx.fillStyle = COLORS.sub;
+      ctx.font = '600 40px sans-serif';
+      ctx.fillText(row.unit, centerX, row.y + 214);
+    } else if (row.type === 'sectionTitle') {
+      ctx.fillStyle = COLORS.ink;
+      ctx.font = '800 38px sans-serif';
+      row.lines.forEach((line, i) => ctx.fillText(line, centerX, row.y + i * 48));
+    } else if (row.type === 'wave') {
+      drawWaveform(ctx, record, contentX, row.y, CONTENT_WIDTH, row.height);
+    } else if (row.type === 'card') {
+      const { fg, bg } = cardColors(row.card);
+      ctx.fillStyle = bg;
+      ctx.beginPath();
+      ctx.roundRect(contentX, row.y, CONTENT_WIDTH, row.height, 24);
+      ctx.fill();
+      ctx.textAlign = 'left';
+      ctx.fillStyle = fg;
+      ctx.beginPath();
+      ctx.arc(contentX + 36, row.y + 36 + 16, 12, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = COLORS.ink;
+      ctx.font = '800 36px sans-serif';
+      let yy = row.y + 36;
+      row.labelLines.forEach((line, i) => ctx.fillText(line, contentX + 64, yy + i * 46));
+      yy += row.labelLines.length * 46 + 10;
+      ctx.fillStyle = fg;
+      ctx.font = '800 34px sans-serif';
+      ctx.fillText(row.state, contentX + 64, yy);
+      yy += 40;
+      ctx.fillStyle = COLORS.sub;
+      ctx.font = '500 28px sans-serif';
+      row.hintLines.forEach((line, i) => ctx.fillText(line, contentX + 64, yy + i * 40));
+      ctx.textAlign = 'center';
+    } else if (row.type === 'legal') {
+      ctx.fillStyle = COLORS.sub;
+      ctx.font = '500 30px sans-serif';
+      row.lines.forEach((line, i) => ctx.fillText(line, centerX, row.y + i * 42));
+    }
+  });
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
 }
 
-/**
- * 결과를 이미지로 공유하거나(Web Share) 다운로드한다.
- * @param {object} record 측정 기록
- * @param {{t:Function, formatDateTime:Function}} deps i18n 헬퍼
- */
-export async function shareResultAsImage(record, { t, formatDateTime }) {
+/** 이미지를 만들고 Web Share(파일) 또는 PNG 다운로드로 내보낸다. */
+export async function shareResultAsImage(record, { t, formatDateTime, formatNumber = (v) => String(v) }) {
   if (!record) return;
+
+  const measure = document.createElement('canvas').getContext('2d');
+  const layout = buildLayout(measure, record, { t, formatDateTime, formatNumber });
 
   const canvas = document.createElement('canvas');
   canvas.width = CARD_WIDTH;
-  const measureCtx = canvas.getContext('2d');
-  const layout = createLayout(measureCtx, record, { t, formatDateTime });
-  canvas.height = layout.height;
+  canvas.height = Math.ceil(layout.height);
   const ctx = canvas.getContext('2d');
-  drawResultCard(ctx, record, layout, { t });
+  drawLayout(ctx, record, layout);
 
   // toBlob()의 비동기 콜백 뒤에는 모바일 브라우저의 사용자 활성화가 만료될 수 있어
   // Web Share 호출이나 다운로드 클릭이 무시된다. 카드가 작으므로 동기 PNG 인코딩을 사용한다.
