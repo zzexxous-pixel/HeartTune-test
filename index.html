@@ -197,29 +197,40 @@
   </section>
 
   <!-- 측정 이력 시트 (내부 스크롤 허용) -->
-  <section id="historySheet" class="sheet sheet-tall" role="dialog" aria-modal="true" aria-labelledby="historySheetTitle" aria-hidden="true">
+  <section id="historySheet" class="sheet sheet-tall history-sheet" role="dialog" aria-modal="true" aria-labelledby="historySheetTitle" aria-hidden="true">
     <div class="sheet-header">
-      <h2 id="historySheetTitle" data-i18n="history.header.title">최근 측정 이력</h2>
-      <button type="button" class="icon-btn sheet-close" data-sheet-close aria-label="닫기" data-i18n-aria="app.close">
-        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
-          <path d="M6 6l12 12M18 6L6 18" />
-        </svg>
-      </button>
+      <h2 id="historySheetTitle" data-i18n="history.header.title">측정이력</h2>
+      <div class="sheet-header-actions">
+        <button type="button" id="btnClearHistory" class="icon-btn history-trash-btn" data-i18n-aria="history.header.clearAll" aria-label="측정 이력 전체 삭제">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 7h16" /><path d="M9 7V4.8c0-.44.36-.8.8-.8h4.4c.44 0 .8.36.8.8V7" /><path d="M6.5 7l.9 12.1c.06.8.73 1.4 1.53 1.4h5.14c.8 0 1.47-.6 1.53-1.4L17.5 7" /><path d="M10 11v6M14 11v6" />
+          </svg>
+        </button>
+        <button type="button" class="icon-btn sheet-close" data-sheet-close aria-label="닫기" data-i18n-aria="app.close">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
+        </button>
+      </div>
     </div>
-    <div class="sheet-body">
-      <div class="trend-card">
-        <div class="trend-card-head">
-          <p id="trendSummaryText" class="trend-summary-text"></p>
-          <button type="button" id="btnClearHistory" class="btn btn-outline btn-sm" data-i18n="history.header.clearAll">
-            전체 삭제
-          </button>
+    <div class="sheet-body history-body">
+      <!-- 1) 이력 그래프: Y=심박수(회/분), X=날짜(M/D), 가로 스크롤 -->
+      <div class="trend-card" id="trendCard">
+        <svg id="trendYAxis" class="trend-y-axis" aria-hidden="true"></svg>
+        <div id="trendScroll" class="trend-scroll">
+          <svg id="trendCanvas" class="trend-chart" role="img" data-i18n-aria="history.header.title" aria-label="측정이력"></svg>
         </div>
-        <canvas id="trendCanvas" width="440" height="120"></canvas>
-        <p class="sheet-note" data-i18n="history.notice.deviceOnly">
-          이 기기(브라우저)에만 저장되며, 최근 30건의 평균 심박수가 다음 측정의 초기 영점으로 자동 활용됩니다.
+      </div>
+
+      <!-- 2) 상세 내역: 세로 스크롤 영역 -->
+      <ul id="historyList" class="history-list" aria-label="측정 기록 목록"></ul>
+
+      <!-- 3) 하단 광고 영역 (고정): 현재는 법적 고지 문구만 -->
+      <div id="historyAdSlot" class="history-ad-slot">
+        <p class="history-legal" data-i18n="history.ad.legal">
+          본 앱은 의료기기가 아니며, 측정 결과는 참고용 정보입니다. 의학적 판단이나 진료를 대체할 수 없습니다. 측정 기록은 이 기기(브라우저)에만 저장됩니다.
         </p>
       </div>
-      <ul id="historyList" class="history-list"></ul>
     </div>
   </section>
 

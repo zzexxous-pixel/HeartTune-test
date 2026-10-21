@@ -5,14 +5,14 @@
  * 서버가 없는 앱이므로 측정 이력과 캘리브레이션(기저 심박수) 학습 데이터를
  * localStorage 에만 보관한다. (개인정보 리스크 0 / 오프라인 동작)
  *
- *  · hearttune_history_v1     : 측정 이력 (최대 200건)
+ *  · hearttune_history_v1     : 측정 이력 (최대 100건)
  *  · hearttune_calibration_v1 : 신뢰도 높은 측정의 필터 대역 (최근 30건)
  *                               → 다음 측정의 priorBpm(구명조끼 대역) 으로 사용
  */
 
 export const HISTORY_STORAGE_KEY = 'hearttune_history_v1';
 export const CALIB_STORAGE_KEY = 'hearttune_calibration_v1';
-export const MAX_HISTORY_ITEMS = 200;
+export const MAX_HISTORY_ITEMS = 100;
 export const MAX_CALIB_ITEMS = 30;
 
 const DEFAULT_BASELINE = { priorBpm: 72, avgHp: 0.7, avgLp: 4.0, count: 0 };
@@ -61,7 +61,37 @@ export function appendRecordToHistory(record) {
   return trimmed;
 }
 
-/** 이력 + 캘리브레이션 학습 데이터를 모두 삭제한다. */
+/**
+ * 목록 인덱스(최신순, loadHistory 기준)의 기록 하나를 삭제한다.
+ * 삭제된 뒤의 최신 목록을 반환한다.
+ */
+export function deleteHistoryAt(index) {
+  const storage = getStorage();
+  const list = loadHistory();
+  if (!Number.isInteger(index) || index < 0 || index >= list.length) return list;
+  list.splice(index, 1);
+  if (storage) {
+    try {
+      storage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(list));
+    } catch (_) {
+      // 무시
+    }
+  }
+  return list;
+}
+
+/** 측정 이력만 삭제한다. 캘리브레이션 학습 데이터는 유지한다. */
+export function clearHistory() {
+  const storage = getStorage();
+  if (!storage) return;
+  try {
+    storage.removeItem(HISTORY_STORAGE_KEY);
+  } catch (_) {
+    // 무시
+  }
+}
+
+/** 이력 + 캘리브레이션 학습 데이터를 모두 삭제한다. (사용처 없음: 앱 초기화용으로 보존) */
 export function clearStoredData() {
   const storage = getStorage();
   if (!storage) return;

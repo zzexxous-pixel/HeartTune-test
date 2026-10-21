@@ -86,16 +86,16 @@ export const dictionaries = {
     'error.signal.tooBright': '주변 빛이 너무 강해요. 카메라 렌즈를 손가락으로 완전히 덮어주세요.',
     'error.signal.pressHarder': '손가락을 카메라 렌즈에 조금만 더 밀착해 대주세요.',
 
-    'history.header.title': '최근 측정 이력',
-    'history.header.clearAll': '전체 삭제',
+    'history.header.title': '측정이력',
+    'history.header.clearAll': '측정 이력 전체 삭제',
+    'history.confirm.clearAll': '측정 이력을 모두 삭제하시겠습니까?',
+    'history.action.delete': '삭제',
+    'history.item.replay': '이 측정 결과 다시 보기',
+    'history.replay.busy': '측정이 끝난 뒤에 이력을 볼 수 있어요.',
     'history.status.normal': '정상',
     'history.status.suspected': '{signals} 의심',
-    'history.notice.deviceOnly': '이 기기(브라우저)에만 저장되며, 최근 30건의 평균 심박수가 다음 측정의 초기 영점으로 자동 활용됩니다.',
+    'history.ad.legal': '본 앱은 의료기기가 아니며, 측정 결과는 참고용 정보입니다. 의학적 판단이나 진료를 대체할 수 없습니다. 측정 기록은 이 기기(브라우저)에만 저장됩니다.',
     'history.empty.text': '아직 저장된 측정 기록이 없습니다. 첫 심박수를 측정해 보세요.',
-    'history.trend.faster': '최근 평균보다 {diff}회/분 빨라졌어요',
-    'history.trend.slower': '최근 평균보다 {diff}회/분 느려졌어요',
-    'history.trend.same': '최근 평균과 비슷한 수준이에요',
-    'history.trend.first': '첫 번째 측정 기록입니다. 꾸준히 측정하면 맞춤 영점이 더 정교해집니다.',
 
     'guide.step1.title': '1. 검지 손가락 올리기',
     'guide.step1.desc': '휴대폰 뒷면의 카메라 렌즈와 플래시를 검지 끝으로 동시에 덮어주세요. 너무 세게 누르면 혈류가 막혀 신호가 약해집니다.',
@@ -203,15 +203,15 @@ export const dictionaries = {
     'error.signal.pressHarder': 'Please place your fingertip slightly closer to the camera lens.',
 
     'history.header.title': 'Measurement History',
-    'history.header.clearAll': 'Clear All',
+    'history.header.clearAll': 'Delete all measurement history',
+    'history.confirm.clearAll': 'Delete all measurement history?',
+    'history.action.delete': 'Delete',
+    'history.item.replay': 'View this measurement result again',
+    'history.replay.busy': 'You can view history after the measurement finishes.',
     'history.status.normal': 'Normal',
     'history.status.suspected': 'Possible {signals}',
-    'history.notice.deviceOnly': 'Saved only on this device. Your recent 30-record average is used to auto-calibrate the next measurement.',
+    'history.ad.legal': 'This app is NOT a medical device. Results are for reference only and do not replace professional medical advice. Records are saved only on this device (browser).',
     'history.empty.text': 'No saved records yet. Start your first heart rate check today.',
-    'history.trend.faster': '{diff} bpm faster than your recent average',
-    'history.trend.slower': '{diff} bpm slower than your recent average',
-    'history.trend.same': 'Consistent with your recent average',
-    'history.trend.first': 'First record saved. Regular checks improve personalized auto-calibration.',
 
     'guide.step1.title': '1. Place Your Index Finger',
     'guide.step1.desc': 'Gently cover both the rear camera lens and flash. Pressing too hard restricts blood flow and weakens the signal.',
@@ -291,6 +291,29 @@ export function formatDateTime(timestamp) {
     hour: '2-digit',
     minute: '2-digit'
   }).format(new Date(timestamp));
+}
+
+/**
+ * 측정 이력 목록용 일시 형식.
+ *  · 한국어: YYYY/MM/DD HH:mm:ss (24시간제)
+ *  · 영어:   MM/DD/YYYY h:mm:ss AM/PM (미국 표기)
+ */
+export function formatHistoryDateTime(timestamp) {
+  const d = new Date(timestamp);
+  if (Number.isNaN(d.getTime())) return '';
+  if (currentLang === 'ko') {
+    const p = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}/${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+  }
+  return new Intl.DateTimeFormat('en-US', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true
+  }).format(d);
 }
 
 export function validateI18nKeyParity() {

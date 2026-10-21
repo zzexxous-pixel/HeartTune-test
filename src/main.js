@@ -11,12 +11,14 @@ import {
   setLang,
   formatNumber,
   formatDateTime,
+  formatHistoryDateTime,
   validateI18nKeyParity
 } from './i18n.js';
 import {
   loadHistory,
   appendRecordToHistory,
-  clearStoredData,
+  deleteHistoryAt,
+  clearHistory,
   loadCalibrationBaseline,
   saveCalibrationSample
 } from './features/storage.js';
@@ -96,7 +98,8 @@ const els = {
   btnPrimaryMeasure: document.getElementById('btnPrimaryMeasure'),
   btnShareImage: document.getElementById('btnShareImage'),
   btnClearHistory: document.getElementById('btnClearHistory'),
-  trendSummaryText: document.getElementById('trendSummaryText'),
+  trendYAxis: document.getElementById('trendYAxis'),
+  trendScroll: document.getElementById('trendScroll'),
   trendCanvas: document.getElementById('trendCanvas'),
   historyList: document.getElementById('historyList'),
   menuHistory: document.getElementById('menuHistory'),
@@ -298,6 +301,11 @@ function updateProgressRing(progressRatio) {
 }
 
 function drawLiveWaveform() {
+  drawWaveformValues(state.rawSamples.slice(-90).map((pt) => pt.v));
+}
+
+/** 파형 값 배열을 메인 파형 캔버스에 그린다. (실시간 측정 · 이력 다시 보기 공용) */
+function drawWaveformValues(values) {
   const w = els.waveformCanvas.width;
   const h = els.waveformCanvas.height;
   waveCtx.clearRect(0, 0, w, h);
@@ -309,14 +317,14 @@ function drawLiveWaveform() {
   waveCtx.lineTo(w, h / 2);
   waveCtx.stroke();
 
-  const recent = state.rawSamples.slice(-90);
+  const recent = values;
   if (recent.length < 3) return;
 
   let minV = Infinity;
   let maxV = -Infinity;
-  for (const pt of recent) {
-    if (pt.v < minV) minV = pt.v;
-    if (pt.v > maxV) maxV = pt.v;
+  for (const v of recent) {
+    if (v < minV) minV = v;
+    if (v > maxV) maxV = v;
   }
   const range = Math.max(0.8, maxV - minV);
 
@@ -325,9 +333,9 @@ function drawLiveWaveform() {
   waveCtx.lineJoin = 'round';
   waveCtx.beginPath();
 
-  recent.forEach((pt, idx) => {
+  recent.forEach((v, idx) => {
     const x = (idx / (recent.length - 1)) * (w - 16) + 8;
-    const normY = (pt.v - minV) / range;
+    const normY = (v - minV) / range;
     const y = h - 10 - normY * (h - 20);
     if (idx === 0) waveCtx.moveTo(x, y);
     else waveCtx.lineTo(x, y);
@@ -761,101 +769,251 @@ function saveRecordToHistory(record) {
   }
 }
 
-function renderHistory() {
-  const list = loadHistory();
-  els.historyList.innerHTML = '';
+/* --------------------------------------------------------------------------
+   측정이력 시트: 그래프(고정 Y축 + 가로 스크롤 X축) · 상세 목록 · 하단 광고 영역
+   -------------------------------------------------------------------------- */
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const TREND = {
+  height: 150,      // CSS 높이와 동일 (viewBox 단위 = px)
+  plotTop: 24,      // 상단 단위(회/분) 표시 공간
+  plotBottom: 26,   // 하단 날짜 라벨 공간
+  yAxisWidth: 40,
+  padX: 24,
+  pointGap: 46      // 측정 1건당 X축 간격(px) → 많으면 가로 스크롤
+};
+const SWIPE_MAX_PX = 96;   // 삭제 버튼 폭
+const SWIPE_OPEN_PX = 48;  // 이 이상 밀면 삭제 버튼이 열린 상태로 고정
 
-  if (list.length === 0) {
-    els.trendSummaryText.textContent = t('history.empty.text');
-    drawTrendChart([]);
-    return;
+function svgNode(tag, attrs = {}, text = null) {
+  const node = document.createElementNS(SVG_NS, tag);
+  Object.entries(attrs).forEach(([key, value]) => node.setAttribute(key, String(value)));
+  if (text !== null) node.textContent = text;
+  return node;
+}
+
+/** Y축 범위: 기존 표시 기준(50~110)을 기본으로 두고, 데이터가 벗어나면 넓힌다. */
+function getTrendRange(records) {
+  const bpms = records.map((r) => Number(r.bpm)).filter((v) => Number.isFinite(v));
+  const minB = bpms.length ? Math.min(...bpms) : 60;
+  const maxB = bpms.length ? Math.max(...bpms) : 100;
+  const lo = Math.min(50, Math.floor((minB - 5) / 10) * 10);
+  const hi = Math.max(110, Math.ceil((maxB + 5) / 10) * 10);
+  const step = hi - lo > 80 ? 20 : 10;
+  const ticks = [];
+  for (let v = lo; v <= hi; v += step) ticks.push(v);
+  return { lo, hi, ticks };
+}
+
+/** records 는 오래된 순(왼쪽 → 오른쪽). */
+function drawTrendChart(records) {
+  const H = TREND.height;
+  const plotH = H - TREND.plotTop - TREND.plotBottom;
+  const { lo, hi, ticks } = getTrendRange(records);
+  const yOf = (bpm) => TREND.plotTop + (1 - (bpm - lo) / (hi - lo)) * plotH;
+
+  // 1) 고정 Y축 (눈금 숫자 + 단위)
+  els.trendYAxis.replaceChildren();
+  els.trendYAxis.setAttribute('width', TREND.yAxisWidth);
+  els.trendYAxis.setAttribute('height', H);
+  els.trendYAxis.setAttribute('viewBox', `0 0 ${TREND.yAxisWidth} ${H}`);
+  els.trendYAxis.appendChild(svgNode('text', {
+    x: TREND.yAxisWidth - 4, y: 12, 'text-anchor': 'end', class: 'trend-unit'
+  }, t('measure.unit.bpm')));
+  ticks.forEach((v) => {
+    els.trendYAxis.appendChild(svgNode('text', {
+      x: TREND.yAxisWidth - 4, y: yOf(v) + 4, 'text-anchor': 'end', class: 'trend-tick'
+    }, String(v)));
+  });
+
+  // 2) 스크롤 캔버스: 가로 그리드 + 점/선 + X축 날짜(M/D)
+  const n = records.length;
+  const containerW = els.trendScroll.clientWidth || 260;
+  const viewW = Math.max(containerW, TREND.padX * 2 + Math.max(0, n - 1) * TREND.pointGap);
+  const xOf = (i) => (n === 1 ? viewW / 2 : TREND.padX + i * TREND.pointGap);
+
+  els.trendCanvas.replaceChildren();
+  els.trendCanvas.setAttribute('width', viewW);
+  els.trendCanvas.setAttribute('height', H);
+  els.trendCanvas.setAttribute('viewBox', `0 0 ${viewW} ${H}`);
+
+  ticks.forEach((v) => {
+    els.trendCanvas.appendChild(svgNode('line', {
+      x1: 0, x2: viewW, y1: yOf(v), y2: yOf(v), class: 'trend-grid'
+    }));
+  });
+
+  if (n > 1) {
+    const points = records.map((r, i) => `${xOf(i)},${yOf(Number(r.bpm))}`).join(' ');
+    els.trendCanvas.appendChild(svgNode('polyline', { points, class: 'trend-line' }));
   }
 
-  if (list.length === 1) {
-    els.trendSummaryText.textContent = t('history.trend.first');
-  } else {
-    const latest = list[0].bpm;
-    const prevSlice = list.slice(1, 8);
-    const prevAvg = Math.round(prevSlice.reduce((s, r) => s + r.bpm, 0) / prevSlice.length);
-    const diff = latest - prevAvg;
-    if (Math.abs(diff) <= 2) {
-      els.trendSummaryText.textContent = t('history.trend.same');
-    } else if (diff > 2) {
-      els.trendSummaryText.textContent = t('history.trend.faster', { diff: Math.abs(diff) });
-    } else {
-      els.trendSummaryText.textContent = t('history.trend.slower', { diff: Math.abs(diff) });
-    }
-  }
+  records.forEach((rec, i) => {
+    const d = new Date(rec.timestamp);
+    const x = xOf(i);
+    els.trendCanvas.appendChild(svgNode('text', {
+      x, y: H - 6, 'text-anchor': 'middle', class: 'trend-date'
+    }, `${d.getMonth() + 1}/${d.getDate()}`));
+    const abnormal = getHistoryPresentation(rec).isAbnormal;
+    els.trendCanvas.appendChild(svgNode('circle', {
+      cx: x, cy: yOf(Number(rec.bpm)), r: 5.5,
+      class: abnormal ? 'trend-dot is-abnormal' : 'trend-dot is-normal'
+    }));
+  });
 
-  drawTrendChart(list.slice(0, 14).reverse());
+  // 최신 측정이 보이도록 오른쪽 끝으로 스크롤
+  els.trendScroll.scrollLeft = els.trendScroll.scrollWidth;
+}
 
-  list.slice(0, 30).forEach((item) => {
-    const li = document.createElement('li');
-    li.className = 'history-item';
-    const presentation = getHistoryPresentation(item);
-    const indicators = getResultIndicators(item);
-    const detail = document.createElement('div');
-    detail.className = 'history-detail';
-    const signalText = document.createElement('div');
-    signalText.className = `history-signals ${presentation.isAbnormal ? 'is-abnormal' : 'is-normal'}`;
-    signalText.textContent = presentation.isAbnormal
-      ? t('history.status.suspected', {
-        signals: presentation.signals.map((name) => t(`measure.indicator.${name}`)).join(', ')
-      })
-      : t('history.status.normal');
-    const qualityText = document.createElement('div');
-    qualityText.className = 'history-quality';
-    qualityText.textContent = `${t('measure.indicator.signalQuality')}: ${t(`measure.indicator.quality.${indicators.quality}`)}`;
-    const meta = document.createElement('div');
-    meta.className = 'history-meta';
-    meta.textContent = `${formatDateTime(item.timestamp)} · ${t('details.duration.value', { seconds: item.duration })}`;
-    detail.append(signalText, qualityText, meta);
-
-    const bpm = document.createElement('div');
-    bpm.className = `history-bpm${presentation.abnormalRate ? ' is-abnormal-rate' : ''}`;
-    bpm.append(document.createTextNode(formatNumber(item.bpm)));
-    const unit = document.createElement('span');
-    unit.className = 'unit';
-    unit.textContent = t('measure.unit.bpm');
-    bpm.append(unit);
-    li.append(detail, bpm);
-    els.historyList.appendChild(li);
+function closeOpenHistoryRows(except = null) {
+  els.historyList.querySelectorAll('.history-item.is-open').forEach((node) => {
+    if (node !== except) node.classList.remove('is-open');
   });
 }
 
-function drawTrendChart(records) {
-  const ctx = els.trendCanvas.getContext('2d');
-  const w = els.trendCanvas.width;
-  const h = els.trendCanvas.height;
-  ctx.clearRect(0, 0, w, h);
+/** 목록 한 줄: 탭 = 측정 결과 다시 보기, 왼쪽으로 밀기 = 삭제 버튼 노출 */
+function buildHistoryItem(item, index) {
+  const presentation = getHistoryPresentation(item);
+  const li = document.createElement('li');
+  li.className = 'history-item';
 
-  if (records.length === 0) return;
+  const row = document.createElement('div');
+  row.className = 'history-row';
+  row.setAttribute('role', 'button');
+  row.tabIndex = 0;
 
-  const bpms = records.map((r) => r.bpm);
-  const minB = Math.min(50, ...bpms) - 5;
-  const maxB = Math.max(110, ...bpms) + 5;
-  const span = Math.max(10, maxB - minB);
+  const main = document.createElement('div');
+  main.className = 'history-main';
+  const signalText = document.createElement('div');
+  signalText.className = `history-signals ${presentation.isAbnormal ? 'is-abnormal' : 'is-normal'}`;
+  signalText.textContent = presentation.isAbnormal
+    ? t('history.status.suspected', {
+      signals: presentation.signals.map((name) => t(`measure.indicator.${name}`)).join(', ')
+    })
+    : t('history.status.normal');
+  const meta = document.createElement('div');
+  meta.className = 'history-meta';
+  meta.textContent = `${formatHistoryDateTime(item.timestamp)} · ${t('details.duration.value', { seconds: item.duration })}`;
+  main.append(signalText, meta);
 
-  ctx.strokeStyle = '#0F4C81';
-  ctx.lineWidth = 3;
-  ctx.beginPath();
+  const bpm = document.createElement('div');
+  bpm.className = `history-bpm${presentation.abnormalRate ? ' is-abnormal-rate' : ''}`;
+  bpm.append(document.createTextNode(formatNumber(item.bpm)));
+  const unit = document.createElement('span');
+  unit.className = 'unit';
+  unit.textContent = t('measure.unit.bpm');
+  bpm.append(unit);
 
-  records.forEach((rec, i) => {
-    const x = records.length === 1 ? w / 2 : 24 + (i / (records.length - 1)) * (w - 48);
-    const y = h - 22 - ((rec.bpm - minB) / span) * (h - 44);
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
+  const chevron = document.createElement('span');
+  chevron.className = 'history-chevron';
+  chevron.setAttribute('aria-hidden', 'true');
+  chevron.textContent = '›';
+
+  row.append(main, bpm, chevron);
+  row.setAttribute('aria-label', `${signalText.textContent}, ${formatNumber(item.bpm)} ${t('measure.unit.bpm')}, ${meta.textContent}. ${t('history.item.replay')}`);
+
+  const delBtn = document.createElement('button');
+  delBtn.type = 'button';
+  delBtn.className = 'history-delete';
+  delBtn.textContent = t('history.action.delete');
+  delBtn.addEventListener('click', (event) => {
+    event.stopPropagation();
+    deleteHistoryAt(index);
+    renderHistory();
   });
-  ctx.stroke();
 
-  records.forEach((rec, i) => {
-    const x = records.length === 1 ? w / 2 : 24 + (i / (records.length - 1)) * (w - 48);
-    const y = h - 22 - ((rec.bpm - minB) / span) * (h - 44);
-    ctx.fillStyle = getHistoryPresentation(rec).isAbnormal ? '#DC2626' : '#16A34A';
-    ctx.beginPath();
-    ctx.arc(x, y, 8, 0, Math.PI * 2);
-    ctx.fill();
+  // 가로 스와이프 제스처 (Pointer Events — 탭은 click 으로만 처리)
+  let drag = null;
+  let suppressClick = false;
+  row.addEventListener('pointerdown', (event) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    drag = { id: event.pointerId, x: event.clientX, y: event.clientY, dx: 0, active: false, wasOpen: li.classList.contains('is-open') };
   });
+  row.addEventListener('pointermove', (event) => {
+    if (!drag || event.pointerId !== drag.id) return;
+    const dx = event.clientX - drag.x;
+    const dy = event.clientY - drag.y;
+    if (!drag.active) {
+      if (Math.abs(dx) < 10 || Math.abs(dx) < Math.abs(dy)) return;
+      drag.active = true;
+      row.setPointerCapture(event.pointerId);
+      closeOpenHistoryRows(li);
+      row.classList.add('is-dragging');
+    }
+    drag.dx = dx;
+    const base = drag.wasOpen ? -SWIPE_MAX_PX : 0;
+    const offset = Math.max(-SWIPE_MAX_PX, Math.min(0, base + dx));
+    row.style.transform = `translateX(${offset}px)`;
+  });
+  const endDrag = (event) => {
+    if (!drag || (event && event.pointerId !== drag.id)) return;
+    const { active, dx, wasOpen } = drag;
+    drag = null;
+    row.classList.remove('is-dragging');
+    row.style.transform = '';
+    if (!active) return;
+    suppressClick = true;
+    window.setTimeout(() => { suppressClick = false; }, 300);
+    const position = (wasOpen ? -SWIPE_MAX_PX : 0) + dx;
+    li.classList.toggle('is-open', position < -SWIPE_OPEN_PX);
+  };
+  row.addEventListener('pointerup', endDrag);
+  row.addEventListener('pointercancel', endDrag);
+
+  row.addEventListener('click', () => {
+    if (suppressClick) return;
+    if (li.classList.contains('is-open')) {
+      li.classList.remove('is-open');
+      return;
+    }
+    replayRecord(item);
+  });
+  row.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      row.click();
+    }
+  });
+
+  li.append(row, delBtn);
+  return li;
+}
+
+function renderHistory() {
+  const list = loadHistory(); // 최신순
+  els.btnClearHistory.disabled = list.length === 0;
+  drawTrendChart(list.slice().reverse());
+
+  els.historyList.innerHTML = '';
+  if (list.length === 0) {
+    const empty = document.createElement('li');
+    empty.className = 'history-empty';
+    empty.textContent = t('history.empty.text');
+    els.historyList.appendChild(empty);
+    return;
+  }
+  list.forEach((item, index) => els.historyList.appendChild(buildHistoryItem(item, index)));
+}
+
+/** 저장된 측정 결과를 메인 화면(링·BPM·파형·결과 문구)에 그대로 다시 표시한다. */
+function showRecordOnMain(record) {
+  state.lastResult = record;
+  document.body.classList.add('has-result');
+  els.bpmNumber.textContent = formatNumber(record.bpm);
+  els.stageGuideText.textContent = t('measure.status.completed');
+  els.btnPrimaryMeasure.textContent = t('measure.cta.remeasure');
+  els.btnShareImage.hidden = false;
+  updateProgressRing(1);
+  drawWaveformValues(Array.isArray(record.waveform) ? record.waveform : []);
+  renderResultBanner(record);
+}
+
+function replayRecord(record) {
+  if (state.isMeasuring || state.isStarting) {
+    showAlert(t('history.replay.busy'));
+    return;
+  }
+  sheets.close();
+  showRecordOnMain(record);
 }
 
 async function switchCamera(facing) {
@@ -959,7 +1117,9 @@ els.camBtns.forEach((btn) => {
 });
 
 els.btnClearHistory.addEventListener('click', () => {
-  clearStoredData();
+  if (loadHistory().length === 0) return;
+  if (!window.confirm(t('history.confirm.clearAll'))) return;
+  clearHistory();
   updateCalibBannerUI();
   renderHistory();
 });
