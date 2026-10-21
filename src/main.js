@@ -10,12 +10,13 @@ import {
   getLang,
   setLang,
   formatNumber,
-  formatDateTime,
+  formatHistoryDateTime,
   validateI18nKeyParity
 } from './i18n.js';
 import {
   loadHistory,
   appendRecordToHistory,
+  deleteHistoryById,
   clearStoredData,
   loadCalibrationBaseline,
   saveCalibrationSample
@@ -96,7 +97,16 @@ const els = {
   btnPrimaryMeasure: document.getElementById('btnPrimaryMeasure'),
   btnShareImage: document.getElementById('btnShareImage'),
   btnClearHistory: document.getElementById('btnClearHistory'),
-  trendSummaryText: document.getElementById('trendSummaryText'),
+  btnDetailsShare: document.getElementById('btnDetailsShare'),
+  historyUndoToast: document.getElementById('historyUndoToast'),
+  btnUndoDelete: document.getElementById('btnUndoDelete'),
+  btnHistoryBack: document.getElementById('btnHistoryBack'),
+  btnHistoryDetailShare: document.getElementById('btnHistoryDetailShare'),
+  btnHistoryDetailDelete: document.getElementById('btnHistoryDetailDelete'),
+  historyDetailBody: document.getElementById('historyDetailBody'),
+  historyAdSlot: document.getElementById('historyAdSlot'),
+  trendYAxis: document.getElementById('trendYAxis'),
+  trendScroll: document.getElementById('trendScroll'),
   trendCanvas: document.getElementById('trendCanvas'),
   historyList: document.getElementById('historyList'),
   menuHistory: document.getElementById('menuHistory'),
@@ -166,8 +176,15 @@ const camera = createCameraController({
 // 바텀시트(설정·메뉴·이력·안내·법적 고지·상세)는 features/sheets.js 가 관리
 const sheets = createSheetController({
   backdrop: els.sheetBackdrop,
-  onOpen: (sheet) => logDebug(`Sheet opened: ${sheet.id}`),
-  onClose: (sheet) => logDebug(`Sheet closed: ${sheet.id}`),
+  onOpen: (sheet) => {
+    logDebug(`Sheet opened: ${sheet.id}`);
+    onNavSheetOpened(sheet);
+  },
+  onClose: (sheet) => {
+    logDebug(`Sheet closed: ${sheet.id}`);
+    if (sheet === els.historySheet) onHistorySheetClosed();
+    onNavSheetClosed(sheet);
+  },
   log: () => {}
 });
 
@@ -298,6 +315,11 @@ function updateProgressRing(progressRatio) {
 }
 
 function drawLiveWaveform() {
+  drawWaveformValues(state.rawSamples.slice(-90).map((pt) => pt.v));
+}
+
+/** 파형 값 배열을 메인 파형 캔버스에 그린다. (실시간 측정 · 이력 다시 보기 공용) */
+function drawWaveformValues(values) {
   const w = els.waveformCanvas.width;
   const h = els.waveformCanvas.height;
   waveCtx.clearRect(0, 0, w, h);
@@ -309,14 +331,14 @@ function drawLiveWaveform() {
   waveCtx.lineTo(w, h / 2);
   waveCtx.stroke();
 
-  const recent = state.rawSamples.slice(-90);
+  const recent = values;
   if (recent.length < 3) return;
 
   let minV = Infinity;
   let maxV = -Infinity;
-  for (const pt of recent) {
-    if (pt.v < minV) minV = pt.v;
-    if (pt.v > maxV) maxV = pt.v;
+  for (const v of recent) {
+    if (v < minV) minV = v;
+    if (v > maxV) maxV = v;
   }
   const range = Math.max(0.8, maxV - minV);
 
@@ -325,9 +347,9 @@ function drawLiveWaveform() {
   waveCtx.lineJoin = 'round';
   waveCtx.beginPath();
 
-  recent.forEach((pt, idx) => {
+  recent.forEach((v, idx) => {
     const x = (idx / (recent.length - 1)) * (w - 16) + 8;
-    const normY = (pt.v - minV) / range;
+    const normY = (v - minV) / range;
     const y = h - 10 - normY * (h - 20);
     if (idx === 0) waveCtx.moveTo(x, y);
     else waveCtx.lineTo(x, y);
@@ -676,10 +698,10 @@ const RESULT_ICONS = {
   irregular: SVG_ALERT
 };
 
-function renderResultIndicators(record) {
+function renderResultIndicators(record, root = els.detailsSheet) {
   const indicators = getResultIndicators(record);
   ['arrhythmia', 'bradycardia', 'tachycardia'].forEach((name) => {
-    const card = document.querySelector(`[data-indicator="${name}"]`);
+    const card = root.querySelector(`[data-indicator="${name}"]`);
     const active = indicators[name];
     card.classList.toggle('is-active', active);
     card.classList.toggle('is-clear', !active);
@@ -687,15 +709,15 @@ function renderResultIndicators(record) {
     card.querySelector('[data-indicator-state]').textContent = t(active ? 'measure.indicator.detected' : 'measure.indicator.notDetected');
   });
 
-  const qualityCard = document.querySelector('[data-indicator="signal-quality"]');
+  const qualityCard = root.querySelector('[data-indicator="signal-quality"]');
   qualityCard.classList.remove('quality-good', 'quality-fair', 'quality-poor', 'quality-unknown');
   qualityCard.classList.add(`quality-${indicators.quality}`);
   qualityCard.setAttribute('aria-label', `${t('measure.indicator.signalQuality')}: ${t(`measure.indicator.quality.${indicators.quality}`)}`);
-  els.indicatorQualityState.textContent = t(`measure.indicator.quality.${indicators.quality}`);
+  root.querySelector('[data-indicator-state="signal-quality"]').textContent = t(`measure.indicator.quality.${indicators.quality}`);
 }
 
-function drawDetailsWaveform(record) {
-  const canvas = els.detailsWaveformCanvas;
+function drawDetailsWaveform(record, root = els.detailsSheet) {
+  const canvas = root.querySelector('[data-role="waveform"]');
   const ctx = canvas.getContext('2d');
   const width = canvas.width;
   const height = canvas.height;
@@ -729,13 +751,14 @@ function drawDetailsWaveform(record) {
   ctx.stroke();
 }
 
-function renderDetails(record) {
+/** 측정 상세 내용을 root(측정 상세 시트 또는 이력 자세히 보기) 안에 채운다. */
+function renderDetails(record, root = els.detailsSheet) {
   if (!record) return;
-  els.detailsDate.textContent = formatDateTime(record.timestamp);
-  els.detailsDuration.textContent = t('details.duration.value', { seconds: record.duration });
-  els.detailsBpm.textContent = formatNumber(record.bpm);
-  drawDetailsWaveform(record);
-  renderResultIndicators(record);
+  root.querySelector('[data-role="date"]').textContent = formatHistoryDateTime(record.timestamp);
+  root.querySelector('[data-role="duration"]').textContent = t('details.duration.value', { seconds: record.duration });
+  root.querySelector('[data-role="bpm"]').textContent = formatNumber(record.bpm);
+  drawDetailsWaveform(record, root);
+  renderResultIndicators(record, root);
 }
 
 function renderResultBanner(record) {
@@ -761,101 +784,414 @@ function saveRecordToHistory(record) {
   }
 }
 
-function renderHistory() {
-  const list = loadHistory();
-  els.historyList.innerHTML = '';
+/* --------------------------------------------------------------------------
+   측정이력 시트: 그래프(고정 Y축 + 가로 스크롤 X축) · 상세 목록 · 하단 광고 영역
+   -------------------------------------------------------------------------- */
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const TREND = {
+  height: 150,      // CSS 높이와 동일 (viewBox 단위 = px)
+  plotTop: 24,      // 상단 단위(회/분) 표시 공간
+  plotBottom: 26,   // 하단 날짜 라벨 공간
+  yAxisWidth: 40,
+  padX: 24,
+  pointGap: 46      // 측정 1건당 X축 간격(px) → 많으면 가로 스크롤
+};
+const SWIPE_MAX_PX = 96;   // 삭제 버튼 폭
+const SWIPE_OPEN_PX = 48;  // 이 이상 밀면 삭제 버튼이 열린 상태로 고정
 
-  if (list.length === 0) {
-    els.trendSummaryText.textContent = t('history.empty.text');
-    drawTrendChart([]);
-    return;
+function svgNode(tag, attrs = {}, text = null) {
+  const node = document.createElementNS(SVG_NS, tag);
+  Object.entries(attrs).forEach(([key, value]) => node.setAttribute(key, String(value)));
+  if (text !== null) node.textContent = text;
+  return node;
+}
+
+/** Y축 범위: 기존 표시 기준(50~110)을 기본으로 두고, 데이터가 벗어나면 넓힌다. */
+function getTrendRange(records) {
+  const bpms = records.map((r) => Number(r.bpm)).filter((v) => Number.isFinite(v));
+  const minB = bpms.length ? Math.min(...bpms) : 60;
+  const maxB = bpms.length ? Math.max(...bpms) : 100;
+  const lo = Math.min(50, Math.floor((minB - 5) / 10) * 10);
+  const hi = Math.max(110, Math.ceil((maxB + 5) / 10) * 10);
+  const step = hi - lo > 80 ? 20 : 10;
+  const ticks = [];
+  for (let v = lo; v <= hi; v += step) ticks.push(v);
+  return { lo, hi, ticks };
+}
+
+/** records 는 오래된 순(왼쪽 → 오른쪽). */
+function drawTrendChart(records) {
+  const H = TREND.height;
+  const plotH = H - TREND.plotTop - TREND.plotBottom;
+  const { lo, hi, ticks } = getTrendRange(records);
+  const yOf = (bpm) => TREND.plotTop + (1 - (bpm - lo) / (hi - lo)) * plotH;
+
+  // 1) 고정 Y축 (눈금 숫자 + 단위)
+  els.trendYAxis.replaceChildren();
+  els.trendYAxis.setAttribute('width', TREND.yAxisWidth);
+  els.trendYAxis.setAttribute('height', H);
+  els.trendYAxis.setAttribute('viewBox', `0 0 ${TREND.yAxisWidth} ${H}`);
+  els.trendYAxis.appendChild(svgNode('text', {
+    x: TREND.yAxisWidth - 4, y: 12, 'text-anchor': 'end', class: 'trend-unit'
+  }, t('measure.unit.bpm')));
+  ticks.forEach((v) => {
+    els.trendYAxis.appendChild(svgNode('text', {
+      x: TREND.yAxisWidth - 4, y: yOf(v) + 4, 'text-anchor': 'end', class: 'trend-tick'
+    }, String(v)));
+  });
+
+  // 2) 스크롤 캔버스: 가로 그리드 + 점/선 + X축 날짜(M/D)
+  const n = records.length;
+  const containerW = els.trendScroll.clientWidth || 260;
+  const viewW = Math.max(containerW, TREND.padX * 2 + Math.max(0, n - 1) * TREND.pointGap);
+  const xOf = (i) => (n === 1 ? viewW / 2 : TREND.padX + i * TREND.pointGap);
+
+  els.trendCanvas.replaceChildren();
+  els.trendCanvas.setAttribute('width', viewW);
+  els.trendCanvas.setAttribute('height', H);
+  els.trendCanvas.setAttribute('viewBox', `0 0 ${viewW} ${H}`);
+
+  ticks.forEach((v) => {
+    els.trendCanvas.appendChild(svgNode('line', {
+      x1: 0, x2: viewW, y1: yOf(v), y2: yOf(v), class: 'trend-grid'
+    }));
+  });
+
+  if (n > 1) {
+    const points = records.map((r, i) => `${xOf(i)},${yOf(Number(r.bpm))}`).join(' ');
+    els.trendCanvas.appendChild(svgNode('polyline', { points, class: 'trend-line' }));
   }
 
-  if (list.length === 1) {
-    els.trendSummaryText.textContent = t('history.trend.first');
-  } else {
-    const latest = list[0].bpm;
-    const prevSlice = list.slice(1, 8);
-    const prevAvg = Math.round(prevSlice.reduce((s, r) => s + r.bpm, 0) / prevSlice.length);
-    const diff = latest - prevAvg;
-    if (Math.abs(diff) <= 2) {
-      els.trendSummaryText.textContent = t('history.trend.same');
-    } else if (diff > 2) {
-      els.trendSummaryText.textContent = t('history.trend.faster', { diff: Math.abs(diff) });
-    } else {
-      els.trendSummaryText.textContent = t('history.trend.slower', { diff: Math.abs(diff) });
-    }
-  }
+  records.forEach((rec, i) => {
+    const d = new Date(rec.timestamp);
+    const x = xOf(i);
+    els.trendCanvas.appendChild(svgNode('text', {
+      x, y: H - 6, 'text-anchor': 'middle', class: 'trend-date'
+    }, `${d.getMonth() + 1}/${d.getDate()}`));
+    const abnormal = getHistoryPresentation(rec).isAbnormal;
+    els.trendCanvas.appendChild(svgNode('circle', {
+      cx: x, cy: yOf(Number(rec.bpm)), r: 5.5,
+      class: abnormal ? 'trend-dot is-abnormal' : 'trend-dot is-normal'
+    }));
+  });
 
-  drawTrendChart(list.slice(0, 14).reverse());
+  // 최신 측정이 보이도록 오른쪽 끝으로 스크롤
+  els.trendScroll.scrollLeft = els.trendScroll.scrollWidth;
+}
 
-  list.slice(0, 30).forEach((item) => {
-    const li = document.createElement('li');
-    li.className = 'history-item';
-    const presentation = getHistoryPresentation(item);
-    const indicators = getResultIndicators(item);
-    const detail = document.createElement('div');
-    detail.className = 'history-detail';
-    const signalText = document.createElement('div');
-    signalText.className = `history-signals ${presentation.isAbnormal ? 'is-abnormal' : 'is-normal'}`;
-    signalText.textContent = presentation.isAbnormal
-      ? t('history.status.suspected', {
-        signals: presentation.signals.map((name) => t(`measure.indicator.${name}`)).join(', ')
-      })
-      : t('history.status.normal');
-    const qualityText = document.createElement('div');
-    qualityText.className = 'history-quality';
-    qualityText.textContent = `${t('measure.indicator.signalQuality')}: ${t(`measure.indicator.quality.${indicators.quality}`)}`;
-    const meta = document.createElement('div');
-    meta.className = 'history-meta';
-    meta.textContent = `${formatDateTime(item.timestamp)} · ${t('details.duration.value', { seconds: item.duration })}`;
-    detail.append(signalText, qualityText, meta);
-
-    const bpm = document.createElement('div');
-    bpm.className = `history-bpm${presentation.abnormalRate ? ' is-abnormal-rate' : ''}`;
-    bpm.append(document.createTextNode(formatNumber(item.bpm)));
-    const unit = document.createElement('span');
-    unit.className = 'unit';
-    unit.textContent = t('measure.unit.bpm');
-    bpm.append(unit);
-    li.append(detail, bpm);
-    els.historyList.appendChild(li);
+function closeOpenHistoryRows(except = null) {
+  els.historyList.querySelectorAll('.history-item.is-open').forEach((node) => {
+    if (node !== except) node.classList.remove('is-open');
   });
 }
 
-function drawTrendChart(records) {
-  const ctx = els.trendCanvas.getContext('2d');
-  const w = els.trendCanvas.width;
-  const h = els.trendCanvas.height;
-  ctx.clearRect(0, 0, w, h);
+/* ── 측정이력: 목록 · 자세히 보기(같은 시트 안 화면 전환) · 삭제 대기(실행 취소) ── */
 
-  if (records.length === 0) return;
+const UNDO_DELETE_MS = 3000; // 삭제 후 이 시간 안에 취소하지 않으면 실제로 지운다
 
-  const bpms = records.map((r) => r.bpm);
-  const minB = Math.min(50, ...bpms) - 5;
-  const maxB = Math.max(110, ...bpms) + 5;
-  const span = Math.max(10, maxB - minB);
+/** 화면 상태. detailRecord 가 있으면 "자세히 보기" 화면, pendingId 는 삭제 대기 중인 기록. */
+const historyView = {
+  detailRecord: null,
+  pendingId: null,
+  pendingTimer: null
+};
 
-  ctx.strokeStyle = '#0F4C81';
-  ctx.lineWidth = 3;
-  ctx.beginPath();
+/** 목록 한 줄: 탭 = 자세히 보기, 왼쪽으로 밀기 = 삭제 버튼(끝까지 밀면 바로 삭제 대기) */
+function buildHistoryItem(item) {
+  const presentation = getHistoryPresentation(item);
+  const li = document.createElement('li');
+  li.className = 'history-item';
 
-  records.forEach((rec, i) => {
-    const x = records.length === 1 ? w / 2 : 24 + (i / (records.length - 1)) * (w - 48);
-    const y = h - 22 - ((rec.bpm - minB) / span) * (h - 44);
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
+  const row = document.createElement('div');
+  row.className = 'history-row';
+  row.setAttribute('role', 'button');
+  row.tabIndex = 0;
+
+  const main = document.createElement('div');
+  main.className = 'history-main';
+  const signalText = document.createElement('div');
+  signalText.className = `history-signals ${presentation.isAbnormal ? 'is-abnormal' : 'is-normal'}`;
+  signalText.textContent = presentation.isAbnormal
+    ? t('history.status.suspected', {
+      signals: presentation.signals.map((name) => t(`measure.indicator.${name}`)).join(', ')
+    })
+    : t('history.status.normal');
+  const meta = document.createElement('div');
+  meta.className = 'history-meta';
+  meta.textContent = `${formatHistoryDateTime(item.timestamp)} · ${t('details.duration.value', { seconds: item.duration })}`;
+  main.append(signalText, meta);
+
+  const bpm = document.createElement('div');
+  bpm.className = `history-bpm${presentation.abnormalRate ? ' is-abnormal-rate' : ''}`;
+  bpm.append(document.createTextNode(formatNumber(item.bpm)));
+  const unit = document.createElement('span');
+  unit.className = 'unit';
+  unit.textContent = t('measure.unit.bpm');
+  bpm.append(unit);
+
+  const chevron = document.createElement('span');
+  chevron.className = 'history-chevron';
+  chevron.setAttribute('aria-hidden', 'true');
+  chevron.textContent = '›';
+
+  row.append(main, bpm, chevron);
+  row.setAttribute('aria-label', `${signalText.textContent}, ${formatNumber(item.bpm)} ${t('measure.unit.bpm')}, ${meta.textContent}. ${t('history.item.replay')}`);
+
+  const delBtn = document.createElement('button');
+  delBtn.type = 'button';
+  delBtn.className = 'history-delete';
+  delBtn.textContent = t('history.action.delete');
+  delBtn.addEventListener('click', (event) => {
+    event.stopPropagation();
+    scheduleDelete(item);
   });
-  ctx.stroke();
 
-  records.forEach((rec, i) => {
-    const x = records.length === 1 ? w / 2 : 24 + (i / (records.length - 1)) * (w - 48);
-    const y = h - 22 - ((rec.bpm - minB) / span) * (h - 44);
-    ctx.fillStyle = getHistoryPresentation(rec).isAbnormal ? '#DC2626' : '#16A34A';
-    ctx.beginPath();
-    ctx.arc(x, y, 8, 0, Math.PI * 2);
-    ctx.fill();
+  // 가로 스와이프 제스처 (Pointer Events — 탭은 click 으로만 처리)
+  let drag = null;
+  let suppressClick = false;
+  row.addEventListener('pointerdown', (event) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    drag = { id: event.pointerId, x: event.clientX, y: event.clientY, dx: 0, active: false, wasOpen: li.classList.contains('is-open') };
   });
+  row.addEventListener('pointermove', (event) => {
+    if (!drag || event.pointerId !== drag.id) return;
+    const dx = event.clientX - drag.x;
+    const dy = event.clientY - drag.y;
+    if (!drag.active) {
+      if (Math.abs(dx) < 10 || Math.abs(dx) < Math.abs(dy)) return;
+      drag.active = true;
+      row.setPointerCapture(event.pointerId);
+      closeOpenHistoryRows(li);
+      row.classList.add('is-dragging');
+      li.classList.add('is-swiping'); // 드래그 중에도 빨간 삭제 버튼이 보이도록
+    }
+    drag.dx = dx;
+    const base = drag.wasOpen ? -SWIPE_MAX_PX : 0;
+    const offset = Math.max(-SWIPE_MAX_PX, Math.min(0, base + dx));
+    row.style.transform = `translateX(${offset}px)`;
+  });
+  const endDrag = (event) => {
+    if (!drag || (event && event.pointerId !== drag.id)) return;
+    const { active, dx, wasOpen } = drag;
+    drag = null;
+    row.classList.remove('is-dragging');
+    row.style.transform = '';
+    li.classList.remove('is-swiping');
+    if (!active) return;
+    suppressClick = true;
+    window.setTimeout(() => { suppressClick = false; }, 300);
+    const position = (wasOpen ? -SWIPE_MAX_PX : 0) + dx;
+    if (position <= -SWIPE_MAX_PX + 1) {
+      // 끝까지 밀었을 때만 삭제 대기 (중간에 놓으면 삭제하지 않는다)
+      li.classList.remove('is-open');
+      scheduleDelete(item);
+      return;
+    }
+    // 완전히 밀지 않고 놓으면 항상 닫힌다 (삭제 안 함, 삭제 버튼이 남지 않음)
+    li.classList.remove('is-open');
+  };
+  row.addEventListener('pointerup', endDrag);
+  row.addEventListener('pointercancel', endDrag);
+
+  row.addEventListener('click', () => {
+    if (suppressClick) return;
+    if (li.classList.contains('is-open')) {
+      li.classList.remove('is-open');
+      return;
+    }
+    openHistoryDetail(item);
+  });
+  row.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      row.click();
+    }
+  });
+
+  li.append(row, delBtn);
+  return li;
+}
+
+/** 삭제 대기 중인 기록은 목록·그래프에서 숨긴다. */
+function getVisibleHistory() {
+  return loadHistory().filter((record) => record.id !== historyView.pendingId);
+}
+
+function renderHistory() {
+  const list = getVisibleHistory(); // 최신순
+  els.btnClearHistory.disabled = list.length === 0;
+  drawTrendChart(list.slice().reverse());
+
+  els.historyList.innerHTML = '';
+  if (list.length === 0) {
+    const empty = document.createElement('li');
+    empty.className = 'history-empty';
+    empty.textContent = t('history.empty.text');
+    els.historyList.appendChild(empty);
+    return;
+  }
+  list.forEach((item) => els.historyList.appendChild(buildHistoryItem(item)));
+}
+
+/* ── 삭제 대기 · 실행 취소 ─────────────────────────────────────────────── */
+
+function placeUndoToast() {
+  // 광고 영역 바로 위에 띄운다 (광고 높이가 바뀌어도 따라감)
+  els.historyUndoToast.style.bottom = `${els.historyAdSlot.offsetHeight + 12}px`;
+}
+
+function showUndoToast() {
+  els.historyUndoToast.hidden = false;
+  placeUndoToast();
+}
+
+function hideUndoToast() {
+  els.historyUndoToast.hidden = true;
+}
+
+/** 대기 중인 삭제를 실제로 저장소에서 지운다. (타이머 만료, 시트 닫힘, 다른 삭제 시작 시) */
+function commitPendingDelete() {
+  if (historyView.pendingId == null) return;
+  window.clearTimeout(historyView.pendingTimer);
+  deleteHistoryById(historyView.pendingId);
+  historyView.pendingId = null;
+  historyView.pendingTimer = null;
+  hideUndoToast();
+}
+
+/** 기록을 목록에서 숨기고 3초 뒤 실제로 삭제한다. 그 사이 [삭제 취소]로 복구할 수 있다. */
+function scheduleDelete(record) {
+  commitPendingDelete();
+  historyView.pendingId = record.id;
+  historyView.pendingTimer = window.setTimeout(() => {
+    commitPendingDelete();
+    renderHistory();
+  }, UNDO_DELETE_MS);
+  showUndoToast();
+  renderHistory();
+}
+
+function undoPendingDelete() {
+  if (historyView.pendingId == null) return;
+  window.clearTimeout(historyView.pendingTimer);
+  historyView.pendingId = null;
+  historyView.pendingTimer = null;
+  hideUndoToast();
+  renderHistory();
+}
+
+/** 전체 삭제처럼 저장소를 통째로 지우는 경우: 대기 중인 삭제는 따로 실행하지 않고 취소한다. */
+function cancelPendingDelete() {
+  window.clearTimeout(historyView.pendingTimer);
+  historyView.pendingId = null;
+  historyView.pendingTimer = null;
+  hideUndoToast();
+}
+
+/* ── 자세히 보기 (같은 시트 안에서 왼쪽으로 밀려 들어오는 화면) ────────── */
+
+function buildHistoryDetailBody() {
+  // 측정 상세 시트의 본문을 복제해 쓴다. 중복 id 를 피하려고 id 는 모두 제거하고,
+  // 값 채우기는 data-role / data-indicator 속성으로 찾는다.
+  const copy = els.detailsSheet.querySelector('.details-body').cloneNode(true);
+  copy.removeAttribute('id');
+  copy.classList.remove('sheet-body');
+  copy.querySelectorAll('[id]').forEach((node) => node.removeAttribute('id'));
+  els.historyDetailBody.appendChild(copy);
+}
+
+function openHistoryDetail(record) {
+  historyView.detailRecord = record;
+  renderDetails(record, els.historyDetailBody);
+  els.historyDetailBody.parentElement.scrollTop = 0;
+  els.historySheet.classList.add('is-detail');
+  pushNavLayer('detail');
+}
+
+/** 화면만 자세히 보기 → 목록으로 되돌린다 (history 는 건드리지 않음). */
+function closeHistoryDetailView() {
+  historyView.detailRecord = null;
+  els.historySheet.classList.remove('is-detail');
+}
+
+/** 사용자가 뒤로가기 버튼을 눌렀을 때: 자세히 보기를 닫고 쌓인 history 항목도 되돌린다. */
+function leaveHistoryDetail() {
+  if (!historyView.detailRecord) return;
+  closeHistoryDetailView();
+  const index = navLayers.lastIndexOf('detail');
+  if (index !== -1) dropNavLayers(navLayers.length - index);
+}
+
+/** 시트가 닫힐 때: 대기 중인 삭제를 마무리하고 자세히 보기를 목록으로 되돌린다. */
+function onHistorySheetClosed() {
+  commitPendingDelete();
+  closeHistoryDetailView();
+}
+
+/* ── 브라우저 뒤로가기 ───────────────────────────────────────────────────
+ * 열린 시트·자세히 보기마다 history 항목 하나를 쌓는다.
+ *  · 뒤로가기 → 가장 위 화면을 닫는다 (시트 → 메인, 자세히 보기 → 목록).
+ *  · 메인 화면에서 뒤로가기 → 앱 주소로 다시 열어 초기 화면으로 간다 (앱 밖으로 나가지 않음).
+ * ─────────────────────────────────────────────────────────────────────── */
+
+const APP_URL = location.href.split('#')[0];
+const navLayers = []; // 'sheet:<id>' 또는 'detail'
+let navSilentPops = 0; // 우리가 history.go() 로 되돌린 popstate 를 무시하는 횟수
+let navClosingFromHistory = false; // 뒤로가기로 시트를 닫는 중에는 history 를 다시 건드리지 않음
+
+function pushNavLayer(name) {
+  navLayers.push(name);
+  history.pushState({ htLayer: navLayers.length }, '', APP_URL);
+}
+
+/** 화면을 버튼·배경·ESC 로 닫았을 때 그 화면 위의 history 항목을 함께 되돌린다. */
+function dropNavLayers(count) {
+  if (count <= 0) return;
+  navLayers.splice(navLayers.length - count, count);
+  navSilentPops += 1;
+  history.go(-count);
+}
+
+function onNavSheetOpened(sheet) {
+  const top = navLayers[navLayers.length - 1];
+  if (top && top.startsWith('sheet:')) {
+    navLayers[navLayers.length - 1] = `sheet:${sheet.id}`; // 시트 → 시트 전환은 history 항목을 재사용
+  } else {
+    pushNavLayer(`sheet:${sheet.id}`);
+  }
+}
+
+function onNavSheetClosed(sheet) {
+  if (navClosingFromHistory) return;
+  const index = navLayers.indexOf(`sheet:${sheet.id}`);
+  if (index !== -1) dropNavLayers(navLayers.length - index);
+}
+
+window.addEventListener('popstate', () => {
+  if (navSilentPops > 0) {
+    navSilentPops -= 1;
+    return;
+  }
+  if (navLayers.length === 0) {
+    location.replace(APP_URL); // 메인에서 뒤로가기: 초기 화면으로 다시 연다
+    return;
+  }
+  const top = navLayers.pop();
+  if (top === 'detail') {
+    closeHistoryDetailView();
+    return;
+  }
+  navClosingFromHistory = true;
+  try {
+    sheets.close();
+  } finally {
+    navClosingFromHistory = false;
+  }
+});
+
+function shareRecord(record) {
+  if (!record) return;
+  shareResultAsImage(record, { t, formatDateTime: formatHistoryDateTime, formatNumber });
 }
 
 async function switchCamera(facing) {
@@ -897,8 +1233,17 @@ els.btnPrimaryMeasure.addEventListener('click', () => {
   startMeasurement();
 });
 
-els.btnShareImage.addEventListener('click', () => {
-  shareResultAsImage(state.lastResult, { t, formatDateTime });
+els.btnShareImage.addEventListener('click', () => shareRecord(state.lastResult));
+els.btnDetailsShare.addEventListener('click', () => shareRecord(state.lastResult));
+els.btnHistoryDetailShare.addEventListener('click', () => shareRecord(historyView.detailRecord));
+
+els.btnUndoDelete.addEventListener('click', () => undoPendingDelete());
+els.btnHistoryBack.addEventListener('click', () => leaveHistoryDetail());
+els.btnHistoryDetailDelete.addEventListener('click', () => {
+  const record = historyView.detailRecord;
+  if (!record) return;
+  leaveHistoryDetail();
+  scheduleDelete(record);
 });
 
 els.btnLangToggle.addEventListener('click', () => {
@@ -926,6 +1271,7 @@ els.btnMenu.addEventListener('click', () => {
 });
 
 els.menuHistory.addEventListener('click', () => {
+  closeHistoryDetailView();
   renderHistory();
   sheets.open(els.historySheet, els.btnMenu);
 });
@@ -959,6 +1305,9 @@ els.camBtns.forEach((btn) => {
 });
 
 els.btnClearHistory.addEventListener('click', () => {
+  if (loadHistory().length === 0) return;
+  if (!window.confirm(t('history.confirm.clearAll'))) return;
+  cancelPendingDelete();
   clearStoredData();
   updateCalibBannerUI();
   renderHistory();
@@ -1112,6 +1461,9 @@ document.addEventListener('visibilitychange', () => {
 function initApp() {
   const parity = validateI18nKeyParity();
   logDebug(`i18n parity check: valid=${parity.valid} (${parity.totalKeys} keys)`);
+  history.replaceState({ htRoot: true }, '', APP_URL);
+  history.pushState({ htGuard: true }, '', APP_URL);
+  buildHistoryDetailBody();
   applyTranslations();
   sheets.bind();
   syncConfigUI();

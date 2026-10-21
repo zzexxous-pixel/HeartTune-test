@@ -236,7 +236,7 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     await expect(page.locator('#btnShareImage')).toBeVisible();
     await expect(page.locator('#btnDetails')).toBeVisible();
     for (const type of ['arrhythmia', 'bradycardia', 'tachycardia']) {
-      await expect(page.locator(`[data-indicator="${type}"]`)).toHaveClass(/is-clear/);
+      await expect(page.locator(`#detailsSheet [data-indicator="${type}"]`)).toHaveClass(/is-clear/);
     }
 
     // 결과 화면에 참고용 의료 고지가 보이고 "진단" 단어는 쓰지 않는다.
@@ -315,7 +315,7 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     await expect(historyItems.first()).toContainText('정상');
     await expect(historyItems.first().locator('.history-signals')).toHaveClass(/is-normal/);
     await expect(historyItems.first()).not.toContainText('표시 신호 없음');
-    await expect(historyItems.first()).toContainText('측정 신호 품질');
+    await expect(historyItems.first()).not.toContainText('측정 신호 품질');
     await expect(historyItems.first()).not.toContainText('CV');
     await expect(historyItems.first()).not.toHaveClass(/is-active|is-clear/);
   });
@@ -348,13 +348,9 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     expect(textColors).toContain('rgb(21, 128, 61)');
     expect(textColors).toContain('rgb(220, 38, 38)');
 
-    const pointColors = await page.locator('#trendCanvas').evaluate((canvas) => {
-      const ctx = canvas.getContext('2d');
-      return [[24, 27], [220, 69], [416, 87]].map(([x, y]) => [...ctx.getImageData(x, y, 1, 1).data].slice(0, 3));
-    });
-    expect(pointColors[0]).toEqual([220, 38, 38]);
-    expect(pointColors[1]).toEqual([22, 163, 74]);
-    expect(pointColors[2]).toEqual([220, 38, 38]);
+    // 그래프는 오래된 순(왼쪽→오른쪽)으로 점을 그린다: 110(빈맥) · 72(정상) · 55(부정맥/서맥)
+    const dotClasses = await page.locator('#trendCanvas .trend-dot').evaluateAll((nodes) => nodes.map((n) => n.getAttribute('class')));
+    expect(dotClasses).toEqual(['trend-dot is-abnormal', 'trend-dot is-normal', 'trend-dot is-abnormal']);
   });
 
   test('6. 디버그 샌드박스 수동 필터 슬라이더 조작 시 MANUAL 모드 전환 및 자동 복귀 검증', async ({ page }) => {
@@ -443,5 +439,179 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
       getComputedStyle(document.documentElement).getPropertyValue('--debug-height').trim()
     );
     expect(cssVar).toMatch(/^\d+px$/);
+  });
+  test('8. 측정이력: 스와이프 삭제·결과 다시 보기·전체 삭제 확인·날짜 형식·그래프 축 검증', async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('hearttune_history_v1', JSON.stringify([
+        { id: 'ht_3', timestamp: new Date(2026, 9, 21, 14, 5, 3).getTime(), bpm: 80, status: 'normal', irregular: false, quality: 80, duration: 30, waveform: [0, 1, 0, -1, 0.5] },
+        { id: 'ht_2', timestamp: new Date(2026, 9, 20, 9, 17, 0).getTime(), bpm: 110, status: 'tachy', irregular: false, quality: 75, duration: 30, waveform: [0, 1, 0, -1] },
+        { id: 'ht_1', timestamp: new Date(2026, 9, 19, 8, 54, 9).getTime(), bpm: 72, status: 'normal', irregular: false, quality: 70, duration: 15, waveform: [0, 1, 0, -1] }
+      ]));
+    });
+    await page.goto('./');
+    await page.locator('#btnMenu').click();
+    await page.locator('#menuHistory').click();
+    await expect(page.locator('#historySheet')).toHaveClass(/open/);
+
+    const items = page.locator('#historyList .history-item');
+    await expect(items).toHaveCount(3);
+    // 한국어 일시 형식 YYYY/MM/DD HH:mm:ss (24시간제), 측정 신호 품질 문구 없음
+    await expect(items.nth(0)).toContainText('2026/10/21 14:05:03');
+    await expect(items.nth(0)).not.toContainText('측정 신호 품질');
+    // X축 날짜 라벨 M/D 3개, Y축 눈금 존재
+    await expect(page.locator('#trendCanvas .trend-date')).toHaveCount(3);
+    await expect(page.locator('#trendCanvas .trend-date').first()).toHaveText('10/19');
+    await expect(page.locator('#trendYAxis .trend-tick').first()).toBeVisible();
+    // 하단 광고 영역에는 법적 고지가 있다
+    await expect(page.locator('#historyAdSlot')).toContainText('의료기기가 아니며');
+
+    const row = items.nth(2).locator('.history-row');
+    await row.scrollIntoViewIfNeeded();
+    const box = await row.boundingBox();
+    const cy = box.y + box.height / 2;
+    const startX = box.x + box.width - 20;
+
+    // 드래그 중에도 빨간 삭제 버튼이 보이고, 중간에 놓으면 삭제하지 않는다
+    await page.mouse.move(startX, cy);
+    await page.mouse.down();
+    await page.mouse.move(startX - 40, cy, { steps: 6 });
+    await expect(items.nth(2).locator('.history-delete')).toBeVisible();
+    await page.mouse.up();
+    await expect(items).toHaveCount(3);
+    await expect(items.nth(2)).not.toHaveClass(/is-open/);
+
+    // 절반 이상 밀고 놓아도 완전히 밀지 않았으면 닫히고 삭제되지 않는다
+    const boxHalf = await items.nth(2).locator('.history-row').boundingBox();
+    const cyHalf = boxHalf.y + boxHalf.height / 2;
+    await page.mouse.move(boxHalf.x + boxHalf.width - 20, cyHalf);
+    await page.mouse.down();
+    await page.mouse.move(boxHalf.x + boxHalf.width - 110, cyHalf, { steps: 6 });
+    await page.mouse.up();
+    await expect(items).toHaveCount(3);
+    await expect(items.nth(2)).not.toHaveClass(/is-open/);
+    await expect(page.locator('#historyUndoToast')).toBeHidden();
+
+    // 끝까지 밀면 삭제 대기: 목록에서 숨기고 "삭제를 취소하시겠습니까?" 메시지
+    const box2 = await items.nth(2).locator('.history-row').boundingBox();
+    const cy2 = box2.y + box2.height / 2;
+    await page.mouse.move(box2.x + box2.width - 20, cy2);
+    await page.mouse.down();
+    await page.mouse.move(box2.x - 60, cy2, { steps: 10 });
+    await page.mouse.up();
+    await expect(items).toHaveCount(2);
+    await expect(page.locator('#historyUndoToast')).toBeVisible();
+    await expect(page.locator('#historyUndoToast')).toContainText('삭제되었습니다.');
+    // 삭제 취소: 목록에 복구되고 저장소에는 그대로 남아 있다
+    await page.locator('#btnUndoDelete').click();
+    await expect(items).toHaveCount(3);
+    await expect(page.locator('#historyUndoToast')).toBeHidden();
+
+    // 다시 끝까지 밀고 3초 기다리면 실제로 삭제된다
+    const box3 = await items.nth(2).locator('.history-row').boundingBox();
+    const cy3 = box3.y + box3.height / 2;
+    await page.mouse.move(box3.x + box3.width - 20, cy3);
+    await page.mouse.down();
+    await page.mouse.move(box3.x - 60, cy3, { steps: 10 });
+    await page.mouse.up();
+    await expect(page.locator('#historyUndoToast')).toBeVisible();
+    await expect(page.locator('#historyUndoToast')).toBeHidden({ timeout: 5000 });
+    await expect(items).toHaveCount(2);
+    const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('hearttune_history_v1')).length);
+    expect(stored).toBe(2);
+
+    // 전체 삭제: 확인 취소 시 유지, 확인 시 비워짐
+    page.once('dialog', (dialog) => {
+      expect(dialog.message()).toBe('측정 이력을 모두 삭제하시겠습니까?');
+      dialog.dismiss();
+    });
+    await page.locator('#btnClearHistory').click();
+    await expect(items).toHaveCount(2);
+    page.once('dialog', (dialog) => dialog.accept());
+    await page.locator('#btnClearHistory').click();
+    await expect(items).toHaveCount(0);
+    await expect(page.locator('#historyList .history-empty')).toBeVisible();
+  });
+
+  test('10. 법적 고지 시트에 개인정보 처리방침(서버 없음, 기기 내 저장) 표시', async ({ page }) => {
+    await page.goto('./');
+    await page.locator('#btnMenu').click();
+    await page.locator('#menuLegal').click();
+    await expect(page.locator('#legalSheet')).toHaveClass(/open/);
+    await expect(page.locator('#legalSheet .privacy-title')).toHaveText('개인정보 처리방침');
+    await expect(page.locator('#legalSheet')).toContainText('서버가 없어');
+    await expect(page.locator('#legalSheet')).toContainText('휴대폰 밖으로 전송되지 않습니다');
+  });
+
+  test('9. 측정이력: 항목 선택 시 측정 결과 화면을 그대로 다시 보기', async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('hearttune_history_v1', JSON.stringify([
+        { id: 'ht_a', timestamp: new Date(2026, 9, 21, 14, 5, 3).getTime(), bpm: 64, status: 'brady', irregular: false, quality: 80, duration: 30, waveform: [0, 1, 0, -1, 0.5, 0] }
+      ]));
+    });
+    await page.goto('./');
+    await page.locator('#btnMenu').click();
+    await page.locator('#menuHistory').click();
+    await page.locator('#historyList .history-row').first().click();
+
+    // 같은 시트 안에서 자세히 보기 화면으로 전환 (메인 결과 화면은 바뀌지 않는다)
+    await expect(page.locator('#historySheet')).toHaveClass(/is-detail/);
+    await expect(page.locator('#historySheet')).toHaveClass(/open/);
+    await expect(page.locator('#historyDetailBody [data-role="bpm"]')).toHaveText('64');
+    await expect(page.locator('#historyDetailBody [data-indicator="bradycardia"]')).toHaveClass(/is-active/);
+    await expect(page.locator('body')).not.toHaveClass(/has-result/);
+    await expect(page.locator('#btnHistoryDetailShare')).toBeVisible();
+    await expect(page.locator('#btnHistoryDetailDelete')).toBeVisible();
+
+    // 뒤로가기: 측정이력 목록으로 복귀
+    await page.locator('#btnHistoryBack').click();
+    await expect(page.locator('#historySheet')).not.toHaveClass(/is-detail/);
+    await expect(page.locator('#historyList .history-row')).toHaveCount(1);
+  });
+
+  test('11. 자세히 보기에서 이미지 공유(저장) 버튼으로 PNG 내보내기', async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('hearttune_history_v1', JSON.stringify([
+        { id: 'ht_s', timestamp: new Date(2026, 9, 21, 14, 5, 3).getTime(), bpm: 80, status: 'normal', irregular: false, quality: 80, duration: 30, waveform: [0, 1, 0, -1, 0.5, 0] }
+      ]));
+    });
+    await page.goto('./');
+    await page.locator('#btnMenu').click();
+    await page.locator('#menuHistory').click();
+    await page.locator('#historyList .history-row').first().click();
+    await expect(page.locator('#historySheet')).toHaveClass(/is-detail/);
+    const [download] = await Promise.all([
+      page.waitForEvent('download'),
+      page.locator('#btnHistoryDetailShare').click()
+    ]);
+    expect(download.suggestedFilename()).toMatch(/^HeartTune_80bpm_\d+\.png$/);
+  });
+
+  test('12. 브라우저 뒤로가기: 자세히 보기 → 목록 → 시트 닫기 → 메인 초기화 (앱 밖으로 나가지 않음)', async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('hearttune_history_v1', JSON.stringify([
+        { id: 'ht_b', timestamp: new Date(2026, 9, 21, 14, 5, 3).getTime(), bpm: 80, status: 'normal', irregular: false, quality: 80, duration: 30, waveform: [0, 1, 0, -1] }
+      ]));
+    });
+    await page.goto('./');
+    const appUrl = page.url();
+    await page.locator('#btnMenu').click();
+    await page.locator('#menuHistory').click();
+    await page.locator('#historyList .history-row').first().click();
+    await expect(page.locator('#historySheet')).toHaveClass(/is-detail/);
+
+    // 자세히 보기 → 측정이력 목록
+    await page.goBack();
+    await expect(page.locator('#historySheet')).not.toHaveClass(/is-detail/);
+    await expect(page.locator('#historySheet')).toHaveClass(/open/);
+
+    // 측정이력 시트 → 닫힘
+    await page.goBack();
+    await expect(page.locator('#historySheet')).not.toHaveClass(/open/);
+
+    // 메인에서 뒤로가기 → 앱 주소로 초기 화면 (앱을 벗어나지 않음)
+    await page.goBack();
+    await expect(page.locator('#btnMenu')).toBeVisible({ timeout: 15000 });
+    expect(page.url()).toBe(appUrl);
+    await expect(page.locator('#historySheet')).not.toHaveClass(/open/);
   });
 });
