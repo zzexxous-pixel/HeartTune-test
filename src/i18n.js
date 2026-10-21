@@ -93,7 +93,7 @@ export const dictionaries = {
     'history.detail.back': '뒤로',
     'history.detail.delete': '이 기록 삭제',
     'share.action.label': '이미지로 공유·저장',
-    'history.undo.message': '삭제를 취소하시겠습니까?',
+    'history.undo.message': '삭제되었습니다.',
     'history.undo.button': '삭제 취소',
     'history.action.delete': '삭제',
     'history.item.replay': '이 측정 결과 자세히 보기',
@@ -220,7 +220,7 @@ export const dictionaries = {
     'history.detail.back': 'Back',
     'history.detail.delete': 'Delete this record',
     'share.action.label': 'Share or save as image',
-    'history.undo.message': 'Undo deletion?',
+    'history.undo.message': 'Deleted.',
     'history.undo.button': 'Undo',
     'history.action.delete': 'Delete',
     'history.item.replay': 'View details of this measurement',
@@ -302,17 +302,6 @@ export function t(key, params = {}) {
 export function formatNumber(num) {
   const locale = currentLang === 'ko' ? 'ko-KR' : 'en-US';
   return new Intl.NumberFormat(locale).format(num);
-}
-
-export function formatDateTime(timestamp) {
-  const locale = currentLang === 'ko' ? 'ko-KR' : 'en-US';
-  return new Intl.DateTimeFormat(locale, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  }).format(new Date(timestamp));
 }
 
 /**

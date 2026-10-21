@@ -480,6 +480,17 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     await expect(items).toHaveCount(3);
     await expect(items.nth(2)).not.toHaveClass(/is-open/);
 
+    // 절반 이상 밀고 놓아도 완전히 밀지 않았으면 닫히고 삭제되지 않는다
+    const boxHalf = await items.nth(2).locator('.history-row').boundingBox();
+    const cyHalf = boxHalf.y + boxHalf.height / 2;
+    await page.mouse.move(boxHalf.x + boxHalf.width - 20, cyHalf);
+    await page.mouse.down();
+    await page.mouse.move(boxHalf.x + boxHalf.width - 110, cyHalf, { steps: 6 });
+    await page.mouse.up();
+    await expect(items).toHaveCount(3);
+    await expect(items.nth(2)).not.toHaveClass(/is-open/);
+    await expect(page.locator('#historyUndoToast')).toBeHidden();
+
     // 끝까지 밀면 삭제 대기: 목록에서 숨기고 "삭제를 취소하시겠습니까?" 메시지
     const box2 = await items.nth(2).locator('.history-row').boundingBox();
     const cy2 = box2.y + box2.height / 2;
@@ -489,7 +500,7 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     await page.mouse.up();
     await expect(items).toHaveCount(2);
     await expect(page.locator('#historyUndoToast')).toBeVisible();
-    await expect(page.locator('#historyUndoToast')).toContainText('삭제를 취소하시겠습니까?');
+    await expect(page.locator('#historyUndoToast')).toContainText('삭제되었습니다.');
     // 삭제 취소: 목록에 복구되고 저장소에는 그대로 남아 있다
     await page.locator('#btnUndoDelete').click();
     await expect(items).toHaveCount(3);
@@ -573,5 +584,34 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
       page.locator('#btnHistoryDetailShare').click()
     ]);
     expect(download.suggestedFilename()).toMatch(/^HeartTune_80bpm_\d+\.png$/);
+  });
+
+  test('12. 브라우저 뒤로가기: 자세히 보기 → 목록 → 시트 닫기 → 메인 초기화 (앱 밖으로 나가지 않음)', async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('hearttune_history_v1', JSON.stringify([
+        { id: 'ht_b', timestamp: new Date(2026, 9, 21, 14, 5, 3).getTime(), bpm: 80, status: 'normal', irregular: false, quality: 80, duration: 30, waveform: [0, 1, 0, -1] }
+      ]));
+    });
+    await page.goto('./');
+    const appUrl = page.url();
+    await page.locator('#btnMenu').click();
+    await page.locator('#menuHistory').click();
+    await page.locator('#historyList .history-row').first().click();
+    await expect(page.locator('#historySheet')).toHaveClass(/is-detail/);
+
+    // 자세히 보기 → 측정이력 목록
+    await page.goBack();
+    await expect(page.locator('#historySheet')).not.toHaveClass(/is-detail/);
+    await expect(page.locator('#historySheet')).toHaveClass(/open/);
+
+    // 측정이력 시트 → 닫힘
+    await page.goBack();
+    await expect(page.locator('#historySheet')).not.toHaveClass(/open/);
+
+    // 메인에서 뒤로가기 → 앱 주소로 초기 화면 (앱을 벗어나지 않음)
+    await page.goBack();
+    await expect(page.locator('#btnMenu')).toBeVisible({ timeout: 15000 });
+    expect(page.url()).toBe(appUrl);
+    await expect(page.locator('#historySheet')).not.toHaveClass(/open/);
   });
 });

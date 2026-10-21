@@ -81,7 +81,7 @@ function buildLayout(ctx, record, { t, formatDateTime, formatNumber }) {
 
   // 맥박 (큰 숫자)
   rows.push({ type: 'bpm', label: t('details.heartRate'), value: formatNumber(record.bpm), unit: t('measure.unit.bpm'), y });
-  y += 250;
+  y += 310;
 
   // 파형
   ctx.font = '800 38px sans-serif';
@@ -210,10 +210,10 @@ function drawLayout(ctx, record, layout) {
       ctx.fillText(row.label, centerX, row.y);
       ctx.fillStyle = COLORS.ink;
       ctx.font = '800 170px sans-serif';
-      ctx.fillText(row.value, centerX, row.y + 44);
+      ctx.fillText(row.value, centerX, row.y + 40);
       ctx.fillStyle = COLORS.sub;
       ctx.font = '600 40px sans-serif';
-      ctx.fillText(row.unit, centerX, row.y + 214);
+      ctx.fillText(row.unit, centerX, row.y + 240);
     } else if (row.type === 'sectionTitle') {
       ctx.fillStyle = COLORS.ink;
       ctx.font = '800 38px sans-serif';

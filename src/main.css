@@ -2391,6 +2391,7 @@ body.has-result .waveform-box {
 }
 
 .history-pane-detail {
+  touch-action: pan-y;
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
@@ -2452,10 +2453,12 @@ body.has-result .waveform-box {
   justify-content: space-between;
   gap: 12px;
   padding: 10px 12px 10px 16px;
-  background: #0F172A;
+  background: rgba(15, 23, 42, 0.55);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
   color: #FFFFFF;
   border-radius: 14px;
-  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.3);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.18);
 }
 
 .history-undo-toast[hidden] {

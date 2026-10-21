@@ -10,7 +10,6 @@ import {
   getLang,
   setLang,
   formatNumber,
-  formatDateTime,
   formatHistoryDateTime,
   validateI18nKeyParity
 } from './i18n.js';
@@ -177,10 +176,14 @@ const camera = createCameraController({
 // 바텀시트(설정·메뉴·이력·안내·법적 고지·상세)는 features/sheets.js 가 관리
 const sheets = createSheetController({
   backdrop: els.sheetBackdrop,
-  onOpen: (sheet) => logDebug(`Sheet opened: ${sheet.id}`),
+  onOpen: (sheet) => {
+    logDebug(`Sheet opened: ${sheet.id}`);
+    onNavSheetOpened(sheet);
+  },
   onClose: (sheet) => {
     logDebug(`Sheet closed: ${sheet.id}`);
     if (sheet === els.historySheet) onHistorySheetClosed();
+    onNavSheetClosed(sheet);
   },
   log: () => {}
 });
@@ -751,7 +754,7 @@ function drawDetailsWaveform(record, root = els.detailsSheet) {
 /** 측정 상세 내용을 root(측정 상세 시트 또는 이력 자세히 보기) 안에 채운다. */
 function renderDetails(record, root = els.detailsSheet) {
   if (!record) return;
-  root.querySelector('[data-role="date"]').textContent = formatDateTime(record.timestamp);
+  root.querySelector('[data-role="date"]').textContent = formatHistoryDateTime(record.timestamp);
   root.querySelector('[data-role="duration"]').textContent = t('details.duration.value', { seconds: record.duration });
   root.querySelector('[data-role="bpm"]').textContent = formatNumber(record.bpm);
   drawDetailsWaveform(record, root);
@@ -984,7 +987,8 @@ function buildHistoryItem(item) {
       scheduleDelete(item);
       return;
     }
-    li.classList.toggle('is-open', position < -SWIPE_OPEN_PX);
+    // 완전히 밀지 않고 놓으면 항상 닫힌다 (삭제 안 함, 삭제 버튼이 남지 않음)
+    li.classList.remove('is-open');
   };
   row.addEventListener('pointerup', endDrag);
   row.addEventListener('pointercancel', endDrag);
@@ -1091,6 +1095,7 @@ function buildHistoryDetailBody() {
   // 값 채우기는 data-role / data-indicator 속성으로 찾는다.
   const copy = els.detailsSheet.querySelector('.details-body').cloneNode(true);
   copy.removeAttribute('id');
+  copy.classList.remove('sheet-body');
   copy.querySelectorAll('[id]').forEach((node) => node.removeAttribute('id'));
   els.historyDetailBody.appendChild(copy);
 }
@@ -1100,22 +1105,93 @@ function openHistoryDetail(record) {
   renderDetails(record, els.historyDetailBody);
   els.historyDetailBody.parentElement.scrollTop = 0;
   els.historySheet.classList.add('is-detail');
+  pushNavLayer('detail');
 }
 
-function closeHistoryDetail() {
+/** 화면만 자세히 보기 → 목록으로 되돌린다 (history 는 건드리지 않음). */
+function closeHistoryDetailView() {
   historyView.detailRecord = null;
   els.historySheet.classList.remove('is-detail');
 }
 
-/** 시트가 닫힐 때: 대기 중인 삭제를 마무리하고 목록 화면으로 되돌린다. */
+/** 사용자가 뒤로가기 버튼을 눌렀을 때: 자세히 보기를 닫고 쌓인 history 항목도 되돌린다. */
+function leaveHistoryDetail() {
+  if (!historyView.detailRecord) return;
+  closeHistoryDetailView();
+  const index = navLayers.lastIndexOf('detail');
+  if (index !== -1) dropNavLayers(navLayers.length - index);
+}
+
+/** 시트가 닫힐 때: 대기 중인 삭제를 마무리하고 자세히 보기를 목록으로 되돌린다. */
 function onHistorySheetClosed() {
   commitPendingDelete();
-  closeHistoryDetail();
+  closeHistoryDetailView();
 }
+
+/* ── 브라우저 뒤로가기 ───────────────────────────────────────────────────
+ * 열린 시트·자세히 보기마다 history 항목 하나를 쌓는다.
+ *  · 뒤로가기 → 가장 위 화면을 닫는다 (시트 → 메인, 자세히 보기 → 목록).
+ *  · 메인 화면에서 뒤로가기 → 앱 주소로 다시 열어 초기 화면으로 간다 (앱 밖으로 나가지 않음).
+ * ─────────────────────────────────────────────────────────────────────── */
+
+const APP_URL = location.href.split('#')[0];
+const navLayers = []; // 'sheet:<id>' 또는 'detail'
+let navSilentPops = 0; // 우리가 history.go() 로 되돌린 popstate 를 무시하는 횟수
+let navClosingFromHistory = false; // 뒤로가기로 시트를 닫는 중에는 history 를 다시 건드리지 않음
+
+function pushNavLayer(name) {
+  navLayers.push(name);
+  history.pushState({ htLayer: navLayers.length }, '', APP_URL);
+}
+
+/** 화면을 버튼·배경·ESC 로 닫았을 때 그 화면 위의 history 항목을 함께 되돌린다. */
+function dropNavLayers(count) {
+  if (count <= 0) return;
+  navLayers.splice(navLayers.length - count, count);
+  navSilentPops += 1;
+  history.go(-count);
+}
+
+function onNavSheetOpened(sheet) {
+  const top = navLayers[navLayers.length - 1];
+  if (top && top.startsWith('sheet:')) {
+    navLayers[navLayers.length - 1] = `sheet:${sheet.id}`; // 시트 → 시트 전환은 history 항목을 재사용
+  } else {
+    pushNavLayer(`sheet:${sheet.id}`);
+  }
+}
+
+function onNavSheetClosed(sheet) {
+  if (navClosingFromHistory) return;
+  const index = navLayers.indexOf(`sheet:${sheet.id}`);
+  if (index !== -1) dropNavLayers(navLayers.length - index);
+}
+
+window.addEventListener('popstate', () => {
+  if (navSilentPops > 0) {
+    navSilentPops -= 1;
+    return;
+  }
+  if (navLayers.length === 0) {
+    location.replace(APP_URL); // 메인에서 뒤로가기: 초기 화면으로 다시 연다
+    return;
+  }
+  const top = navLayers.pop();
+  if (top === 'detail') {
+    closeHistoryDetailView();
+    return;
+  }
+  navClosingFromHistory = true;
+  try {
+    sheets.close();
+  } finally {
+    navClosingFromHistory = false;
+  }
+});
 
 function shareRecord(record) {
   if (!record) return;
-  shareResultAsImage(record, { t, formatDateTime, formatNumber });
+  shareResultAsImage(record, { t, formatDateTime: formatHistoryDateTime, formatNumber });
 }
 
 async function switchCamera(facing) {
@@ -1162,11 +1238,11 @@ els.btnDetailsShare.addEventListener('click', () => shareRecord(state.lastResult
 els.btnHistoryDetailShare.addEventListener('click', () => shareRecord(historyView.detailRecord));
 
 els.btnUndoDelete.addEventListener('click', () => undoPendingDelete());
-els.btnHistoryBack.addEventListener('click', () => closeHistoryDetail());
+els.btnHistoryBack.addEventListener('click', () => leaveHistoryDetail());
 els.btnHistoryDetailDelete.addEventListener('click', () => {
   const record = historyView.detailRecord;
   if (!record) return;
-  closeHistoryDetail();
+  leaveHistoryDetail();
   scheduleDelete(record);
 });
 
@@ -1195,7 +1271,7 @@ els.btnMenu.addEventListener('click', () => {
 });
 
 els.menuHistory.addEventListener('click', () => {
-  closeHistoryDetail();
+  closeHistoryDetailView();
   renderHistory();
   sheets.open(els.historySheet, els.btnMenu);
 });
@@ -1385,6 +1461,8 @@ document.addEventListener('visibilitychange', () => {
 function initApp() {
   const parity = validateI18nKeyParity();
   logDebug(`i18n parity check: valid=${parity.valid} (${parity.totalKeys} keys)`);
+  history.replaceState({ htRoot: true }, '', APP_URL);
+  history.pushState({ htGuard: true }, '', APP_URL);
   buildHistoryDetailBody();
   applyTranslations();
   sheets.bind();
