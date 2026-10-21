@@ -11,13 +11,14 @@ const CONTENT_WIDTH = 840;
 const PAD = 40;
 
 const COLORS = {
-  page: '#F4F8FC',
+  page: '#F6F7FB',
   card: '#FFFFFF',
-  ink: '#0F172A',
+  ink: '#111C2D',
   sub: '#475569',
   line: '#D6E0EA',
-  wave: '#0F172A',
-  waveLine: '#38BDF8',
+  accent: '#D93848',
+  wave: '#090D16',
+  waveLine: '#FF5A6A',
   clearFg: '#15803D',
   clearBg: '#F0FDF4',
   activeFg: '#B91C1C',
@@ -145,11 +146,17 @@ function drawWaveform(ctx, record, x, y, width, height) {
   ctx.roundRect(x, y, width, height, 24);
   ctx.fill();
 
-  ctx.strokeStyle = 'rgba(148, 163, 184, 0.22)';
+  ctx.strokeStyle = 'rgba(148, 163, 184, 0.16)';
   ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.moveTo(x, y + height / 2);
-  ctx.lineTo(x + width, y + height / 2);
+  for (let i = 1; i < 4; i++) {
+    ctx.moveTo(x, y + (height / 4) * i);
+    ctx.lineTo(x + width, y + (height / 4) * i);
+  }
+  for (let i = 1; i < 6; i++) {
+    ctx.moveTo(x + (width / 6) * i, y);
+    ctx.lineTo(x + (width / 6) * i, y + height);
+  }
   ctx.stroke();
 
   const waveform = Array.isArray(record.waveform) ? record.waveform : [];
@@ -208,7 +215,7 @@ function drawLayout(ctx, record, layout) {
       ctx.fillStyle = COLORS.sub;
       ctx.font = '600 34px sans-serif';
       ctx.fillText(row.label, centerX, row.y);
-      ctx.fillStyle = COLORS.ink;
+      ctx.fillStyle = COLORS.accent;
       ctx.font = '800 170px sans-serif';
       ctx.fillText(row.value, centerX, row.y + 40);
       ctx.fillStyle = COLORS.sub;

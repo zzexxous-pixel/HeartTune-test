@@ -55,6 +55,7 @@ export const dictionaries = {
     'measure.unit.bpm': '회/분',
     'measure.waveform.accessible': '카메라 측정 파형',
     'measure.waveform.title': '카메라 측정 파형',
+    'measure.waveform.live': '실시간',
     'measure.status.readyTitle': '카메라 렌즈에 손가락을 가볍게 대주세요',
 
     'measure.cta.start': '측정 시작',
@@ -87,6 +88,10 @@ export const dictionaries = {
     'error.signal.pressHarder': '손가락을 카메라 렌즈에 조금만 더 밀착해 대주세요.',
 
     'history.header.title': '측정이력',
+    'history.header.count': '{count}회 저장됨',
+    'history.stats.min': '최저 심박',
+    'history.stats.avg': '평균 심박',
+    'history.stats.max': '최고 심박',
     'history.header.clearAll': '측정 이력 전체 삭제',
     'history.confirm.clearAll': '측정 이력을 모두 삭제하시겠습니까?',
     'history.confirm.deleteOne': '이 측정 기록을 삭제하시겠습니까?',
@@ -182,6 +187,7 @@ export const dictionaries = {
     'measure.unit.bpm': 'bpm',
     'measure.waveform.accessible': 'Camera-measured waveform',
     'measure.waveform.title': 'Camera-measured waveform',
+    'measure.waveform.live': 'Live',
     'measure.status.readyTitle': 'Gently place your finger over the camera lens',
 
     'measure.cta.start': 'Start Measure',
@@ -214,6 +220,10 @@ export const dictionaries = {
     'error.signal.pressHarder': 'Please place your fingertip slightly closer to the camera lens.',
 
     'history.header.title': 'Measurement History',
+    'history.header.count': '{count} saved',
+    'history.stats.min': 'Lowest',
+    'history.stats.avg': 'Average',
+    'history.stats.max': 'Highest',
     'history.header.clearAll': 'Delete all measurement history',
     'history.confirm.clearAll': 'Delete all measurement history?',
     'history.confirm.deleteOne': 'Delete this measurement record?',

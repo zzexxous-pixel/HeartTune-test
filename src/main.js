@@ -105,6 +105,8 @@ const els = {
   btnHistoryDetailDelete: document.getElementById('btnHistoryDetailDelete'),
   historyDetailBody: document.getElementById('historyDetailBody'),
   historyAdSlot: document.getElementById('historyAdSlot'),
+  historyCount: document.getElementById('historyCount'),
+  trendStats: document.getElementById('trendStats'),
   trendYAxis: document.getElementById('trendYAxis'),
   trendScroll: document.getElementById('trendScroll'),
   trendCanvas: document.getElementById('trendCanvas'),
@@ -324,11 +326,18 @@ function drawWaveformValues(values) {
   const h = els.waveformCanvas.height;
   waveCtx.clearRect(0, 0, w, h);
 
-  waveCtx.strokeStyle = 'rgba(148, 163, 184, 0.18)';
+  // 어두운 모니터 카드용 격자 (가로 4등분 · 세로 6등분)
+  waveCtx.strokeStyle = 'rgba(148, 163, 184, 0.16)';
   waveCtx.lineWidth = 1;
   waveCtx.beginPath();
-  waveCtx.moveTo(0, h / 2);
-  waveCtx.lineTo(w, h / 2);
+  for (let i = 1; i < 4; i++) {
+    waveCtx.moveTo(0, (h / 4) * i);
+    waveCtx.lineTo(w, (h / 4) * i);
+  }
+  for (let i = 1; i < 6; i++) {
+    waveCtx.moveTo((w / 6) * i, 0);
+    waveCtx.lineTo((w / 6) * i, h);
+  }
   waveCtx.stroke();
 
   const recent = values;
@@ -342,8 +351,10 @@ function drawWaveformValues(values) {
   }
   const range = Math.max(0.8, maxV - minV);
 
-  waveCtx.strokeStyle = '#38BDF8';
-  waveCtx.lineWidth = 2.5;
+  waveCtx.strokeStyle = '#FF5A6A';
+  waveCtx.lineWidth = 3;
+  waveCtx.shadowColor = 'rgba(255, 90, 106, 0.45)';
+  waveCtx.shadowBlur = 7;
   waveCtx.lineJoin = 'round';
   waveCtx.beginPath();
 
@@ -355,6 +366,7 @@ function drawWaveformValues(values) {
     else waveCtx.lineTo(x, y);
   });
   waveCtx.stroke();
+  waveCtx.shadowBlur = 0;
 }
 
 function prepareSimulationSignal() {
@@ -722,14 +734,20 @@ function drawDetailsWaveform(record, root = els.detailsSheet) {
   const width = canvas.width;
   const height = canvas.height;
   ctx.clearRect(0, 0, width, height);
-  ctx.fillStyle = '#0F172A';
+  ctx.fillStyle = '#090D16';
   ctx.fillRect(0, 0, width, height);
 
-  ctx.strokeStyle = 'rgba(148, 163, 184, 0.22)';
+  ctx.strokeStyle = 'rgba(148, 163, 184, 0.16)';
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(0, height / 2);
-  ctx.lineTo(width, height / 2);
+  for (let i = 1; i < 4; i++) {
+    ctx.moveTo(0, (height / 4) * i);
+    ctx.lineTo(width, (height / 4) * i);
+  }
+  for (let i = 1; i < 6; i++) {
+    ctx.moveTo((width / 6) * i, 0);
+    ctx.lineTo((width / 6) * i, height);
+  }
   ctx.stroke();
 
   const waveform = Array.isArray(record.waveform) ? record.waveform : [];
@@ -737,8 +755,10 @@ function drawDetailsWaveform(record, root = els.detailsSheet) {
   const min = Math.min(...waveform);
   const max = Math.max(...waveform);
   const range = Math.max(0.8, max - min);
-  ctx.strokeStyle = '#38BDF8';
-  ctx.lineWidth = 2.5;
+  ctx.strokeStyle = '#FF5A6A';
+  ctx.lineWidth = 3;
+  ctx.shadowColor = 'rgba(255, 90, 106, 0.45)';
+  ctx.shadowBlur = 7;
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
   ctx.beginPath();
@@ -749,6 +769,7 @@ function drawDetailsWaveform(record, root = els.detailsSheet) {
     else ctx.lineTo(x, y);
   });
   ctx.stroke();
+  ctx.shadowBlur = 0;
 }
 
 /** 측정 상세 내용을 root(측정 상세 시트 또는 이력 자세히 보기) 안에 채운다. */
@@ -850,6 +871,15 @@ function drawTrendChart(records) {
   els.trendCanvas.setAttribute('width', viewW);
   els.trendCanvas.setAttribute('height', H);
   els.trendCanvas.setAttribute('viewBox', `0 0 ${viewW} ${H}`);
+
+  // 일반 참고 범위(60~100 회/분) 밴드 — 표시 기준을 바꾸지 않고 배경으로만 보여준다.
+  if (hi >= 60 && lo <= 100) {
+    const bandTop = yOf(Math.min(100, hi));
+    const bandBottom = yOf(Math.max(60, lo));
+    els.trendCanvas.appendChild(svgNode('rect', {
+      x: 0, y: bandTop, width: viewW, height: Math.max(0, bandBottom - bandTop), class: 'trend-normal-band'
+    }));
+  }
 
   ticks.forEach((v) => {
     els.trendCanvas.appendChild(svgNode('line', {
@@ -1021,6 +1051,21 @@ function renderHistory() {
   const list = getVisibleHistory(); // 최신순
   els.btnClearHistory.disabled = list.length === 0;
   drawTrendChart(list.slice().reverse());
+
+  // 저장 건수와 최저/평균/최고 요약 (실측 기록에서만 계산하는 사실 정보)
+  els.historyCount.textContent = t('history.header.count', { count: formatNumber(list.length) });
+  const bpms = list.map((record) => Number(record.bpm)).filter((value) => Number.isFinite(value));
+  els.trendStats.hidden = bpms.length === 0;
+  if (bpms.length > 0) {
+    const stats = {
+      min: Math.min(...bpms),
+      avg: Math.round(bpms.reduce((sum, value) => sum + value, 0) / bpms.length),
+      max: Math.max(...bpms)
+    };
+    Object.entries(stats).forEach(([name, value]) => {
+      els.trendStats.querySelector(`[data-trend-stat="${name}"]`).textContent = formatNumber(value);
+    });
+  }
 
   els.historyList.innerHTML = '';
   if (list.length === 0) {

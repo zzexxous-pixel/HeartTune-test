@@ -5,15 +5,20 @@
    ========================================================================== */
 
 :root {
-  --bg-page: #F4F7FB;
+  /* Vital Serenity (Stitch DESIGN.md 채택분): 크림슨=측정·행동, 네이비=구조·제목, 틸=안정 표시 */
+  --bg-page: #F6F7FB;
   --bg-card: #FFFFFF;
-  --bg-subtle: #EDF2F9;
-  --primary: #0F4C81;
-  --primary-hover: #0B3861;
-  --accent: #E11D48;
-  --text-main: #111827;
-  --text-sub: #4B5563;
-  --border-color: #D1D9E6;
+  --bg-subtle: #EEF2F9;
+  --primary: #184E77;
+  --primary-hover: #123C5E;
+  --accent: #D93848;
+  --accent-deep: #B61C32;
+  --teal: #0D9488;
+  --ink: #111C2D;
+  --wave-dark: #090D16;
+  --text-main: #111C2D;
+  --text-sub: #526179;
+  --border-color: #DCE4F0;
 
   --status-normal-bg: #ECFDF5;
   --status-normal-fg: #065F46;
@@ -2496,4 +2501,584 @@ body.has-result .waveform-box {
   border-radius: 14px;
   background: #FFFFFF;
   color: var(--primary);
+}
+
+/* ==========================================================================
+   Vital Serenity 리디자인 (2026-10-22, Stitch 산출물 선별 채택)
+   · 레이아웃 치수(100dvh 3영역 고정 그리드)는 바꾸지 않고 시각 체계만 교체한다.
+   · 채택: 크림슨+네이비+틸 팔레트, 카드/필 버튼, 다크 파형 모니터, 부드러운 그림자
+   · 제외: 외부 폰트/CDN, 지어낸 수치·문구, ECG풍 파형, 스크롤형 메인 (docs/60 §7)
+   ========================================================================== */
+
+body {
+  background-color: var(--bg-page);
+}
+
+.app-shell {
+  background: linear-gradient(180deg, #FAFBFF 0%, #F3F5FA 100%);
+  box-shadow: 0 4px 28px rgba(17, 28, 45, 0.10);
+}
+
+/* ── 헤더 ─────────────────────────────────────────────────────────────── */
+.app-header {
+  background: rgba(255, 255, 255, 0.94);
+  border-bottom: 1px solid #E6ECF5;
+}
+
+.brand-heart {
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+}
+
+.brand-heart svg {
+  display: block;
+  border-radius: 9px;
+  box-shadow: 0 3px 8px rgba(182, 28, 50, 0.28);
+}
+
+.brand-title {
+  color: var(--ink);
+}
+
+.icon-btn {
+  border-radius: 999px;
+}
+
+.icon-btn:hover,
+.icon-btn:focus-visible {
+  background: #EEF2F9;
+}
+
+.btn-lang {
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: #E7EEFF;
+  color: var(--primary);
+  font-size: 0.98rem;
+}
+
+/* ── 링 카드 ──────────────────────────────────────────────────────────── */
+.ring-zone {
+  background: var(--bg-card);
+  border: 1px solid #E3EAF4;
+  border-radius: 28px;
+  box-shadow: 0 10px 30px rgba(17, 28, 45, 0.07);
+}
+
+.progress-ring-bg {
+  stroke: #E2EAF6;
+}
+
+.progress-ring-bar {
+  stroke: var(--accent);
+}
+
+.camera-preview-badge {
+  border-color: #FFD3DA;
+  box-shadow: 0 4px 12px rgba(182, 28, 50, 0.18);
+}
+
+.bpm-value {
+  color: var(--ink);
+}
+
+.bpm-unit {
+  color: var(--accent);
+}
+
+.timer-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: #EEF4FF;
+  border: 1px solid #D3E1F3;
+  color: var(--primary);
+}
+
+.timer-badge::before {
+  content: "";
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--teal);
+  flex: 0 0 auto;
+}
+
+/* ── 파형 모니터 카드 (다크) ─────────────────────────────────────────── */
+.waveform-box,
+body.has-result .waveform-box {
+  padding: 8px 12px 10px;
+  border: 1px solid #1E2A3D;
+  border-radius: 20px;
+  background: var(--wave-dark);
+  box-shadow: 0 8px 24px rgba(9, 13, 22, 0.22);
+}
+
+.waveform-head {
+  flex: 0 0 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.waveform-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: #E8EEF7;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.waveform-live-pill {
+  display: none;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: rgba(13, 148, 136, 0.22);
+  color: #5EEAD4;
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.waveform-live-pill::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #2DD4BF;
+  animation: livePulse 1.4s ease-in-out infinite;
+}
+
+body.is-measuring .waveform-live-pill {
+  display: inline-flex;
+}
+
+@keyframes livePulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+#waveformCanvas {
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+}
+
+/* ── 메시지/결과 카드 ─────────────────────────────────────────────────── */
+.stage-guide-text {
+  border-color: #C7D9F2;
+  border-radius: 20px;
+  background: #EDF3FE;
+  color: #17436E;
+  box-shadow: 0 4px 16px rgba(18, 24, 41, 0.05);
+}
+
+.result-banner,
+.result-banner.visible {
+  border-radius: 20px;
+  box-shadow: 0 6px 20px rgba(18, 24, 41, 0.06);
+}
+
+.btn-details {
+  border-radius: 999px;
+}
+
+/* ── 하단 CTA ─────────────────────────────────────────────────────────── */
+.cta-bar {
+  background: rgba(255, 255, 255, 0.96);
+  border-top: 1px solid #E6ECF5;
+}
+
+.btn-primary {
+  background: var(--accent);
+}
+
+.cta-primary {
+  border-radius: 999px;
+  box-shadow: 0 8px 20px rgba(217, 56, 72, 0.30);
+}
+
+.cta-primary:active {
+  transform: scale(0.98);
+}
+
+/* 측정 중에는 흰 필 + 크림슨 글자 (시작 버튼과 명확히 구분) */
+.btn-primary.measuring {
+  background: #FFFFFF;
+  color: var(--accent-deep);
+  border: 2px solid var(--accent);
+  box-shadow: none;
+}
+
+.cta-share-icon {
+  border: 2px solid #C9D5E8;
+  border-radius: 999px;
+  color: var(--primary);
+  box-shadow: 0 4px 14px rgba(18, 24, 41, 0.08);
+}
+
+/* ── 바텀시트 공통 ────────────────────────────────────────────────────── */
+.sheet {
+  border-radius: 28px 28px 0 0;
+  background: #FDFEFF;
+}
+
+.sheet::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 48px;
+  height: 5px;
+  margin: 10px auto 2px;
+  border-radius: 999px;
+  background: #CBD5E1;
+}
+
+.sheet-header {
+  border-bottom-color: #E8EEF6;
+}
+
+.toast {
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(18, 24, 41, 0.14);
+}
+
+/* ── 설정/메뉴/안내 ───────────────────────────────────────────────────── */
+.dur-btn {
+  border-radius: 16px;
+}
+
+.dur-btn.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  box-shadow: 0 6px 16px rgba(24, 78, 119, 0.25);
+}
+
+.segmented {
+  border-radius: 16px;
+  background: #EAF0F9;
+}
+
+.segmented button {
+  border-radius: 12px;
+}
+
+.menu-row {
+  border-color: #E3EAF4;
+  border-radius: 18px;
+  box-shadow: 0 3px 12px rgba(18, 24, 41, 0.05);
+}
+
+.menu-row svg {
+  width: 42px;
+  height: 42px;
+  padding: 10px;
+  border-radius: 13px;
+  background: #EEF4FF;
+}
+
+.guide-card {
+  background: #FFFFFF;
+  border: 1px solid #E3EAF4;
+  border-radius: 18px;
+  box-shadow: 0 3px 12px rgba(18, 24, 41, 0.05);
+}
+
+.guide-rhythm-card {
+  background: #FFFFFF;
+}
+
+/* ── 자세히 보기: BPM 히어로 + 지표 행 목록 ──────────────────────────── */
+.details-overview-item {
+  background: #FFFFFF;
+  border-color: #E3EAF4;
+  border-radius: 16px;
+}
+
+.details-overview-bpm {
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 16px 12px 18px;
+  text-align: center;
+  background: linear-gradient(180deg, #FFF5F6 0%, #FFFFFF 100%);
+  border-color: #F2C4CD;
+}
+
+.details-bpm-value {
+  align-items: baseline;
+  justify-content: center;
+  color: var(--accent);
+}
+
+.details-bpm-value strong {
+  font-size: 3.4rem;
+  line-height: 1.05;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.details-bpm-value span {
+  color: var(--accent-deep);
+}
+
+#detailsWaveformCanvas {
+  border-radius: 18px;
+  border-color: #1E2A3D;
+}
+
+.indicator-grid {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+}
+
+.indicator-card {
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  column-gap: 12px;
+  row-gap: 3px;
+  padding: 13px 14px;
+  border-radius: 18px;
+}
+
+.indicator-light {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  align-self: center;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  color: #FFFFFF;
+  font-size: 1.25rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.indicator-card.is-clear .indicator-light::after,
+.indicator-card.quality-good .indicator-light::after {
+  content: "✓";
+}
+
+.indicator-card.is-active .indicator-light::after,
+.indicator-card.quality-fair .indicator-light::after,
+.indicator-card.quality-poor .indicator-light::after,
+.indicator-card.quality-unknown .indicator-light::after {
+  content: "!";
+}
+
+.indicator-label {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: center;
+}
+
+.indicator-state {
+  grid-column: 3;
+  grid-row: 1;
+  align-self: center;
+  padding: 4px 11px;
+  border: 1.5px solid currentColor;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.75);
+  white-space: nowrap;
+}
+
+.indicator-desc {
+  grid-column: 2 / -1;
+  grid-row: 2;
+}
+
+/* ── 측정이력 ─────────────────────────────────────────────────────────── */
+.history-count {
+  flex: 0 0 auto;
+  margin-right: auto;
+  margin-left: 8px;
+  padding: 3px 11px;
+  border-radius: 999px;
+  background: #E7EEFF;
+  color: var(--primary);
+  font-size: 0.85rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.history-sheet .trend-card {
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  background: #FFFFFF;
+  border: 1px solid #E3EAF4;
+  border-radius: 20px;
+  box-shadow: 0 4px 16px rgba(18, 24, 41, 0.05);
+}
+
+.trend-chart-row {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  min-width: 0;
+}
+
+.trend-scroll {
+  border-color: #E8EEF6;
+  background: #FBFCFE;
+}
+
+.trend-normal-band {
+  fill: rgba(13, 148, 136, 0.10);
+}
+
+.trend-line {
+  stroke: var(--accent);
+}
+
+.trend-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding-top: 10px;
+  border-top: 1px solid #E8EEF6;
+}
+
+.trend-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  min-width: 0;
+  text-align: center;
+}
+
+.trend-stat + .trend-stat {
+  border-left: 1px solid #E8EEF6;
+}
+
+.trend-stat-label {
+  color: var(--text-sub);
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.trend-stat-value {
+  color: var(--ink);
+  font-size: 1.35rem;
+  font-weight: 900;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+}
+
+.trend-stat-unit {
+  margin-left: 3px;
+  color: var(--text-sub);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.history-item {
+  border: 1px solid #E3EAF4;
+  border-radius: 18px;
+  box-shadow: 0 3px 12px rgba(18, 24, 41, 0.05);
+}
+
+.history-row {
+  border-radius: 17px;
+}
+
+.history-main {
+  gap: 5px;
+}
+
+.history-signals {
+  align-self: flex-start;
+  display: inline-flex;
+  padding: 3px 11px;
+  border-radius: 999px;
+  font-size: 0.92rem;
+  line-height: 1.35;
+}
+
+.history-signals.is-normal {
+  background: #DCFCE7;
+  color: #15803D;
+}
+
+.history-signals.is-abnormal {
+  background: #FEE2E2;
+  color: #B91C1C;
+}
+
+.history-bpm {
+  color: var(--ink);
+}
+
+.history-bpm.is-abnormal-rate {
+  color: #DC2626;
+}
+
+.history-empty {
+  border: 2px dashed #D9E2EF;
+  border-radius: 18px;
+  background: #F8FAFC;
+}
+
+.history-ad-slot {
+  background: transparent;
+}
+
+.history-legal {
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: #EEF4FF;
+  color: #3D5878;
+}
+
+.history-undo-toast {
+  background: rgba(17, 28, 45, 0.88);
+  border-radius: 16px;
+}
+
+.history-undo-btn {
+  border-radius: 999px;
+}
+
+/* 가로 모드: 좁은 파형 칸에서 제목/실시간 필이 넘치지 않게 */
+@media (orientation: landscape) and (max-height: 540px) {
+  .waveform-box,
+  body.has-result .waveform-box {
+    padding: 6px 8px;
+  }
+
+  .waveform-title {
+    font-size: 0.76rem;
+  }
+
+  body.is-measuring .waveform-live-pill {
+    display: none;
+  }
+
+  .ring-zone {
+    border-radius: 20px;
+  }
+}
+
+/* 시트 손잡이(::before)가 본문 스크롤 높이를 밀어내지 않게 + 좁은 영어 헤더 보정 */
+.sheet-body {
+  min-height: 0;
+}
+
+@media (max-width: 400px) {
+  html[lang="en"] .history-count {
+    display: none;
+  }
 }

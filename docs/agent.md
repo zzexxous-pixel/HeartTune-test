@@ -5,8 +5,8 @@
 > 5~7절(현재 상태 / 할 일 / 미결정)을 확인하고 작업을 시작하세요.
 > 대화 기록은 사라져도 이 문서와 저장소(코드·PR·커밋)는 남습니다. **여기가 유일한 기억입니다.**
 
-- 최종 갱신: 2026-10-20 (KST) — PR #4 사용자 승인 병합을 위한 변경·검증·승인 상태 기록
-- 갱신자: Arena 에이전트 세션 `arena/c85567d7-hearttune-test` (PR #4 미리보기 공개, UX 후속 구현)
+- 최종 갱신: 2026-10-22 (KST) — Stitch(Vital Serenity) 디자인 선별 적용 기록
+- 갱신자: Arena 에이전트 세션 `arena/2644a98f-hearttune-test` (Stitch 리디자인 적용)
 - 저장소: `zzexxous-pixel/HeartTune-test` (개발) / `zzexxous-pixel/HeartTune` (운영)
 
 ---
@@ -45,7 +45,7 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
 | 저장 | `localStorage`만 (서버 없음, 영상 전송 없음) |
 | 공유 | 결과를 **큰 글씨 PNG**로 생성 → Web Share / 다운로드 |
 | 타깃 | **중장년** (+ 자녀가 부모님 확인) |
-| 언어 | ko 기본 / en (i18n 키 90개, ko/en 집합 일치) |
+| 언어 | ko 기본 / en (i18n 키 119개, ko/en 집합 일치) |
 | 호스팅 | GitHub Pages (HTTPS 필수: 카메라 API) |
 
 ---
@@ -181,7 +181,7 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
 | 최신 main 커밋 | `fded047` (PR #3 머지 완료) | git log --oneline -5 | 2026-10-19 |
 | DSP·표시 기준 단위·회귀 | 18 / 18 통과 | npm run test:unit | 2026-10-20 |
 | Playwright E2E | 최신 코드 8/8 통과(GitHub Actions); 로컬 Playwright 미설치 | [CI run 39381191592](https://github.com/zzexxous-pixel/HeartTune-test/actions/runs/39381191592) | 2026-10-20 |
-| i18n 키 | 103개, ko/en 일치 | npm run test:i18n | 2026-10-20 |
+| i18n 키 | 119개, ko/en 일치 | npm run test:i18n | 2026-10-22 |
 | 개발 배포 빌드 | `b5ad15d2` 서빙 중 | 개발 Pages 빌드 메타 확인 | 2026-10-19 |
 | dist 빌드 | 12개 파일, 빌드 해시 자동 | npm run build | 2026-10-20 |
 | 워크플로 | ci / verify / promote-to-production / preview-pr (PR #4 최신 코드 `/preview/` 배포 성공; main 루트 유지 확인) | [성공 run 39381191596](https://github.com/zzexxous-pixel/HeartTune-test/actions/runs/39381191596) | 2026-10-20 |
@@ -215,7 +215,7 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
 |---|---|---|---|
 | 0 | P1 | 측정이력 개편 실기기 확인 (iOS Safari/Android Chrome 가로 스크롤·스와이프 삭제·다시 보기) | 2026-10-21 구현 완료, 한글 폰트가 없는 샌드박스 스크린샷으로만 검증 |
 | 0b | P1 | 광고 네트워크 선정(애드핏/AdSense/공익 배너) 및 개인정보 처리방침 갱신 | `docs/50-ad-strategy.md` B-7 확인 필요 항목 |
-| 0c | P1 | Google Stitch로 전체 UX·디자인 재설계 → 결과 코드 합치기 | 절차: `docs/60-stitch-redesign-guide.md` |
+| 0c | P1 | Stitch(Vital Serenity) 디자인 적용 `/preview/` 확인 | ✅ 적용 완료(2026-10-22, 선별 채택은 `docs/60` 7절). 사용자 화면 확인·실기기 확인 대기 |
 | 1 | P1 | PR 미리보기 cleanup 실배포 확인 | PR #4 `/preview/` 배포와 main 루트 유지 확인 완료. 미병합 close 시 정리는 PR을 리뷰 중이므로 아직 실행하지 않음; 향후 미병합 PR 종료 시 `cleanup-preview` 확인 |
 | 2 | P1 | 이관 ③(smoke) 로직 개선 커밋 반영 | ✅ 완료(2026-10-19) — **지속 체계**: 빌드 해시 판정 / 10분 폴링·진단 로그 / 자산 10종(각 1분 재시도) + 모든 자산 내용에 `hearttune-build` 해시 주입(`build-dist.js`)으로 신/구버전 판별(시간 미의존) / Summary Re-run 안내 / timeout 20분 → `promote-to-production.yml`·`build-dist.js`·`docs/40` 8-1절 정리. PR 후 ② 재실행 시 안정성 검증 대기 |
 | 3 | P1 | 실기기(iOS/Android) 검증 결과 반영 | 원스크린 UI + 진입 카메라 미리보기가 iOS Safari/PWA에서도 동작하는지 확인 |
@@ -229,7 +229,7 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
 
 | 항목 | 선택지 | 결정 |
 |---|---|---|
-| 색상 테마 | 차분한 의료 블루(현재) / 다크+레드 / 민트 파스텔 | **미정** (현재 블루) |
+| 색상 테마 | 차분한 의료 블루 / 다크+레드 / 민트 파스텔 | ✅ **Vital Serenity**(크림슨+네이비+틸, 2026-10-22 Stitch 적용). 판정 상태 색 체계는 기존 확정 유지 |
 | 고정 3영역 UX | 링 → 파형 → 메시지, 조명 UI 제거, 결과/이력/공유 개선 | ✅ 구현(2026-10-20), PR #4 리뷰 전 — 10-spec 4-5b |
 | 자동 시작 | OFF(버튼 필요) / 손가락 감지 시 자동 | ✅ **OFF** 확정 |
 | 카메라 진입 미리보기 | 페이지 진입 즉시 ON / 측정 시작 시 ON | ✅ **진입 즉시 ON** 확정(토치 OFF) |
@@ -323,6 +323,7 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
 | 2026-10-21 | 휴지통 전체 삭제에 캘리브레이션 포함, 스와이프 삭제 확인 창, 법적 고지 시트에 개인정보 처리방침 추가. 사용자 확인 경로를 GitHub Pages `/preview/`(열린 PR 필요)로 확정하고 샌드박스 미리보기 서버 중지 | lint/i18n 109/unit 18/E2E 11/11 통과. `/preview/` 배포는 PR 생성 후 확인 | 브랜치 `arena/8e29bf9b-hearttune-test`, PR 대기 |
 | 2026-10-21 | 측정이력 2차: 행 선택 시 같은 시트 안 자세히 보기(뒤로·공유·삭제·닫기 헤더), 스와이프 드래그 중 삭제 버튼 노출, 끝까지 밀면 삭제 대기 + 3초 실행 취소 메시지, 공유 이미지를 자세히 보기 내용으로 재구성, 공유 아이콘 버튼 3곳. Stitch 가이드를 목표 중심으로 개정(고정 항목 축소) | lint/i18n 114/unit 18/E2E 12/12 로컬 통과, 320px 화면 확인 | 브랜치 `arena/8e29bf9b-hearttune-test`, PR #5 |
 | 2026-10-21 | 측정이력 3차: 스와이프는 완전히 밀어야만 삭제(그 외 닫힘), 실행 취소 메시지 반투명·'삭제되었습니다.', 브라우저 뒤로가기 처리(열린 화면 우선, 메인은 초기화), 자세히 보기 스크롤 수정(복제 본문의 중첩 스크롤 제거), 날짜 형식 통일, 공유 이미지 간격 수정 | lint/i18n 114/unit 18/E2E 13/13 로컬 통과. 터치 스크롤은 헤드리스에서 재현 불가(마우스 휠로 확인) | 브랜치 `arena/8e29bf9b-hearttune-test`, PR #5 |
+| 2026-10-22 | **Stitch(Vital Serenity) 디자인 선별 적용** — 팔레트(크림슨/네이비/틸)·카드/필 버튼·다크 파형 모니터·시트 손잡이·자세히 보기 BPM 히어로+지표 행 목록·이력 정상범위 밴드/최저·평균·최고/저장 건수·공유 PNG 색 교체. 레이아웃 치수·DSP·기능 동작은 불변. 제외 항목과 이유는 `docs/60` 7절 | lint/i18n 119/unit 18/build 로컬 통과. E2E 13개는 샌드박스 브라우저 라이브러리(libnspr4/libnss3) 부재로 로컬 미실행 → PR CI(verify.yml)로 검증 | 브랜치 `arena/2644a98f-hearttune-test`, PR 대기 |
 
 > **로그 규칙**: 최신이 아래. 항목이 20개를 넘으면 오래된 것은 `docs/changelog-archive.md` 로 옮긴다.
 
