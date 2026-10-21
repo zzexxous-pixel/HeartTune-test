@@ -137,10 +137,11 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
 | 확인 | 주소/명령 | 목적 |
 |---|---|---|
 | ① PR 미리보기 | `https://zzexxous-pixel.github.io/HeartTune-test/preview/` | PR 코드가 최신 main 루트를 덮어쓰지 않고 표시되는지 확인 |
-| ② 로컬 미리보기 | `npm run preview` → `http://localhost:8080/` | 서비스 워커 캐시 없이 현재 작업본 확인 |
+| ② 로컬 미리보기 | `npm run preview` → `http://localhost:8080/` | 서비스 워커 캐시 없이 현재 작업본 확인. **사용자 확인용으로는 쓰지 않는다** (샌드박스 주소라 카메라 권한 승인 불가). 에이전트 내부 검증용으로만 사용하고 작업 후 종료 |
 | ③ 머지 후 개발 페이지 | `https://zzexxous-pixel.github.io/HeartTune-test/` | Dev CI 성공 후 최신 main 루트 반영 확인 |
 
 - PR 을 **병합하지 않고 닫으면** `preview-pr.yml` 의 `cleanup-preview` 가 최신 main 을 다시 배포해 `/preview/` 를 제거한다.
+- **사용자 확인 절차 (2026-10-21 확정)**: 사용자는 ① `/preview/` 만 확인한다. `/preview/` 는 `main` 을 대상으로 **열린 PR이 있는 브랜치**에서만 생성된다. 작업 브랜치에 PR이 없으면 404이므로, 확인 요청 시 에이전트가 `arena/8e29bf9b-hearttune-test` → `main` PR을 열어 두고(병합하지 않음) 주소를 알린다. 병합하거나 닫기 전까지 `/preview/`가 유지된다. 샌드박스 미리보기 서버(`start_process`)는 사용자 확인에 쓰지 않는다.
 
 ---
 
@@ -313,6 +314,7 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
 | 2026-10-20 | UX 후속 — 고정 메시지 상자·파형 제목, 원시 파형 일치, 디버그 로그 자동 확장, 결과에 복수 참고 신호, 측정 안내의 심박 리듬 설명·ko/en 공식 자료 링크 | lint/i18n 103/unit18/build 통과, GitHub Actions E2E 8/8 통과, PR 미리보기 `/preview/` 배포 성공 | PR #4 · `arena/c85567d7-hearttune-test` |
 | 2026-10-20 | 설치 아이콘 안전 영역에 맞춰 하트/파형 축소, 짧은 휴대폰에서 메시지 상자를 148px로 줄이고 CTA 겹침 방지. 사용자가 PR #4 병합을 승인했으며, 이 기록을 병합 전에 반영함 | lint/i18n 103/unit18/build 통과, GitHub Actions E2E 8/8 ([39384251603](https://github.com/zzexxous-pixel/HeartTune-test/actions/runs/39384251603)); PR 미리보기 성공 ([39384251595](https://github.com/zzexxous-pixel/HeartTune-test/actions/runs/39384251595)). 병합 전 최신 docs 커밋 CI 확인 후 merge 예정 | PR #4 · `arena/c85567d7-hearttune-test` |
 | 2026-10-21 | 측정이력 시트 개편(그래프·상세 목록·스와이프 삭제·다시 보기·휴지통 전체 삭제·하단 광고 영역, 100건 상한). 광고 정책 문서(`50-ad-strategy.md`)와 Stitch 가이드(`60-stitch-redesign-guide.md`) 추가 | lint/i18n 103/unit 18/E2E 10/10 로컬 통과. 빌드·실기기 확인 대기 | 브랜치 `arena/8e29bf9b-hearttune-test` |
+| 2026-10-21 | 휴지통 전체 삭제에 캘리브레이션 포함, 스와이프 삭제 확인 창, 법적 고지 시트에 개인정보 처리방침 추가. 사용자 확인 경로를 GitHub Pages `/preview/`(열린 PR 필요)로 확정하고 샌드박스 미리보기 서버 중지 | lint/i18n 109/unit 18/E2E 11/11 통과. `/preview/` 배포는 PR 생성 후 확인 | 브랜치 `arena/8e29bf9b-hearttune-test`, PR 대기 |
 
 > **로그 규칙**: 최신이 아래. 항목이 20개를 넘으면 오래된 것은 `docs/changelog-archive.md` 로 옮긴다.
 
