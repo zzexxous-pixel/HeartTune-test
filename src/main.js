@@ -810,9 +810,9 @@ function saveRecordToHistory(record) {
    -------------------------------------------------------------------------- */
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const TREND = {
-  height: 150,      // CSS 높이와 동일 (viewBox 단위 = px)
-  plotTop: 24,      // 상단 단위(회/분) 표시 공간
-  plotBottom: 26,   // 하단 날짜 라벨 공간
+  height: 118,      // CSS 높이와 동일 (viewBox 단위 = px). 통계 스트립 추가 후 목록 가시 영역 확보를 위해 축소
+  plotTop: 18,      // 상단 단위(회/분) 표시 공간
+  plotBottom: 22,   // 하단 날짜 라벨 공간
   yAxisWidth: 40,
   padX: 24,
   pointGap: 46      // 측정 1건당 X축 간격(px) → 많으면 가로 스크롤
