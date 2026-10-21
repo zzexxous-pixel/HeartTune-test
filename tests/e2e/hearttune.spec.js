@@ -474,6 +474,15 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     await page.mouse.move(box.x + box.width - 140, box.y + box.height / 2, { steps: 8 });
     await page.mouse.up();
     await expect(items.nth(2)).toHaveClass(/is-open/);
+    // 스와이프 삭제는 확인 창을 거친다: 취소하면 유지, 확인하면 삭제
+    page.once('dialog', (dialog) => {
+      expect(dialog.message()).toBe('이 측정 기록을 삭제하시겠습니까?');
+      dialog.dismiss();
+    });
+    await items.nth(2).locator('.history-delete').click();
+    await expect(items).toHaveCount(3);
+    await expect(items.nth(2)).toHaveClass(/is-open/);
+    page.once('dialog', (dialog) => dialog.accept());
     await items.nth(2).locator('.history-delete').click();
     await expect(items).toHaveCount(2);
 
@@ -488,6 +497,16 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     await page.locator('#btnClearHistory').click();
     await expect(items).toHaveCount(0);
     await expect(page.locator('#historyList .history-empty')).toBeVisible();
+  });
+
+  test('10. 법적 고지 시트에 개인정보 처리방침(서버 없음, 기기 내 저장) 표시', async ({ page }) => {
+    await page.goto('./');
+    await page.locator('#btnMenu').click();
+    await page.locator('#menuLegal').click();
+    await expect(page.locator('#legalSheet')).toHaveClass(/open/);
+    await expect(page.locator('#legalSheet .privacy-title')).toHaveText('개인정보 처리방침');
+    await expect(page.locator('#legalSheet')).toContainText('서버가 없어');
+    await expect(page.locator('#legalSheet')).toContainText('휴대폰 밖으로 전송되지 않습니다');
   });
 
   test('9. 측정이력: 항목 선택 시 측정 결과 화면을 그대로 다시 보기', async ({ page }) => {

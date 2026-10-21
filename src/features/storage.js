@@ -80,18 +80,7 @@ export function deleteHistoryAt(index) {
   return list;
 }
 
-/** 측정 이력만 삭제한다. 캘리브레이션 학습 데이터는 유지한다. */
-export function clearHistory() {
-  const storage = getStorage();
-  if (!storage) return;
-  try {
-    storage.removeItem(HISTORY_STORAGE_KEY);
-  } catch (_) {
-    // 무시
-  }
-}
-
-/** 이력 + 캘리브레이션 학습 데이터를 모두 삭제한다. (사용처 없음: 앱 초기화용으로 보존) */
+/** 이력 + 캘리브레이션 학습 데이터를 모두 삭제한다. (측정이력 휴지통 버튼에서 사용) */
 export function clearStoredData() {
   const storage = getStorage();
   if (!storage) return;

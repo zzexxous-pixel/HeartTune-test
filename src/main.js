@@ -18,7 +18,7 @@ import {
   loadHistory,
   appendRecordToHistory,
   deleteHistoryAt,
-  clearHistory,
+  clearStoredData,
   loadCalibrationBaseline,
   saveCalibrationSample
 } from './features/storage.js';
@@ -917,6 +917,7 @@ function buildHistoryItem(item, index) {
   delBtn.textContent = t('history.action.delete');
   delBtn.addEventListener('click', (event) => {
     event.stopPropagation();
+    if (!window.confirm(t('history.confirm.deleteOne'))) return;
     deleteHistoryAt(index);
     renderHistory();
   });
@@ -1119,7 +1120,7 @@ els.camBtns.forEach((btn) => {
 els.btnClearHistory.addEventListener('click', () => {
   if (loadHistory().length === 0) return;
   if (!window.confirm(t('history.confirm.clearAll'))) return;
-  clearHistory();
+  clearStoredData();
   updateCalibBannerUI();
   renderHistory();
 });
