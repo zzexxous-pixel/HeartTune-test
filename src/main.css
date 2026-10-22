@@ -3153,14 +3153,13 @@ body.is-measuring .waveform-live-pill {
   flex: 0 0 auto;
 }
 
-/* ── 처음 접속: 메시지 영역 손가락 위치 와이어 ─────────────────────────── */
+/* ── 처음 접속: 메시지 영역 손가락 위치 와이어 ───────────────────────────
+   안내 문구 카드(#stageGuideText)는 height:100% 로 메시지 영역을 가득 채워
+   상태(대기·측정·결과)와 무관하게 같은 박스를 유지한다(E2E 3영역 기하 검증).
+   와이어는 절대 배치로 카드 위쪽에 얹어, 보임/숨김이 문구 위치를 흔들지 않게 한다. */
 .idle-guide {
+  position: relative;
   min-height: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
 }
 
 .idle-guide .stage-guide-text {
@@ -3169,11 +3168,22 @@ body.is-measuring .waveform-live-pill {
 
 .finger-guide {
   display: none;
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: none;
 }
 
 /* 저장된 이력도 결과도 없는 첫 방문에만, 측정 중이 아닐 때만 보여준다. */
 body.is-first-run:not(.is-measuring):not(.has-result) .finger-guide {
   display: block;
+}
+
+/* 와이어가 보일 때는 안내 문구를 카드 아래쪽에 두어 겹침을 피한다. */
+body.is-first-run:not(.is-measuring):not(.has-result) .idle-guide .stage-guide-text {
+  align-items: flex-end;
+  padding-bottom: 12px;
 }
 
 .finger-guide-art {

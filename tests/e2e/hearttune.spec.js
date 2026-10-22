@@ -604,6 +604,8 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     await page.locator('#btnSettings').click();
     const sheet = page.locator('#settingsSheet');
     await expect(sheet).toHaveClass(/open/);
+    // 슬라이드 인 애니메이션이 끝난 뒤 손잡이 좌표를 잡는다.
+    await page.waitForTimeout(400);
 
     const grab = page.locator('#settingsSheet .sheet-grab');
     const box = await grab.boundingBox();
