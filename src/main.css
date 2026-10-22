@@ -485,7 +485,7 @@ body.i18n-ready {
 body.has-result .camera-preview-badge,
 body.has-result .timer-badge,
 body.has-result .heart-icon,
-body.has-result .stage-guide-text {
+body.has-result .idle-guide {
   display: none;
 }
 
@@ -1886,7 +1886,7 @@ body.is-measuring .stage-guide-text {
 }
 
 .details-body {
-  gap: 14px;
+  gap: 16px;
 }
 
 .details-overview {
@@ -1949,7 +1949,7 @@ body.is-measuring .stage-guide-text {
 .details-waveform-section {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .details-waveform-section h3 {
@@ -2410,6 +2410,10 @@ body.has-result .waveform-box {
 
 .history-detail-body .details-body {
   padding: 0;
+  /* 복제본은 sheet-body 클래스가 없어 flex 가 무시된다 — 같은 세로 간격을 유지한다. */
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 /* 헤더 두 벌: 목록 헤더 / 자세히 보기 헤더 (뒤로 · 제목 · 공유 · 삭제 · 닫기) */
@@ -2488,19 +2492,6 @@ body.has-result .waveform-box {
   font-size: 1rem;
   font-weight: 800;
   cursor: pointer;
-}
-
-/* 메인 결과 하단: 이미지 공유 아이콘 버튼 (기존 텍스트 버튼 대체) */
-.cta-share-icon {
-  flex: 0 0 auto;
-  width: 60px;
-  height: 60px;
-  min-width: 60px;
-  min-height: 60px;
-  border: 2px solid var(--primary);
-  border-radius: 14px;
-  background: #FFFFFF;
-  color: var(--primary);
 }
 
 /* ==========================================================================
@@ -2731,16 +2722,6 @@ body.is-measuring .waveform-live-pill {
 .sheet {
   border-radius: 28px 28px 0 0;
   background: #FDFEFF;
-}
-
-.sheet::before {
-  content: "";
-  flex: 0 0 auto;
-  width: 48px;
-  height: 5px;
-  margin: 8px auto 0;
-  border-radius: 999px;
-  background: #CBD5E1;
 }
 
 .sheet-header {
@@ -3072,7 +3053,7 @@ body.is-measuring .waveform-live-pill {
   }
 }
 
-/* 시트 손잡이(::before)가 본문 스크롤 높이를 밀어내지 않게 + 좁은 영어 헤더 보정 */
+/* 시트 손잡이 요소가 본문 스크롤 높이를 밀어내지 않게 + 좁은 영어 헤더 보정 */
 .sheet-body {
   min-height: 0;
 }
@@ -3080,5 +3061,309 @@ body.is-measuring .waveform-live-pill {
 @media (max-width: 400px) {
   html[lang="en"] .history-count {
     display: none;
+  }
+}
+
+/* ==========================================================================
+   사용자 피드백 개선 (2026-10-22, PR #6 프리뷰 테스트 반영)
+   · 시트 손잡이 드래그로 닫기 · 공유/저장 분리 · 첫 방문 손가락 와이어
+   · 추세 차트 다크 카드 + 곡선 연결 · 카메라 버튼 아이콘 · 법적 고지 재구성
+   ========================================================================== */
+
+/* ── 바텀시트 손잡이: 드래그 가능한 실제 요소 ─────────────────────────── */
+.sheet-grab {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 0 6px;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.sheet-grab:active {
+  cursor: grabbing;
+}
+
+.sheet-grab-bar {
+  width: 48px;
+  height: 5px;
+  border-radius: 999px;
+  background: #CBD5E1;
+  transition: background-color 0.15s ease;
+}
+
+.sheet-grab:hover .sheet-grab-bar,
+.sheet-grab:active .sheet-grab-bar {
+  background: #94A3B8;
+}
+
+/* 드래그 중에는 트랜지션을 끊어 손가락을 그대로 따라오게 한다. */
+.sheet.is-dragging {
+  transition: none;
+}
+
+/* ── 결과 하단 [공유] [저장] 필 버튼 ───────────────────────────────────── */
+.cta-pill {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 52px;
+  min-width: 48px;
+  padding: 0 15px;
+  border: 2px solid #C9D5E8;
+  border-radius: 999px;
+  background: #FFFFFF;
+  color: var(--primary);
+  font-family: inherit;
+  font-size: 0.98rem;
+  font-weight: 800;
+  box-shadow: 0 4px 14px rgba(18, 24, 41, 0.08);
+  cursor: pointer;
+}
+
+.cta-pill svg {
+  flex: 0 0 auto;
+}
+
+.cta-pill:active {
+  transform: scale(0.97);
+}
+
+@media (min-width: 480px) {
+  .cta-pill {
+    min-height: 60px;
+    padding: 0 20px;
+  }
+}
+
+/* ── 설정: 카메라 선택 버튼(아이콘 + 텍스트) ───────────────────────────── */
+.cam-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.cam-btn svg {
+  flex: 0 0 auto;
+}
+
+/* ── 처음 접속: 메시지 영역 손가락 위치 와이어 ─────────────────────────── */
+.idle-guide {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.idle-guide .stage-guide-text {
+  min-height: 0;
+}
+
+.finger-guide {
+  display: none;
+}
+
+/* 저장된 이력도 결과도 없는 첫 방문에만, 측정 중이 아닐 때만 보여준다. */
+body.is-first-run:not(.is-measuring):not(.has-result) .finger-guide {
+  display: block;
+}
+
+.finger-guide-art {
+  display: none;
+}
+
+body:not(.cam-front) .finger-guide-art[data-facing-art="environment"] {
+  display: block;
+}
+
+body.cam-front .finger-guide-art[data-facing-art="user"] {
+  display: block;
+}
+
+.finger-guide-art svg {
+  display: block;
+  width: auto;
+  height: clamp(56px, 12.5vw, 84px);
+}
+
+/* 카메라 닿는 지점에 부드럽게 깜빡이는 원 */
+.finger-pulse-ring {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: finger-pulse 1.8s ease-out infinite;
+}
+
+@keyframes finger-pulse {
+  0% {
+    transform: scale(0.55);
+    opacity: 0.95;
+  }
+  70% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .finger-pulse-ring {
+    animation: none;
+    opacity: 0.6;
+  }
+}
+
+/* ── 측정 이력: 추세 차트를 다크 모니터 카드로 (본문 카드와 확실히 구분) ── */
+.trend-scroll {
+  border-color: #0D1626;
+  background: #0D1626;
+}
+
+.trend-grid {
+  stroke: rgba(148, 163, 184, 0.14);
+}
+
+.trend-normal-band {
+  fill: rgba(45, 212, 191, 0.12);
+}
+
+.trend-line {
+  stroke: #FF5A6A;
+  stroke-width: 2.5;
+}
+
+.trend-dot {
+  stroke: #0D1626;
+  stroke-width: 2;
+}
+
+.trend-dot.is-normal {
+  fill: #4ADE80;
+}
+
+.trend-dot.is-abnormal {
+  fill: #FF5A6A;
+}
+
+/* 차트 안 날짜 라벨은 어두운 배경 위에 밝게 */
+#trendCanvas .trend-date {
+  fill: #9FB2CC;
+}
+
+/* ── 휴지통 버튼: 부드러운 아이콘 + 옅은 레드 칩 ───────────────────────── */
+.history-trash-btn {
+  color: #B91C1C;
+  background: #FEE2E2;
+  border: 1.5px solid #FECACA;
+}
+
+.history-trash-btn:hover,
+.history-trash-btn:focus-visible {
+  background: #FECACA;
+}
+
+.history-trash-btn:active {
+  transform: scale(0.95);
+}
+
+/* ── 측정 안내: [공유] [저장] 버튼 모양 칩 ─────────────────────────────── */
+.guide-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.guide-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 18px;
+  border: 2px solid #C9D5E8;
+  border-radius: 999px;
+  background: #FFFFFF;
+  color: var(--primary);
+  font-size: 0.98rem;
+  font-weight: 800;
+}
+
+.guide-chip svg {
+  flex: 0 0 auto;
+}
+
+.guide-chip-save {
+  border-color: #F2C4CD;
+  background: #FFF5F6;
+  color: var(--accent-deep);
+}
+
+/* ── 법적 고지: 개인정보 처리방침 읽기 좋은 구성 ───────────────────────── */
+.legal-body {
+  gap: 14px;
+}
+
+.legal-lead {
+  font-weight: 700;
+}
+
+.privacy-policy {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.privacy-title {
+  margin: 0 0 2px;
+}
+
+.privacy-list {
+  display: grid;
+  gap: 10px;
+  margin: 8px 0 0;
+}
+
+.privacy-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  background: #F8FAFC;
+  border: 1px solid #E3EAF4;
+  border-radius: 14px;
+}
+
+.privacy-item dt {
+  color: var(--primary);
+  font-size: 0.98rem;
+  font-weight: 800;
+}
+
+.privacy-item dd {
+  margin: 0;
+}
+/* ── 이력 자세히 보기 헤더: 버튼 5개(뒤로·저장·공유·삭제·닫기)가 좁은 화면에도 들어가게 ── */
+.history-sheet .history-header-detail .icon-btn {
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
+}
+
+@media (max-width: 400px) {
+  .history-sheet .history-header-detail .icon-btn {
+    width: 40px;
+    min-width: 40px;
+    height: 42px;
+    min-height: 42px;
   }
 }

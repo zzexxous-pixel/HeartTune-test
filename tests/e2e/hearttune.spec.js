@@ -35,6 +35,10 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     await expect(page.locator('#appTitleTrigger')).toContainText('오늘심박');
     await expect(page.locator('.waveform-title')).toHaveText('카메라 측정 파형');
 
+    // 처음 접속(저장된 이력 없음)에는 메시지 영역에 손가락 위치 와이어가 보인다.
+    await expect(page.locator('#fingerGuide')).toBeVisible();
+    await expect(page.locator('.finger-guide-art[data-facing-art="environment"] svg')).toBeVisible();
+
     const iconConfig = await page.evaluate(async () => {
       const manifest = await fetch('./manifest.webmanifest').then((response) => response.json());
       const favicon = document.querySelector('link[rel="icon"]').getAttribute('href');
@@ -234,6 +238,10 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     expect(waveformSampleCount).toBe(90);
     await expect(page.locator('#resultShortNote')).toBeVisible();
     await expect(page.locator('#btnShareImage')).toBeVisible();
+    await expect(page.locator('#btnShareImage')).toContainText('공유');
+    await expect(page.locator('#btnSaveImage')).toBeVisible();
+    await expect(page.locator('#btnSaveImage')).toContainText('저장');
+    await expect(page.locator('#fingerGuide')).toBeHidden();
     await expect(page.locator('#btnDetails')).toBeVisible();
     for (const type of ['arrhythmia', 'bradycardia', 'tachycardia']) {
       await expect(page.locator(`#detailsSheet [data-indicator="${type}"]`)).toHaveClass(/is-clear/);
@@ -532,14 +540,19 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     await expect(page.locator('#historyList .history-empty')).toBeVisible();
   });
 
-  test('10. 법적 고지 시트에 개인정보 처리방침(서버 없음, 기기 내 저장) 표시', async ({ page }) => {
+  test('10. 법적 고지 시트: 개인정보 처리방침(휴대폰 안 처리·최대 100건·직접 삭제) 표시', async ({ page }) => {
     await page.goto('./');
     await page.locator('#btnMenu').click();
     await page.locator('#menuLegal').click();
     await expect(page.locator('#legalSheet')).toHaveClass(/open/);
     await expect(page.locator('#legalSheet .privacy-title')).toHaveText('개인정보 처리방침');
-    await expect(page.locator('#legalSheet')).toContainText('서버가 없어');
+    await expect(page.locator('#legalSheet')).toContainText('휴대폰의 브라우저 안에서');
     await expect(page.locator('#legalSheet')).toContainText('휴대폰 밖으로 전송되지 않습니다');
+    await expect(page.locator('#legalSheet')).toContainText('최대 100건');
+    await expect(page.locator('#legalSheet .privacy-list')).toBeVisible();
+    await expect(page.locator('#legalSheet')).toContainText('직접 삭제');
+    // 웹앱이므로 "서버가 없다"는 부정확한 문구는 쓰지 않는다.
+    await expect(page.locator('#legalSheet')).not.toContainText('서버가 없');
   });
 
   test('9. 측정이력: 항목 선택 시 측정 결과 화면을 그대로 다시 보기', async ({ page }) => {
@@ -584,6 +597,35 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
       page.locator('#btnHistoryDetailShare').click()
     ]);
     expect(download.suggestedFilename()).toMatch(/^HeartTune_80bpm_\d+\.png$/);
+  });
+
+  test('13. 시트 손잡이 드래그: 살짝 끌면 제자리로, 충분히 끌면 닫힌다', async ({ page }) => {
+    await page.goto('./');
+    await page.locator('#btnSettings').click();
+    const sheet = page.locator('#settingsSheet');
+    await expect(sheet).toHaveClass(/open/);
+
+    const grab = page.locator('#settingsSheet .sheet-grab');
+    const box = await grab.boundingBox();
+    const cx = box.x + box.width / 2;
+    const cy = box.y + box.height / 2;
+
+    // 살짝만 끌면 시트가 그대로 유지된다
+    await page.mouse.move(cx, cy);
+    await page.mouse.down();
+    await page.mouse.move(cx, cy + 30, { steps: 4 });
+    await page.mouse.up();
+    await expect(sheet).toHaveClass(/open/);
+
+    // 충분히 아래로 끌면 닫힌다
+    const box2 = await grab.boundingBox();
+    const cx2 = box2.x + box2.width / 2;
+    const cy2 = box2.y + box2.height / 2;
+    await page.mouse.move(cx2, cy2);
+    await page.mouse.down();
+    await page.mouse.move(cx2, cy2 + 170, { steps: 8 });
+    await page.mouse.up();
+    await expect(sheet).not.toHaveClass(/open/);
   });
 
   test('12. 브라우저 뒤로가기: 자세히 보기 → 목록 → 시트 닫기 → 메인 초기화 (앱 밖으로 나가지 않음)', async ({ page }) => {

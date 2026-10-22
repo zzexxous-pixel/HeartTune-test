@@ -72,9 +72,39 @@
       </div>
 
       <div class="message-area">
-        <p id="stageGuideText" class="stage-guide-text" data-i18n="measure.status.readyTitle">
-          카메라 렌즈에 손가락을 가볍게 대주세요
-        </p>
+        <div id="idleGuide" class="idle-guide">
+          <div id="fingerGuide" class="finger-guide" aria-hidden="true">
+            <div class="finger-guide-art" data-facing-art="environment">
+              <svg viewBox="0 0 150 100" focusable="false">
+                <rect x="10" y="8" width="42" height="82" rx="10" fill="#FFFFFF" stroke="#184E77" stroke-width="2.5"/>
+                <rect x="17" y="15" width="18" height="18" rx="5" fill="#184E77"/>
+                <circle cx="23" cy="21" r="3.1" fill="#EAF2FA"/>
+                <circle cx="29.5" cy="27.5" r="3.1" fill="#EAF2FA"/>
+                <circle cx="29.5" cy="21" r="1.7" fill="#9FB3C8"/>
+                <ellipse cx="110" cy="81" rx="29" ry="15" fill="#F3F8FD" stroke="#8FA7C2" stroke-width="2.5"/>
+                <line x1="106" y1="77" x2="31" y2="26" stroke="#8FA7C2" stroke-width="20" stroke-linecap="round"/>
+                <line x1="106" y1="77" x2="31" y2="26" stroke="#F3F8FD" stroke-width="15" stroke-linecap="round"/>
+                <circle class="finger-pulse-dot" cx="26" cy="24" r="5.5" fill="#D93848"/>
+                <circle class="finger-pulse-ring" cx="26" cy="24" r="10" fill="none" stroke="#D93848" stroke-width="3"/>
+              </svg>
+            </div>
+            <div class="finger-guide-art" data-facing-art="user">
+              <svg viewBox="0 0 150 100" focusable="false">
+                <rect x="50" y="6" width="42" height="86" rx="10" fill="#FFFFFF" stroke="#184E77" stroke-width="2.5"/>
+                <rect x="54.5" y="16" width="33" height="70" rx="4" fill="#EAF2FA"/>
+                <circle cx="71" cy="11" r="2.4" fill="#184E77"/>
+                <ellipse cx="118" cy="72" rx="26" ry="30" fill="#F3F8FD" stroke="#8FA7C2" stroke-width="2.5" transform="rotate(18 118 72)"/>
+                <line x1="112" y1="58" x2="76" y2="20" stroke="#8FA7C2" stroke-width="20" stroke-linecap="round"/>
+                <line x1="112" y1="58" x2="76" y2="20" stroke="#F3F8FD" stroke-width="15" stroke-linecap="round"/>
+                <circle class="finger-pulse-dot" cx="71" cy="11" r="5" fill="#D93848"/>
+                <circle class="finger-pulse-ring" cx="71" cy="11" r="9" fill="none" stroke="#D93848" stroke-width="3"/>
+              </svg>
+            </div>
+          </div>
+          <p id="stageGuideText" class="stage-guide-text" data-i18n="measure.status.readyTitle">
+            카메라 렌즈에 손가락을 가볍게 대주세요
+          </p>
+        </div>
 
         <section id="resultBanner" class="result-banner" role="region" aria-live="polite">
           <div class="result-title-row">
@@ -97,12 +127,19 @@
       </div>
     </main>
 
-    <!-- 하단 고정 CTA: 결과일 때만 [이미지 저장] + [다시 측정] -->
+    <!-- 하단 고정 CTA: 결과일 때만 [공유] [저장] + [다시 측정] -->
     <div class="cta-bar">
-      <button type="button" id="btnShareImage" class="icon-btn cta-share-icon" hidden data-i18n-aria="share.action.label" aria-label="이미지로 공유·저장">
-        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <button type="button" id="btnShareImage" class="cta-pill" hidden data-i18n-aria="share.action.share">
+        <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" />
           </svg>
+        <span data-i18n="measure.cta.share">공유</span>
+      </button>
+      <button type="button" id="btnSaveImage" class="cta-pill" hidden data-i18n-aria="share.action.save">
+        <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 4v10.5" /><path d="M7.5 10.5L12 15l4.5-4.5" /><path d="M4.5 19.5h15" />
+          </svg>
+        <span data-i18n="measure.cta.save">저장</span>
       </button>
       <button type="button" id="btnPrimaryMeasure" class="btn btn-primary cta-primary" data-i18n="measure.cta.start">
         측정 시작
@@ -117,6 +154,7 @@
 
   <!-- ⚙️ 설정 시트 -->
   <section id="settingsSheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="settingsSheetTitle" aria-hidden="true">
+    <div class="sheet-grab" aria-hidden="true"><span class="sheet-grab-bar"></span></div>
     <div class="sheet-header">
       <h2 id="settingsSheetTitle" data-i18n="app.settings.title">설정</h2>
       <button type="button" class="icon-btn sheet-close" data-sheet-close aria-label="닫기" data-i18n-aria="app.close">
@@ -147,11 +185,24 @@
       <div class="setting-block">
         <div class="config-label" data-i18n="measure.config.cameraSelect">카메라 선택</div>
         <div class="segmented" role="group" aria-label="카메라 선택">
-          <button type="button" class="cam-btn active" data-facing="environment" aria-pressed="true" data-i18n="measure.config.cameraRear">
-            후면 카메라
+          <button type="button" class="cam-btn active" data-facing="environment" aria-pressed="true">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="7" y="3" width="10" height="18" rx="2.5" />
+              <rect x="9.6" y="5.6" width="4.8" height="4.8" rx="1.6" />
+              <circle cx="11.2" cy="7.2" r="0.75" fill="currentColor" stroke="none" />
+              <circle cx="12.8" cy="8.8" r="0.75" fill="currentColor" stroke="none" />
+            </svg>
+            <span data-i18n="measure.config.cameraRear">후면 카메라</span>
           </button>
-          <button type="button" class="cam-btn" data-facing="user" aria-pressed="false" data-i18n="measure.config.cameraFront">
-            전면 카메라
+          <button type="button" class="cam-btn" data-facing="user" aria-pressed="false">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="7" y="3" width="10" height="18" rx="2.5" />
+              <circle cx="12" cy="5.9" r="0.85" fill="currentColor" stroke="none" />
+              <circle cx="10.4" cy="12.7" r="0.7" fill="currentColor" stroke="none" />
+              <circle cx="13.6" cy="12.7" r="0.7" fill="currentColor" stroke="none" />
+              <path d="M10.3 15.3c.5.5 1.05.75 1.7.75s1.2-.25 1.7-.75" />
+            </svg>
+            <span data-i18n="measure.config.cameraFront">전면 카메라</span>
           </button>
         </div>
       </div>
@@ -168,6 +219,7 @@
 
   <!-- ≡ 메뉴 시트 -->
   <section id="menuSheet" class="sheet sheet-compact" role="dialog" aria-modal="true" aria-labelledby="menuSheetTitle" aria-hidden="true">
+    <div class="sheet-grab" aria-hidden="true"><span class="sheet-grab-bar"></span></div>
     <div class="sheet-header">
       <h2 id="menuSheetTitle" data-i18n="app.menu.title">메뉴</h2>
       <button type="button" class="icon-btn sheet-close" data-sheet-close aria-label="닫기" data-i18n-aria="app.close">
@@ -181,14 +233,14 @@
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M3 12a9 9 0 1 0 2.64-6.36" /><path d="M3 4.5V9h4.5" /><path d="M12 8v4l2.5 1.5" />
         </svg>
-        <span data-i18n="app.nav.history">측정이력</span>
+        <span data-i18n="app.nav.history">측정 이력</span>
         <span class="menu-chevron" aria-hidden="true">›</span>
       </button>
       <button type="button" id="menuGuide" class="menu-row">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z" /><path d="M4 20.5A2.5 2.5 0 0 1 6.5 18H20" />
         </svg>
-        <span data-i18n="app.nav.guide">측정안내</span>
+        <span data-i18n="app.nav.guide">측정 안내</span>
         <span class="menu-chevron" aria-hidden="true">›</span>
       </button>
       <button type="button" id="menuLegal" class="menu-row">
@@ -203,14 +255,15 @@
 
   <!-- 측정 이력 시트 (내부 스크롤 허용) -->
   <section id="historySheet" class="sheet sheet-tall history-sheet" role="dialog" aria-modal="true" aria-labelledby="historySheetTitle" aria-hidden="true">
+    <div class="sheet-grab" aria-hidden="true"><span class="sheet-grab-bar"></span></div>
     <!-- 헤더 A: 측정이력 목록 -->
     <div class="sheet-header history-header-list">
-      <h2 id="historySheetTitle" data-i18n="history.header.title">측정이력</h2>
+      <h2 id="historySheetTitle" data-i18n="history.header.title">측정 이력</h2>
       <span id="historyCount" class="history-count"></span>
       <div class="sheet-header-actions">
         <button type="button" id="btnClearHistory" class="icon-btn history-trash-btn" data-i18n-aria="history.header.clearAll" aria-label="측정 이력 전체 삭제">
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M4 7h16" /><path d="M9 7V4.8c0-.44.36-.8.8-.8h4.4c.44 0 .8.36.8.8V7" /><path d="M6.5 7l.9 12.1c.06.8.73 1.4 1.53 1.4h5.14c.8 0 1.47-.6 1.53-1.4L17.5 7" /><path d="M10 11v6M14 11v6" />
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M4.6 6.6h14.8" /><path d="M9.7 6.6V5.4c0-1 .8-1.8 1.8-1.8h1c1 0 1.8.8 1.8 1.8v1.2" /><path d="M6.6 6.6l.78 12.1c.06.98.87 1.75 1.85 1.75h5.54c.98 0 1.79-.77 1.85-1.75l.78-12.1" /><path d="M10.1 10.5v6.2M13.9 10.5v6.2" />
           </svg>
         </button>
         <button type="button" class="icon-btn sheet-close" data-sheet-close aria-label="닫기" data-i18n-aria="app.close">
@@ -229,14 +282,19 @@
       </button>
       <h2 class="history-detail-title" data-i18n="measure.result.details">자세히 보기</h2>
       <div class="sheet-header-actions">
+        <button type="button" id="btnHistoryDetailSave" class="icon-btn" data-i18n-aria="share.action.save">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 4v10.5" /><path d="M7.5 10.5L12 15l4.5-4.5" /><path d="M4.5 19.5h15" />
+          </svg>
+        </button>
         <button type="button" id="btnHistoryDetailShare" class="icon-btn" data-i18n-aria="share.action.label" aria-label="이미지로 공유·저장">
           <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" />
           </svg>
         </button>
         <button type="button" id="btnHistoryDetailDelete" class="icon-btn history-trash-btn" data-i18n-aria="history.detail.delete" aria-label="이 기록 삭제">
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M4 7h16" /><path d="M9 7V4.8c0-.44.36-.8.8-.8h4.4c.44 0 .8.36.8.8V7" /><path d="M6.5 7l.9 12.1c.06.8.73 1.4 1.53 1.4h5.14c.8 0 1.47-.6 1.53-1.4L17.5 7" /><path d="M10 11v6M14 11v6" />
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M4.6 6.6h14.8" /><path d="M9.7 6.6V5.4c0-1 .8-1.8 1.8-1.8h1c1 0 1.8.8 1.8 1.8v1.2" /><path d="M6.6 6.6l.78 12.1c.06.98.87 1.75 1.85 1.75h5.54c.98 0 1.79-.77 1.85-1.75l.78-12.1" /><path d="M10.1 10.5v6.2M13.9 10.5v6.2" />
           </svg>
         </button>
         <button type="button" class="icon-btn sheet-close" data-sheet-close aria-label="닫기" data-i18n-aria="app.close">
@@ -303,8 +361,9 @@
 
   <!-- 측정 안내 시트 -->
   <section id="guideSheet" class="sheet sheet-tall" role="dialog" aria-modal="true" aria-labelledby="guideSheetTitle" aria-hidden="true">
+    <div class="sheet-grab" aria-hidden="true"><span class="sheet-grab-bar"></span></div>
     <div class="sheet-header">
-      <h2 id="guideSheetTitle" data-i18n="app.nav.guide">측정안내</h2>
+      <h2 id="guideSheetTitle" data-i18n="app.nav.guide">측정 안내</h2>
       <button type="button" class="icon-btn sheet-close" data-sheet-close aria-label="닫기" data-i18n-aria="app.close">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
           <path d="M6 6l12 12M18 6L6 18" />
@@ -323,6 +382,16 @@
       <div class="guide-card">
         <h3 data-i18n="guide.step3.title">3. 가족에게 큰 글씨 이미지 공유</h3>
         <p data-i18n="guide.step3.desc"></p>
+        <div class="guide-chip-row" aria-hidden="true">
+          <span class="guide-chip">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" /></svg>
+            <span data-i18n="measure.cta.share">공유</span>
+          </span>
+          <span class="guide-chip guide-chip-save">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v10.5" /><path d="M7.5 10.5L12 15l4.5-4.5" /><path d="M4.5 19.5h15" /></svg>
+            <span data-i18n="measure.cta.save">저장</span>
+          </span>
+        </div>
       </div>
       <section class="guide-card guide-rhythm-card">
         <h3 data-i18n="guide.rhythm.title">부정맥·빈맥·서맥이란?</h3>
@@ -339,6 +408,7 @@
 
   <!-- 법적 고지 시트 -->
   <section id="legalSheet" class="sheet sheet-tall" role="dialog" aria-modal="true" aria-labelledby="legalSheetTitle" aria-hidden="true">
+    <div class="sheet-grab" aria-hidden="true"><span class="sheet-grab-bar"></span></div>
     <div class="sheet-header">
       <h2 id="legalSheetTitle" data-i18n="legal.title">법적 고지</h2>
       <button type="button" class="icon-btn sheet-close" data-sheet-close aria-label="닫기" data-i18n-aria="app.close">
@@ -347,28 +417,50 @@
         </svg>
       </button>
     </div>
-    <div class="sheet-body">
-      <p class="legal-text" data-i18n="legal.disclaimer.main">
+    <div class="sheet-body legal-body">
+      <p class="legal-text legal-lead" data-i18n="legal.disclaimer.main">
         본 앱은 의료기기가 아니며, 측정 결과는 참고용 정보입니다. 의학적 판단이나 진료를 대체할 수 없습니다.
-      </p>
-      <p class="legal-text" data-i18n="legal.privacy.local">
-        카메라 영상은 심박 추출 직후 즉시 폐기되며 외부 서버로 절대 전송되지 않습니다.
       </p>
       <section class="privacy-policy" aria-labelledby="privacyPolicyTitle">
         <h3 id="privacyPolicyTitle" class="privacy-title" data-i18n="legal.privacy.title">개인정보 처리방침</h3>
-        <p class="legal-text" data-i18n="legal.privacy.serverless">본 앱은 서버가 없어 회원가입이나 로그인 없이 동작합니다.</p>
-        <p class="legal-text" data-i18n="legal.privacy.storage">측정 기록, 캘리브레이션 학습 데이터, 설정값을 포함한 모든 데이터는 이 기기(브라우저 저장공간)에만 저장되며, 측정 데이터는 휴대폰 밖으로 전송되지 않습니다.</p>
-        <p class="legal-text" data-i18n="legal.privacy.noShare">수집, 판매, 제3자 제공을 하지 않으며, 측정 데이터를 외부 서버나 광고 도구로 보내지 않습니다.</p>
-        <p class="legal-text" data-i18n="legal.privacy.delete">측정이력 시트의 휴지통 버튼으로 기록과 학습 데이터를 지울 수 있고, 브라우저의 사이트 데이터 삭제로도 모두 지울 수 있습니다.</p>
+        <p class="legal-text" data-i18n="legal.privacy.intro"></p>
+        <dl class="privacy-list">
+          <div class="privacy-item">
+            <dt data-i18n="legal.privacy.camera.title">카메라 영상</dt>
+            <dd data-i18n="legal.privacy.camera.desc"></dd>
+          </div>
+          <div class="privacy-item">
+            <dt data-i18n="legal.privacy.stored.title">저장되는 정보</dt>
+            <dd data-i18n="legal.privacy.stored.desc"></dd>
+          </div>
+          <div class="privacy-item">
+            <dt data-i18n="legal.privacy.nopii.title">개인정보 수집 없음</dt>
+            <dd data-i18n="legal.privacy.nopii.desc"></dd>
+          </div>
+          <div class="privacy-item">
+            <dt data-i18n="legal.privacy.noShare.title">제3자 제공 없음</dt>
+            <dd data-i18n="legal.privacy.noShare.desc"></dd>
+          </div>
+          <div class="privacy-item">
+            <dt data-i18n="legal.privacy.delete.title">직접 삭제</dt>
+            <dd data-i18n="legal.privacy.delete.desc"></dd>
+          </div>
+        </dl>
       </section>
     </div>
   </section>
 
   <!-- 측정 상세 시트: 사용자용 참고 신호와 측정 신호 품질 -->
   <section id="detailsSheet" class="sheet sheet-compact" role="dialog" aria-modal="true" aria-labelledby="detailsSheetTitle" aria-hidden="true">
+    <div class="sheet-grab" aria-hidden="true"><span class="sheet-grab-bar"></span></div>
     <div class="sheet-header">
       <h2 id="detailsSheetTitle" data-i18n="measure.result.details">자세히 보기</h2>
       <div class="sheet-header-actions">
+      <button type="button" id="btnDetailsSave" class="icon-btn" data-i18n-aria="share.action.save">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 4v10.5" /><path d="M7.5 10.5L12 15l4.5-4.5" /><path d="M4.5 19.5h15" />
+          </svg>
+      </button>
       <button type="button" id="btnDetailsShare" class="icon-btn" data-i18n-aria="share.action.label" aria-label="이미지로 공유·저장">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" />

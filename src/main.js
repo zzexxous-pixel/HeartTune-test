@@ -22,9 +22,10 @@ import {
   saveCalibrationSample
 } from './features/storage.js';
 import { createCameraController } from './features/camera.js';
-import { getResultIndicators, getHistoryPresentation } from './features/result-indicators.js';
+import { getHistoryPresentation } from './features/result-indicators.js';
 import { createSheetController } from './features/sheets.js';
-import { shareResultAsImage } from './features/share.js';
+import { shareResultAsImage, downloadResultAsImage } from './features/share.js';
+import { buildDetailViewModel } from './features/detail-view.js';
 
 const RING_CIRCUMFERENCE = 2 * Math.PI * 106;
 const DEBUG_MIN_HEIGHT = 200;
@@ -96,12 +97,15 @@ const els = {
   btnDetails: document.getElementById('btnDetails'),
   btnPrimaryMeasure: document.getElementById('btnPrimaryMeasure'),
   btnShareImage: document.getElementById('btnShareImage'),
+  btnSaveImage: document.getElementById('btnSaveImage'),
   btnClearHistory: document.getElementById('btnClearHistory'),
   btnDetailsShare: document.getElementById('btnDetailsShare'),
+  btnDetailsSave: document.getElementById('btnDetailsSave'),
   historyUndoToast: document.getElementById('historyUndoToast'),
   btnUndoDelete: document.getElementById('btnUndoDelete'),
   btnHistoryBack: document.getElementById('btnHistoryBack'),
   btnHistoryDetailShare: document.getElementById('btnHistoryDetailShare'),
+  btnHistoryDetailSave: document.getElementById('btnHistoryDetailSave'),
   btnHistoryDetailDelete: document.getElementById('btnHistoryDetailDelete'),
   historyDetailBody: document.getElementById('historyDetailBody'),
   historyAdSlot: document.getElementById('historyAdSlot'),
@@ -243,6 +247,14 @@ function syncCameraButtons() {
     btn.classList.toggle('active', active);
     btn.setAttribute('aria-pressed', String(active));
   });
+  // 첫 방문 손가락 와이어 이미지를 카메라 설정(전면/후면)에 맞게 바꾼다.
+  document.body.classList.toggle('cam-front', state.facingMode === 'user');
+}
+
+/** 처음 접속(저장된 이력도 결과도 없음)인 동안 메시지 영역에 손가락 위치 와이어를 보여준다. */
+function updateFirstRunState() {
+  const firstRun = !state.lastResult && loadHistory().length === 0;
+  document.body.classList.toggle('is-first-run', firstRun);
 }
 
 function syncLangButtons() {
@@ -300,6 +312,7 @@ function applyTranslations() {
   drawLiveWaveform();
   updateCalibBannerUI();
   renderHistory();
+  updateFirstRunState();
   document.body.classList.add('i18n-ready');
 }
 
@@ -552,6 +565,7 @@ async function startMeasurement() {
   els.resultBanner.className = 'result-banner';
   els.resultShortNote.hidden = true;
   els.btnShareImage.hidden = true;
+  els.btnSaveImage.hidden = true;
   els.bpmNumber.textContent = '--';
   els.timerBadge.textContent = formatTimer(state.durationSec);
   updateProgressRing(0);
@@ -598,6 +612,7 @@ async function startMeasurement() {
   els.btnPrimaryMeasure.classList.add('measuring');
   els.btnPrimaryMeasure.textContent = t('measure.cta.stop');
   els.btnShareImage.hidden = true;
+  els.btnSaveImage.hidden = true;
   playTone(480, 100);
   logDebug(
     `Measurement started (${state.durationSec}s, mode=${state.simMode}, priorBPM=${state.priorBpm})`
@@ -691,6 +706,8 @@ function finishMeasurement() {
   renderResultBanner(record);
   saveRecordToHistory(record);
   els.btnShareImage.hidden = false;
+  els.btnSaveImage.hidden = false;
+  updateFirstRunState();
   logDebug(
     `Measurement completed: BPM=${record.bpm}, status=${record.status}, CV=${record.cv}, saved to 30-run baseline.`
   );
@@ -710,25 +727,22 @@ const RESULT_ICONS = {
   irregular: SVG_ALERT
 };
 
-function renderResultIndicators(record, root = els.detailsSheet) {
-  const indicators = getResultIndicators(record);
-  ['arrhythmia', 'bradycardia', 'tachycardia'].forEach((name) => {
-    const card = root.querySelector(`[data-indicator="${name}"]`);
-    const active = indicators[name];
-    card.classList.toggle('is-active', active);
-    card.classList.toggle('is-clear', !active);
-    card.setAttribute('aria-label', `${t(`measure.indicator.${name}`)}: ${t(active ? 'measure.indicator.detected' : 'measure.indicator.notDetected')}`);
-    card.querySelector('[data-indicator-state]').textContent = t(active ? 'measure.indicator.detected' : 'measure.indicator.notDetected');
+function renderResultIndicators(model, root = els.detailsSheet) {
+  model.indicators.forEach((ind) => {
+    const card = root.querySelector(`[data-indicator="${ind.key}"]`);
+    if (!card) return;
+    card.classList.toggle('is-active', ind.tone === 'active');
+    card.classList.toggle('is-clear', ind.tone === 'clear');
+    if (ind.key === 'signal-quality') {
+      card.classList.remove('quality-good', 'quality-fair', 'quality-poor', 'quality-unknown');
+      card.classList.add(`quality-${ind.quality}`);
+    }
+    card.setAttribute('aria-label', `${ind.label}: ${ind.state}`);
+    card.querySelector('[data-indicator-state]').textContent = ind.state;
   });
-
-  const qualityCard = root.querySelector('[data-indicator="signal-quality"]');
-  qualityCard.classList.remove('quality-good', 'quality-fair', 'quality-poor', 'quality-unknown');
-  qualityCard.classList.add(`quality-${indicators.quality}`);
-  qualityCard.setAttribute('aria-label', `${t('measure.indicator.signalQuality')}: ${t(`measure.indicator.quality.${indicators.quality}`)}`);
-  root.querySelector('[data-indicator-state="signal-quality"]').textContent = t(`measure.indicator.quality.${indicators.quality}`);
 }
 
-function drawDetailsWaveform(record, root = els.detailsSheet) {
+function drawDetailsWaveform(values, root = els.detailsSheet) {
   const canvas = root.querySelector('[data-role="waveform"]');
   const ctx = canvas.getContext('2d');
   const width = canvas.width;
@@ -750,7 +764,7 @@ function drawDetailsWaveform(record, root = els.detailsSheet) {
   }
   ctx.stroke();
 
-  const waveform = Array.isArray(record.waveform) ? record.waveform : [];
+  const waveform = values;
   if (waveform.length < 2) return;
   const min = Math.min(...waveform);
   const max = Math.max(...waveform);
@@ -772,14 +786,20 @@ function drawDetailsWaveform(record, root = els.detailsSheet) {
   ctx.shadowBlur = 0;
 }
 
+/** 상세 화면 뷰모델: 측정 결과 상세·이력 상세·공유 이미지가 함께 쓰는 단일 소스. */
+function buildViewModel(record) {
+  return buildDetailViewModel(record, { t, formatDateTime: formatHistoryDateTime, formatNumber });
+}
+
 /** 측정 상세 내용을 root(측정 상세 시트 또는 이력 자세히 보기) 안에 채운다. */
 function renderDetails(record, root = els.detailsSheet) {
   if (!record) return;
-  root.querySelector('[data-role="date"]').textContent = formatHistoryDateTime(record.timestamp);
-  root.querySelector('[data-role="duration"]').textContent = t('details.duration.value', { seconds: record.duration });
-  root.querySelector('[data-role="bpm"]').textContent = formatNumber(record.bpm);
-  drawDetailsWaveform(record, root);
-  renderResultIndicators(record, root);
+  const model = buildViewModel(record);
+  root.querySelector('[data-role="date"]').textContent = model.meta[0].value;
+  root.querySelector('[data-role="duration"]').textContent = model.meta[1].value;
+  root.querySelector('[data-role="bpm"]').textContent = model.bpm.value;
+  drawDetailsWaveform(model.waveform.values, root);
+  renderResultIndicators(model, root);
 }
 
 function renderResultBanner(record) {
@@ -793,7 +813,7 @@ function renderResultBanner(record) {
     : t(`result.${record.status}.title`);
   els.resultDesc.textContent = t(`result.${record.status}.desc`);
   els.resultShortNote.hidden = !record.isShortMeasurement;
-  renderResultIndicators(record);
+  renderResultIndicators(buildViewModel(record));
 }
 
 function saveRecordToHistory(record) {
@@ -819,6 +839,25 @@ const TREND = {
 };
 const SWIPE_MAX_PX = 96;   // 삭제 버튼 폭
 const SWIPE_OPEN_PX = 48;  // 이 이상 밀면 삭제 버튼이 열린 상태로 고정
+
+/** 추세 선을 Catmull-Rom → 3차 베지어로 부드럽게 이어 그린다. (y는 플롯 영역을 벗어나지 않게 가둔다) */
+function smoothTrendPath(pts, minY, maxY) {
+  const clamp = (v) => Math.max(minY, Math.min(maxY, v));
+  const f = (v) => Number(v.toFixed(1));
+  let d = `M ${f(pts[0].x)} ${f(clamp(pts[0].y))}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[Math.max(0, i - 1)];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const p3 = pts[Math.min(pts.length - 1, i + 2)];
+    const c1x = p1.x + (p2.x - p0.x) / 6;
+    const c1y = clamp(p1.y + (p2.y - p0.y) / 6);
+    const c2x = p2.x - (p3.x - p1.x) / 6;
+    const c2y = clamp(p2.y - (p3.y - p1.y) / 6);
+    d += ` C ${f(c1x)} ${f(c1y)} ${f(c2x)} ${f(c2y)} ${f(p2.x)} ${f(clamp(p2.y))}`;
+  }
+  return d;
+}
 
 function svgNode(tag, attrs = {}, text = null) {
   const node = document.createElementNS(SVG_NS, tag);
@@ -888,8 +927,11 @@ function drawTrendChart(records) {
   });
 
   if (n > 1) {
-    const points = records.map((r, i) => `${xOf(i)},${yOf(Number(r.bpm))}`).join(' ');
-    els.trendCanvas.appendChild(svgNode('polyline', { points, class: 'trend-line' }));
+    const pts = records.map((r, i) => ({ x: xOf(i), y: yOf(Number(r.bpm)) }));
+    els.trendCanvas.appendChild(svgNode('path', {
+      d: smoothTrendPath(pts, TREND.plotTop, H - TREND.plotBottom),
+      class: 'trend-line'
+    }));
   }
 
   records.forEach((rec, i) => {
@@ -1239,6 +1281,12 @@ function shareRecord(record) {
   shareResultAsImage(record, { t, formatDateTime: formatHistoryDateTime, formatNumber });
 }
 
+/** 공유 시트를 거치지 않고 결과 이미지를 바로 내려받는다. */
+function downloadRecord(record) {
+  if (!record) return;
+  downloadResultAsImage(record, { t, formatDateTime: formatHistoryDateTime, formatNumber });
+}
+
 async function switchCamera(facing) {
   if (state.isMeasuring || state.isStarting) return;
   if (facing !== 'environment' && facing !== 'user') return;
@@ -1279,8 +1327,11 @@ els.btnPrimaryMeasure.addEventListener('click', () => {
 });
 
 els.btnShareImage.addEventListener('click', () => shareRecord(state.lastResult));
+els.btnSaveImage.addEventListener('click', () => downloadRecord(state.lastResult));
 els.btnDetailsShare.addEventListener('click', () => shareRecord(state.lastResult));
+els.btnDetailsSave.addEventListener('click', () => downloadRecord(state.lastResult));
 els.btnHistoryDetailShare.addEventListener('click', () => shareRecord(historyView.detailRecord));
+els.btnHistoryDetailSave.addEventListener('click', () => downloadRecord(historyView.detailRecord));
 
 els.btnUndoDelete.addEventListener('click', () => undoPendingDelete());
 els.btnHistoryBack.addEventListener('click', () => leaveHistoryDetail());
@@ -1436,6 +1487,59 @@ els.btnExportCsv.addEventListener('click', () => {
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 3000);
   logDebug(`Exported ${state.rawSamples.length} raw samples to CSV.`);
+});
+
+/* --------------------------------------------------------------------------
+   바텀시트 손잡이 드래그 — 손잡이를 잡고 아래로 끌면 시트가 따라 내려간다.
+   충분히 끌었거나 휙 던지면 닫히고, 살짝만 끌었으면 제자리로 돌아온다.
+   -------------------------------------------------------------------------- */
+document.querySelectorAll('.sheet-grab').forEach((handle) => {
+  const sheet = handle.closest('.sheet');
+  let drag = null;
+
+  handle.addEventListener('pointerdown', (event) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    drag = { id: event.pointerId, startY: event.clientY, dy: 0, lastY: event.clientY, lastT: performance.now(), velocity: 0 };
+    try {
+      handle.setPointerCapture(event.pointerId);
+    } catch (_) {
+      // 무시
+    }
+    sheet.classList.add('is-dragging');
+  });
+
+  handle.addEventListener('pointermove', (event) => {
+    if (!drag || event.pointerId !== drag.id) return;
+    const now = performance.now();
+    if (now > drag.lastT) {
+      drag.velocity = (event.clientY - drag.lastY) / (now - drag.lastT); // px/ms
+      drag.lastY = event.clientY;
+      drag.lastT = now;
+    }
+    drag.dy = Math.max(0, event.clientY - drag.startY);
+    sheet.style.transform = `translate(-50%, ${drag.dy}px)`;
+  });
+
+  const endDrag = (event) => {
+    if (!drag || (event && event.pointerId !== drag.id)) return;
+    const { dy, velocity } = drag;
+    drag = null;
+    sheet.classList.remove('is-dragging');
+    const shouldClose = dy > 110 || (dy > 40 && velocity > 0.7);
+    if (shouldClose) {
+      // 손을 뗀 위치에서 아래로 슬라이드하며 닫힌다.
+      sheet.style.transform = 'translate(-50%, 105%)';
+      window.setTimeout(() => {
+        sheet.style.transform = '';
+        sheets.close();
+      }, 210);
+    } else {
+      sheet.style.transform = '';
+    }
+  };
+
+  handle.addEventListener('pointerup', endDrag);
+  handle.addEventListener('pointercancel', endDrag);
 });
 
 /* --------------------------------------------------------------------------
