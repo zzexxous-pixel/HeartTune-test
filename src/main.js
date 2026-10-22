@@ -114,9 +114,6 @@ const els = {
   historyDetailBody: document.getElementById('historyDetailBody'),
   historyAdSlot: document.getElementById('historyAdSlot'),
   historyCount: document.getElementById('historyCount'),
-  installBanner: document.getElementById('installBanner'),
-  btnInstallFromBanner: document.getElementById('btnInstallFromBanner'),
-  btnDismissInstall: document.getElementById('btnDismissInstall'),
   installBlock: document.getElementById('installBlock'),
   btnInstallApp: document.getElementById('btnInstallApp'),
   trendStats: document.getElementById('trendStats'),
@@ -233,6 +230,13 @@ function updateCalibBannerUI() {
   }
 }
 
+/** 대기 상태 안내 문구 — 후면/전면 카메라 렌즈를 문구에서 구분해 안내한다. */
+function setReadyGuideText() {
+  const key = state.facingMode === 'user' ? 'measure.status.readyFront' : 'measure.status.readyRear';
+  els.stageGuideText.setAttribute('data-i18n', key);
+  els.stageGuideText.textContent = t(key);
+}
+
 function updateIdleGuide() {
   if (state.isMeasuring) return;
   if (state.lastResult) {
@@ -247,7 +251,7 @@ function updateIdleGuide() {
     els.stageGuideText.textContent = t('measure.status.cameraUnavailable');
     return;
   }
-  els.stageGuideText.textContent = t('measure.status.readyTitle');
+  setReadyGuideText();
 }
 
 function syncCameraButtons() {
@@ -646,7 +650,7 @@ function cancelMeasurement() {
   els.heartBeatIcon.classList.remove('beating');
   els.btnPrimaryMeasure.classList.remove('measuring');
   els.btnPrimaryMeasure.textContent = t('measure.cta.start');
-  els.stageGuideText.textContent = t('measure.status.readyTitle');
+  setReadyGuideText();
   state.rawSamples = [];
   drawLiveWaveform();
   els.timerBadge.textContent = formatTimer(state.durationSec);
@@ -873,10 +877,11 @@ function getTrendRange(records) {
   const minB = bpms.length ? Math.min(...bpms) : 60;
   const maxB = bpms.length ? Math.max(...bpms) : 100;
   const lo = Math.min(50, Math.floor((minB - 5) / 10) * 10);
-  const hi = Math.max(110, Math.ceil((maxB + 5) / 10) * 10);
-  const step = hi - lo > 80 ? 20 : 10;
-  const ticks = [];
-  for (let v = lo; v <= hi; v += step) ticks.push(v);
+  const hiRaw = Math.max(110, Math.ceil((maxB + 5) / 10) * 10);
+  // 세로 축 라벨이 빽빽하지 않게 항상 4개(아래·1/3·2/3·위)만 표시한다.
+  const step = Math.max(10, Math.ceil((hiRaw - lo) / 3 / 10) * 10);
+  const hi = lo + step * 3;
+  const ticks = [lo, lo + step, lo + step * 2, hi];
   return { lo, hi, ticks };
 }
 
@@ -1293,25 +1298,10 @@ function shareRecord(record) {
   shareResultAsImage(record, { t, formatDateTime: formatHistoryDateTime, formatNumber });
 }
 
-/** 저장(다운로드): 저장 중 플로팅 메시지 → 완료 후 저장된 이미지를 연다. */
+/** 저장(다운로드): 브라우저 기본 다운로드 표시만 사용한다. */
 function downloadRecord(record) {
   if (!record) return;
-  showAlert(t('share.save.saving'), 6000);
-  window.setTimeout(() => {
-    downloadResultAsImage(record, {
-      t,
-      formatDateTime: formatHistoryDateTime,
-      formatNumber,
-      onDone: (imageUrl) => {
-        hideAlert();
-        showAlert(t('share.save.done'), 2600);
-        // 저장된 이미지를 새 탭으로 연다 (차단되면 플로팅 메시지로만 안내).
-        if (imageUrl && !window.open(imageUrl, '_blank')) {
-          logDebug('Opening the saved image was blocked by the browser.');
-        }
-      }
-    });
-  }, 300);
+  downloadResultAsImage(record, { t, formatDateTime: formatHistoryDateTime, formatNumber });
 }
 
 async function switchCamera(facing) {
@@ -1323,6 +1313,7 @@ async function switchCamera(facing) {
   camera.setFacing(facing);
   saveAppSettings({ facingMode: facing });
   syncCameraButtons();
+  setReadyGuideText();
   logDebug(`Camera facing switched to: ${facing}`);
 
   if (state.simMode !== 'camera') return;
@@ -1636,9 +1627,8 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
-/* ── PWA 설치 제안: 브라우저가 설치 자격을 갖추면 배너/설정 버튼 노출 ───── */
+/* ── PWA 설치 제안: 설치 자격이 있을 때만 설정 시트의 설치 버튼을 노출 ────── */
 const installState = { prompt: null };
-const INSTALL_DISMISS_KEY = 'hearttune_install_dismissed';
 
 function isStandaloneDisplay() {
   return window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
@@ -1647,14 +1637,6 @@ function isStandaloneDisplay() {
 function updateInstallUI() {
   const installable = Boolean(installState.prompt) && !isStandaloneDisplay();
   els.installBlock.hidden = !installable;
-  const dismissed = (() => {
-    try {
-      return sessionStorage.getItem(INSTALL_DISMISS_KEY) === '1';
-    } catch (_) {
-      return false;
-    }
-  })();
-  els.installBanner.hidden = !(installable && !dismissed);
 }
 
 window.addEventListener('beforeinstallprompt', (event) => {
@@ -1666,7 +1648,6 @@ window.addEventListener('beforeinstallprompt', (event) => {
 
 window.addEventListener('appinstalled', () => {
   installState.prompt = null;
-  els.installBanner.hidden = true;
   updateInstallUI();
   showAlert(t('pwa.install.done'), 2600);
   logDebug('App installed to home screen.');
@@ -1677,10 +1658,7 @@ async function promptInstall() {
   if (!deferred) return;
   try {
     deferred.prompt();
-    const choice = await deferred.userChoice;
-    if (choice && choice.outcome === 'accepted') {
-      els.installBanner.hidden = true;
-    }
+    await deferred.userChoice;
   } catch (err) {
     logDebug(`Install prompt failed: ${err.message}`);
   } finally {
@@ -1689,16 +1667,7 @@ async function promptInstall() {
   }
 }
 
-els.btnInstallFromBanner.addEventListener('click', () => promptInstall());
 els.btnInstallApp.addEventListener('click', () => promptInstall());
-els.btnDismissInstall.addEventListener('click', () => {
-  try {
-    sessionStorage.setItem(INSTALL_DISMISS_KEY, '1');
-  } catch (_) {
-    // 무시
-  }
-  els.installBanner.hidden = true;
-});
 
 function initApp() {
   const parity = validateI18nKeyParity();

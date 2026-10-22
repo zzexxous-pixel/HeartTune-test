@@ -345,7 +345,9 @@ function renderShareCanvas(record, { t, formatDateTime, formatNumber = (v) => St
     bytes[index] = binary.charCodeAt(index);
   }
   const blob = new Blob([bytes], { type: 'image/png' });
-  const fileName = `HeartTune_${record.bpm}bpm_${Date.now()}.png`;
+  const ts = new Date(record.timestamp ?? Date.now());
+  const pad2 = (n) => String(n).padStart(2, '0');
+  const fileName = `HeartTune_${ts.getFullYear()}${pad2(ts.getMonth() + 1)}${pad2(ts.getDate())}_${pad2(ts.getHours())}${pad2(ts.getMinutes())}${pad2(ts.getSeconds())}.png`;
   return { blob, fileName };
 }
 
@@ -360,7 +362,9 @@ function triggerDownload(blob, fileName) {
   setTimeout(() => URL.revokeObjectURL(url), 3000);
 }
 
-/** 이미지를 만들고 Web Share(파일)로 내보낸다. 공유를 지원하지 않거나 취소하면 다운로드로 대체한다. */
+/** 이미지를 만들고 Web Share(파일)로 내보낸다.
+ *  공유 시트를 지원하는 브라우저에서는 닫기(취소)·실패 모두 파일을 저장하지 않고,
+ *  Web Share 자체가 없는 브라우저에서만 다운로드로 대체한다. */
 export async function shareResultAsImage(record, options) {
   if (!record) return;
   const { blob, fileName } = renderShareCanvas(record, options);
@@ -375,28 +379,18 @@ export async function shareResultAsImage(record, options) {
         text: `${options.t('share.card.title')}: ${record.bpm} ${options.t('measure.unit.bpm')} (${options.t(`result.${record.status}.title`)})`,
         files: [file]
       });
-      return;
     } catch (_) {
-      // 공유 취소 시 다운로드 폴백 진행
+      // 사용자가 공유 시트를 그냥 닫은 경우(취소) — 저장하지 않고 끝낸다.
     }
+    return;
   }
 
   triggerDownload(blob, fileName);
 }
 
-/** 공유 시트를 거치지 않고 항상 이미지 파일로 바로 내려받는다.
- *  options.onDone(blobUrl) — 다운로드 시작 직후 호출. 이미지를 새 탭으로 여는 등의 후속 처리용. */
+/** 공유 시트를 거치지 않고 항상 이미지 파일로 바로 내려받는다. (브라우저 기본 다운로드 표시만 사용) */
 export function downloadResultAsImage(record, options = {}) {
   if (!record) return;
   const { blob, fileName } = renderShareCanvas(record, options);
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = fileName;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  if (typeof options.onDone === 'function') options.onDone(url);
-  // 새 탭으로 연 이미지가 로드를 마칠 시간을 주고 나서 해제한다.
-  setTimeout(() => URL.revokeObjectURL(url), 60000);
+  triggerDownload(blob, fileName);
 }

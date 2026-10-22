@@ -6,7 +6,7 @@
 
 :root {
   /* Vital Serenity (Stitch DESIGN.md 채택분): 크림슨=측정·행동, 네이비=구조·제목, 틸=안정 표시 */
-  --bg-page: #F6F7FB;
+  --bg-page: #E4EAF4;
   --bg-card: #FFFFFF;
   --bg-subtle: #EEF2F9;
   --primary: #184E77;
@@ -1959,7 +1959,7 @@ body.is-measuring .stage-guide-text {
   font-size: 1.08rem;
 }
 
-#detailsWaveformCanvas {
+.details-body canvas[data-role="waveform"] {
   width: 100%;
   height: auto;
   display: block;
@@ -2521,8 +2521,8 @@ body {
 .brand-heart {
   display: inline-flex;
   flex: 0 0 auto;
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
 }
 
 .brand-heart svg {
@@ -2816,7 +2816,7 @@ body.is-measuring .waveform-live-pill {
   color: var(--accent-deep);
 }
 
-#detailsWaveformCanvas {
+.details-body canvas[data-role="waveform"] {
   border-radius: 18px;
   border-color: #1E2A3D;
 }
@@ -2920,7 +2920,7 @@ body.is-measuring .waveform-live-pill {
 }
 
 .trend-normal-band {
-  fill: rgba(13, 148, 136, 0.10);
+  fill: rgba(13, 148, 136, 0.22);
 }
 
 .trend-line {
@@ -3143,7 +3143,7 @@ body.is-measuring .waveform-live-pill {
   }
 }
 
-/* ── 설정: 카메라 선택 버튼(아이콘 + 텍스트) ───────────────────────────── */
+/* ── 설정: 카메라 선택 — 와이어 이미지 카드 2장(크게, 둘 다 표시) ───────── */
 .cam-btn {
   display: inline-flex;
   align-items: center;
@@ -3151,17 +3151,51 @@ body.is-measuring .waveform-live-pill {
   gap: 8px;
 }
 
-.cam-btn svg {
-  flex: 0 0 auto;
+.camera-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
 }
 
-/* ── 초기 화면: 메시지 영역 손가락 위치 와이어(투명 PNG) ──────────────────
-   안내 문구 카드(#stageGuideText)는 height:100% 로 메시지 영역을 가득 채워
-   상태(대기·측정·결과)와 무관하게 같은 박스를 유지한다(E2E 3영역 기하 검증).
-   와이어는 절대 배치로 카드 위쪽에 얹어, 보임/숨김이 문구 위치를 흔들지 않게 한다. */
+.camera-option {
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 8px 10px;
+  border: 2px solid #C9D5E8;
+  border-radius: 16px;
+  background: #FFFFFF;
+  color: var(--primary);
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.camera-option img {
+  height: 116px;
+  width: auto;
+}
+
+.camera-option.active {
+  border-color: var(--accent);
+  background: #FFF5F6;
+}
+
+.camera-option:active {
+  transform: scale(0.98);
+}
+
+/* ── 초기 화면: 손가락 위치 와이어를 왼쪽에 크게, 안내 문구를 오른쪽에 ─────
+   대기 상태에서는 메시지 박스(.idle-guide)를 흰색 카드로 만들고
+   와이어 이미지(테두리 없음)와 문구를 가로로 나란히 놓는다.
+   측정 중에는 문구 박스(.stage-guide-text)만 중앙에 표시한다. */
 .idle-guide {
   position: relative;
   min-height: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .idle-guide .stage-guide-text {
@@ -3169,34 +3203,46 @@ body.is-measuring .waveform-live-pill {
 }
 
 .finger-guide {
-  display: none;
-  position: absolute;
-  top: 6px;
-  left: 50%;
-  transform: translateX(-50%);
+  display: none; /* 측정 중·결과 화면에서는 숨김 */
   pointer-events: none;
 }
 
-/* 대기 상태(측정 중·결과 아님)에서는 항상 보여준다. */
-body:not(.is-measuring):not(.has-result) .finger-guide {
-  display: block;
+/* 대기 상태: 왼쪽 큰 이미지 + 오른쪽 문구, 박스 배경은 이미지(흰색)에 맞춘다 */
+body:not(.is-measuring):not(.has-result) .idle-guide {
+  flex-direction: row;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 14px;
+  padding: 8px 16px;
+  border: 1px solid #93C5FD;
+  border-radius: 14px;
+  background: #FFFFFF;
 }
 
-/* 와이어가 보일 때는 안내 문구를 카드 아래쪽에 두어 겹침을 피한다. */
+body:not(.is-measuring):not(.has-result) .finger-guide {
+  display: flex;
+  position: static;
+  flex: 0 0 auto;
+  align-self: stretch;
+  padding: 2px 0;
+}
+
 body:not(.is-measuring):not(.has-result) .idle-guide .stage-guide-text {
-  align-items: flex-end;
-  padding-bottom: 12px;
+  flex: 1 1 auto;
+  width: auto;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  justify-content: flex-start;
+  text-align: left;
+  font-size: clamp(1.02rem, 4.2vw, 1.18rem);
 }
 
 .finger-guide-art {
   display: none;
+  height: 100%;
   width: auto;
-  height: clamp(58px, 12.5vw, 84px);
-  /* 이미지 배경(흰색)에 맞춘 둥근 테두리 프레임 */
-  padding: 4px;
-  border: 1.5px solid #C9D5E8;
-  border-radius: 14px;
-  background: #FFFFFF;
+  object-fit: contain;
 }
 
 body:not(.cam-front) .finger-guide-art[data-facing-art="environment"] {
@@ -3204,31 +3250,6 @@ body:not(.cam-front) .finger-guide-art[data-facing-art="environment"] {
 }
 
 body.cam-front .finger-guide-art[data-facing-art="user"] {
-  display: block;
-}
-
-/* ── 설정 시트: 선택한 카메라의 손가락 위치 와이어(메시지창보다 작게) ────── */
-.settings-wire {
-  display: flex;
-  justify-content: center;
-  margin-top: 10px;
-}
-
-.settings-wire-art {
-  display: none;
-  width: auto;
-  height: 64px;
-  padding: 3px;
-  border: 1.5px solid #C9D5E8;
-  border-radius: 12px;
-  background: #FFFFFF;
-}
-
-body:not(.cam-front) .settings-wire-art[data-facing-art="environment"] {
-  display: block;
-}
-
-body.cam-front .settings-wire-art[data-facing-art="user"] {
   display: block;
 }
 
@@ -3243,7 +3264,7 @@ body.cam-front .settings-wire-art[data-facing-art="user"] {
 }
 
 .trend-normal-band {
-  fill: rgba(45, 212, 191, 0.12);
+  fill: rgba(45, 212, 191, 0.28);
 }
 
 .trend-line {
@@ -3294,7 +3315,7 @@ body.cam-front .settings-wire-art[data-facing-art="user"] {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  height: 1.65em;
+  height: 1.55em;
   padding: 0 0.55em 0 0.45em;
   margin: 0 3px;
   border: 1.5px solid #C9D5E8;
@@ -3304,7 +3325,7 @@ body.cam-front .settings-wire-art[data-facing-art="user"] {
   font-size: 0.92em;
   font-weight: 800;
   line-height: 1;
-  vertical-align: -0.32em;
+  vertical-align: middle;
   white-space: nowrap;
 }
 
@@ -3313,9 +3334,9 @@ body.cam-front .settings-wire-art[data-facing-art="user"] {
 }
 
 .guide-inline-chip.is-save {
-  border-color: #F2C4CD;
-  background: #FFF5F6;
-  color: var(--accent-deep);
+  border-color: #C9D5E8;
+  background: #FFFFFF;
+  color: var(--primary);
 }
 
 /* ── 법적 고지: 개인정보 처리방침 읽기 좋은 구성 ───────────────────────── */
@@ -3382,62 +3403,6 @@ body.cam-front .settings-wire-art[data-facing-art="user"] {
 /* hidden 속성은 어떤 display 선언보다 우선한다 (버튼/배너 초기 숨김 보장) */
 [hidden] {
   display: none !important;
-}
-
-/* ── PWA 설치 제안 배너(반투명 플로팅) ─────────────────────────────────── */
-.install-banner {
-  position: fixed;
-  left: 50%;
-  bottom: calc(96px + env(safe-area-inset-bottom, 0px));
-  transform: translateX(-50%);
-  width: calc(100% - 32px);
-  max-width: 480px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 13px 15px;
-  border-radius: 16px;
-  background: rgba(17, 28, 45, 0.88);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  color: #FFFFFF;
-  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.3);
-  z-index: 55;
-}
-
-.install-banner-text {
-  font-size: 0.95rem;
-  font-weight: 700;
-  line-height: 1.4;
-}
-
-.install-banner-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.install-banner-btn {
-  flex: 1 1 auto;
-  min-height: 46px;
-  padding: 0 14px;
-  border: 1.5px solid rgba(255, 255, 255, 0.55);
-  border-radius: 999px;
-  background: transparent;
-  color: #FFFFFF;
-  font-family: inherit;
-  font-size: 0.95rem;
-  font-weight: 800;
-  cursor: pointer;
-}
-
-.install-banner-btn.is-primary {
-  flex: 1.4 1 auto;
-  border-color: transparent;
-  background: var(--accent);
-}
-
-.install-banner-btn:active {
-  transform: scale(0.98);
 }
 
 /* 설정 시트: 앱 설치 버튼 */

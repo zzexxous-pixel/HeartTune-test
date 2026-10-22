@@ -38,8 +38,8 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     // 초기 화면 대기 상태에서는 손가락 위치 와이어 이미지가 항상 보인다.
     await expect(page.locator('#fingerGuide')).toBeVisible();
     await expect(page.locator('.finger-guide-art[data-facing-art="environment"]')).toBeVisible();
-    // 설치 제안 배너는 설치 자격 이벤트(beforeinstallprompt)가 오기 전에는 숨겨진다.
-    await expect(page.locator('#installBanner')).toBeHidden();
+    // 설치 제안 배너는 제거됨(설정 시트의 설치 버튼만 사용)
+    await expect(page.locator('#installBanner')).toHaveCount(0);
 
     const iconConfig = await page.evaluate(async () => {
       const manifest = await fetch('./manifest.webmanifest').then((response) => response.json());
@@ -598,7 +598,7 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
       page.waitForEvent('download'),
       page.locator('#btnHistoryDetailShare').click()
     ]);
-    expect(download.suggestedFilename()).toMatch(/^HeartTune_80bpm_\d+\.png$/);
+    expect(download.suggestedFilename()).toMatch(/^HeartTune_\d{8}_\d{6}\.png$/);
   });
 
   test('14. 설정(측정 시간·카메라 방향)이 localStorage에 저장되어 재접속 시 유지된다', async ({ page }) => {
@@ -606,8 +606,9 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     await page.locator('#btnSettings').click();
     await page.locator('.dur-btn[data-duration="60"]').click();
     await page.locator('.cam-btn[data-facing="user"]').click();
-    // 설정 시트의 와이어 이미지도 전면 선택으로 바뀐다.
-    await expect(page.locator('.settings-wire-art[data-facing-art="user"]')).toBeVisible();
+    // 카메라 선택 카드 2장(후면·전면 와이어 이미지)이 모두 크게 표시된다.
+    await expect(page.locator('.camera-option img')).toHaveCount(2);
+    await expect(page.locator('.cam-btn[data-facing="user"] img')).toBeVisible();
     await page.locator('#settingsSheet [data-sheet-close]').click();
 
     await page.reload();
