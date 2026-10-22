@@ -535,7 +535,9 @@ body.has-result .bpm-row {
   max-width: 480px;
   padding: 10px 14px;
   border-radius: 12px;
-  background: #FEF3C7;
+  background: rgba(254, 243, 199, 0.9);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   color: #92400E;
   border: 2px solid #F59E0B;
   font-size: 0.92rem;
@@ -3153,7 +3155,7 @@ body.is-measuring .waveform-live-pill {
   flex: 0 0 auto;
 }
 
-/* ── 처음 접속: 메시지 영역 손가락 위치 와이어 ───────────────────────────
+/* ── 초기 화면: 메시지 영역 손가락 위치 와이어(투명 PNG) ──────────────────
    안내 문구 카드(#stageGuideText)는 height:100% 로 메시지 영역을 가득 채워
    상태(대기·측정·결과)와 무관하게 같은 박스를 유지한다(E2E 3영역 기하 검증).
    와이어는 절대 배치로 카드 위쪽에 얹어, 보임/숨김이 문구 위치를 흔들지 않게 한다. */
@@ -3175,19 +3177,26 @@ body.is-measuring .waveform-live-pill {
   pointer-events: none;
 }
 
-/* 저장된 이력도 결과도 없는 첫 방문에만, 측정 중이 아닐 때만 보여준다. */
-body.is-first-run:not(.is-measuring):not(.has-result) .finger-guide {
+/* 대기 상태(측정 중·결과 아님)에서는 항상 보여준다. */
+body:not(.is-measuring):not(.has-result) .finger-guide {
   display: block;
 }
 
 /* 와이어가 보일 때는 안내 문구를 카드 아래쪽에 두어 겹침을 피한다. */
-body.is-first-run:not(.is-measuring):not(.has-result) .idle-guide .stage-guide-text {
+body:not(.is-measuring):not(.has-result) .idle-guide .stage-guide-text {
   align-items: flex-end;
   padding-bottom: 12px;
 }
 
 .finger-guide-art {
   display: none;
+  width: auto;
+  height: clamp(58px, 12.5vw, 84px);
+  /* 이미지 배경(흰색)에 맞춘 둥근 테두리 프레임 */
+  padding: 4px;
+  border: 1.5px solid #C9D5E8;
+  border-radius: 14px;
+  background: #FFFFFF;
 }
 
 body:not(.cam-front) .finger-guide-art[data-facing-art="environment"] {
@@ -3198,39 +3207,29 @@ body.cam-front .finger-guide-art[data-facing-art="user"] {
   display: block;
 }
 
-.finger-guide-art svg {
-  display: block;
+/* ── 설정 시트: 선택한 카메라의 손가락 위치 와이어(메시지창보다 작게) ────── */
+.settings-wire {
+  display: flex;
+  justify-content: center;
+  margin-top: 10px;
+}
+
+.settings-wire-art {
+  display: none;
   width: auto;
-  height: clamp(56px, 12.5vw, 84px);
+  height: 64px;
+  padding: 3px;
+  border: 1.5px solid #C9D5E8;
+  border-radius: 12px;
+  background: #FFFFFF;
 }
 
-/* 카메라 닿는 지점에 부드럽게 깜빡이는 원 */
-.finger-pulse-ring {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: finger-pulse 1.8s ease-out infinite;
+body:not(.cam-front) .settings-wire-art[data-facing-art="environment"] {
+  display: block;
 }
 
-@keyframes finger-pulse {
-  0% {
-    transform: scale(0.55);
-    opacity: 0.95;
-  }
-  70% {
-    transform: scale(1.5);
-    opacity: 0;
-  }
-  100% {
-    transform: scale(1.5);
-    opacity: 0;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .finger-pulse-ring {
-    animation: none;
-    opacity: 0.6;
-  }
+body.cam-front .settings-wire-art[data-facing-art="user"] {
+  display: block;
 }
 
 /* ── 측정 이력: 추세 차트를 다크 모니터 카드로 (본문 카드와 확실히 구분) ── */
@@ -3286,32 +3285,34 @@ body.cam-front .finger-guide-art[data-facing-art="user"] {
   transform: scale(0.95);
 }
 
-/* ── 측정 안내: [공유] [저장] 버튼 모양 칩 ─────────────────────────────── */
-.guide-chip-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 4px;
+/* ── 측정 안내 3번: 문장 안 [공유]/[저장] 버튼 모양 인라인 칩 ───────────── */
+.guide-step3-desc {
+  display: inline;
 }
 
-.guide-chip {
+.guide-inline-chip {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  padding: 9px 18px;
-  border: 2px solid #C9D5E8;
-  border-radius: 999px;
+  gap: 4px;
+  height: 1.65em;
+  padding: 0 0.55em 0 0.45em;
+  margin: 0 3px;
+  border: 1.5px solid #C9D5E8;
+  border-radius: 0.6em;
   background: #FFFFFF;
   color: var(--primary);
-  font-size: 0.98rem;
+  font-size: 0.92em;
   font-weight: 800;
+  line-height: 1;
+  vertical-align: -0.32em;
+  white-space: nowrap;
 }
 
-.guide-chip svg {
+.guide-inline-chip svg {
   flex: 0 0 auto;
 }
 
-.guide-chip-save {
+.guide-inline-chip.is-save {
   border-color: #F2C4CD;
   background: #FFF5F6;
   color: var(--accent-deep);
@@ -3361,8 +3362,8 @@ body.cam-front .finger-guide-art[data-facing-art="user"] {
 .privacy-item dd {
   margin: 0;
 }
-/* ── 이력 자세히 보기 헤더: 버튼 5개(뒤로·저장·공유·삭제·닫기)가 좁은 화면에도 들어가게 ── */
-.history-sheet .history-header-detail .icon-btn {
+/* ── 시트 헤더 아이콘 버튼: 모든 시트에서 같은 크기로 통일 ───────────────── */
+.sheet .icon-btn {
   width: 44px;
   min-width: 44px;
   height: 44px;
@@ -3370,10 +3371,76 @@ body.cam-front .finger-guide-art[data-facing-art="user"] {
 }
 
 @media (max-width: 400px) {
-  .history-sheet .history-header-detail .icon-btn {
+  .sheet .icon-btn {
     width: 40px;
     min-width: 40px;
     height: 42px;
     min-height: 42px;
   }
+}
+
+/* hidden 속성은 어떤 display 선언보다 우선한다 (버튼/배너 초기 숨김 보장) */
+[hidden] {
+  display: none !important;
+}
+
+/* ── PWA 설치 제안 배너(반투명 플로팅) ─────────────────────────────────── */
+.install-banner {
+  position: fixed;
+  left: 50%;
+  bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  width: calc(100% - 32px);
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 13px 15px;
+  border-radius: 16px;
+  background: rgba(17, 28, 45, 0.88);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: #FFFFFF;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.3);
+  z-index: 55;
+}
+
+.install-banner-text {
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.install-banner-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.install-banner-btn {
+  flex: 1 1 auto;
+  min-height: 46px;
+  padding: 0 14px;
+  border: 1.5px solid rgba(255, 255, 255, 0.55);
+  border-radius: 999px;
+  background: transparent;
+  color: #FFFFFF;
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.install-banner-btn.is-primary {
+  flex: 1.4 1 auto;
+  border-color: transparent;
+  background: var(--accent);
+}
+
+.install-banner-btn:active {
+  transform: scale(0.98);
+}
+
+/* 설정 시트: 앱 설치 버튼 */
+.install-btn {
+  width: 100%;
 }

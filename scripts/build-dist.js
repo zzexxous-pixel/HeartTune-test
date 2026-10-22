@@ -18,6 +18,8 @@ const DIST_DIR = path.join(ROOT_DIR, 'dist');
 
 // 빌드에 포함할 런타임 파일 (경로는 저장소 루트 기준)
 const RUNTIME_FILES = [
+  'assets/finger-guide-rear.png',
+  'assets/finger-guide-front.png',
   'index.html',
   'manifest.webmanifest',
   'sw.js',

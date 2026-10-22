@@ -11,6 +11,8 @@
 const CACHE_NAME = 'hearttune-cache-v1';
 const ASSETS = [
   './',
+  './assets/finger-guide-rear.png',
+  './assets/finger-guide-front.png',
   './index.html',
   './manifest.webmanifest',
   './src/main.css',

@@ -35,9 +35,11 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     await expect(page.locator('#appTitleTrigger')).toContainText('오늘심박');
     await expect(page.locator('.waveform-title')).toHaveText('카메라 측정 파형');
 
-    // 처음 접속(저장된 이력 없음)에는 메시지 영역에 손가락 위치 와이어가 보인다.
+    // 초기 화면 대기 상태에서는 손가락 위치 와이어 이미지가 항상 보인다.
     await expect(page.locator('#fingerGuide')).toBeVisible();
-    await expect(page.locator('.finger-guide-art[data-facing-art="environment"] svg')).toBeVisible();
+    await expect(page.locator('.finger-guide-art[data-facing-art="environment"]')).toBeVisible();
+    // 설치 제안 배너는 설치 자격 이벤트(beforeinstallprompt)가 오기 전에는 숨겨진다.
+    await expect(page.locator('#installBanner')).toBeHidden();
 
     const iconConfig = await page.evaluate(async () => {
       const manifest = await fetch('./manifest.webmanifest').then((response) => response.json());
@@ -599,6 +601,26 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     expect(download.suggestedFilename()).toMatch(/^HeartTune_80bpm_\d+\.png$/);
   });
 
+  test('14. 설정(측정 시간·카메라 방향)이 localStorage에 저장되어 재접속 시 유지된다', async ({ page }) => {
+    await page.goto('./');
+    await page.locator('#btnSettings').click();
+    await page.locator('.dur-btn[data-duration="60"]').click();
+    await page.locator('.cam-btn[data-facing="user"]').click();
+    // 설정 시트의 와이어 이미지도 전면 선택으로 바뀐다.
+    await expect(page.locator('.settings-wire-art[data-facing-art="user"]')).toBeVisible();
+    await page.locator('#settingsSheet [data-sheet-close]').click();
+
+    await page.reload();
+    await expect(page.locator('.dur-btn[data-duration="60"]')).toHaveClass(/active/);
+    await expect(page.locator('.cam-btn[data-facing="user"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('#timerBadge')).toHaveText('01:00');
+    const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('hearttune_settings_v1')));
+    expect(saved.durationSec).toBe(60);
+    expect(saved.facingMode).toBe('user');
+    // 초기화면 와이어는 전면 카메라 설정에 맞는 이미지로 바뀐다.
+    await expect(page.locator('.finger-guide-art[data-facing-art="user"]')).toBeVisible();
+  });
+
   test('13. 시트 손잡이 드래그: 살짝 끌면 제자리로, 충분히 끌면 닫힌다', async ({ page }) => {
     await page.goto('./');
     await page.locator('#btnSettings').click();
@@ -652,10 +674,16 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     await page.goBack();
     await expect(page.locator('#historySheet')).not.toHaveClass(/open/);
 
-    // 메인에서 뒤로가기 → 앱 주소로 초기 화면 (앱을 벗어나지 않음)
+    // 메인에서 뒤로가기 → 종료 안내 플로팅 메시지(2초) 후 앱 유지(재접속 없음)
     await page.goBack();
-    await expect(page.locator('#btnMenu')).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('#liveAlertBox')).toBeVisible();
+    await expect(page.locator('#liveAlertBox')).toContainText('종료');
+    await expect(page.locator('#btnMenu')).toBeVisible();
     expect(page.url()).toBe(appUrl);
     await expect(page.locator('#historySheet')).not.toHaveClass(/open/);
+
+    // 안내 중 한 번 더 뒤로가기 → 앱 밖으로 나간다(새 탭의 이전 문서 = about:blank)
+    await page.goBack();
+    await page.waitForURL('about:blank', { timeout: 5000 });
   });
 });

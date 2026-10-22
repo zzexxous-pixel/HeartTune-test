@@ -8,10 +8,12 @@
  *  · hearttune_history_v1     : 측정 이력 (최대 100건)
  *  · hearttune_calibration_v1 : 신뢰도 높은 측정의 필터 대역 (최근 30건)
  *                               → 다음 측정의 priorBpm(구명조끼 대역) 으로 사용
+ *  · hearttune_settings_v1    : 사용자 설정 (측정 시간·카메라 방향) — 재접속 시 유지
  */
 
 export const HISTORY_STORAGE_KEY = 'hearttune_history_v1';
 export const CALIB_STORAGE_KEY = 'hearttune_calibration_v1';
+export const SETTINGS_STORAGE_KEY = 'hearttune_settings_v1';
 export const MAX_HISTORY_ITEMS = 100;
 export const MAX_CALIB_ITEMS = 30;
 
@@ -124,5 +126,39 @@ export function saveCalibrationSample(bpm, filterState, quality) {
     storage.setItem(CALIB_STORAGE_KEY, JSON.stringify(list.slice(0, MAX_CALIB_ITEMS)));
   } catch (_) {
     // 무시
+  }
+}
+
+/* ── 사용자 설정 (측정 시간 · 카메라 방향) ─────────────────────────────── */
+
+const DEFAULT_SETTINGS = { durationSec: 30, facingMode: 'environment' };
+
+/** 저장된 설정을 불러온다. (값이 없거나 깨지면 기본값) */
+export function loadAppSettings() {
+  const storage = getStorage();
+  if (!storage) return { ...DEFAULT_SETTINGS };
+  try {
+    const raw = storage.getItem(SETTINGS_STORAGE_KEY);
+    if (!raw) return { ...DEFAULT_SETTINGS };
+    const parsed = JSON.parse(raw);
+    const durationSec = [15, 30, 60].includes(Number(parsed.durationSec))
+      ? Number(parsed.durationSec)
+      : DEFAULT_SETTINGS.durationSec;
+    const facingMode = parsed.facingMode === 'user' ? 'user' : 'environment';
+    return { durationSec, facingMode };
+  } catch (_) {
+    return { ...DEFAULT_SETTINGS };
+  }
+}
+
+/** 설정 일부만 바꿔도 나머지는 유지하며 저장한다. */
+export function saveAppSettings(partial = {}) {
+  const storage = getStorage();
+  if (!storage) return;
+  try {
+    const next = { ...loadAppSettings(), ...partial };
+    storage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(next));
+  } catch (_) {
+    // 용량 초과 등은 조용히 무시 (앱 동작 우선)
   }
 }

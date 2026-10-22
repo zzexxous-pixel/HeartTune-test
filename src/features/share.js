@@ -384,9 +384,19 @@ export async function shareResultAsImage(record, options) {
   triggerDownload(blob, fileName);
 }
 
-/** 공유 시트를 거치지 않고 항상 이미지 파일로 바로 내려받는다. */
-export function downloadResultAsImage(record, options) {
+/** 공유 시트를 거치지 않고 항상 이미지 파일로 바로 내려받는다.
+ *  options.onDone(blobUrl) — 다운로드 시작 직후 호출. 이미지를 새 탭으로 여는 등의 후속 처리용. */
+export function downloadResultAsImage(record, options = {}) {
   if (!record) return;
   const { blob, fileName } = renderShareCanvas(record, options);
-  triggerDownload(blob, fileName);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  if (typeof options.onDone === 'function') options.onDone(url);
+  // 새 탭으로 연 이미지가 로드를 마칠 시간을 주고 나서 해제한다.
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
 }

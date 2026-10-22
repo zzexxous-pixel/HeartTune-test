@@ -19,7 +19,9 @@ import {
   deleteHistoryById,
   clearStoredData,
   loadCalibrationBaseline,
-  saveCalibrationSample
+  saveCalibrationSample,
+  loadAppSettings,
+  saveAppSettings
 } from './features/storage.js';
 import { createCameraController } from './features/camera.js';
 import { getHistoryPresentation } from './features/result-indicators.js';
@@ -33,12 +35,14 @@ const DEBUG_MAX_RATIO = 0.8;
 
 // 기저 심박수/필터 대역 학습값은 features/storage.js 가 관리합니다.
 const initialBaseline = loadCalibrationBaseline();
+// 사용자 설정(측정 시간·카메라 방향)도 storage.js 가 관리 — 재접속 시 유지된다.
+const initialSettings = loadAppSettings();
 
 // 애플리케이션 상태
 const state = {
   isMeasuring: false,
   isStarting: false,
-  durationSec: 30,
+  durationSec: initialSettings.durationSec,
   startTimeMs: 0,
   lastSampleMs: 0,
   lastAdaptiveTickSec: 0,
@@ -50,7 +54,7 @@ const state = {
   lastResult: null,
   stealthClicks: 0,
   stealthTimer: null,
-  facingMode: 'environment',
+  facingMode: initialSettings.facingMode,
   cameraState: 'idle', // idle | starting | ready | error
   previewToken: 0,
 
@@ -110,6 +114,11 @@ const els = {
   historyDetailBody: document.getElementById('historyDetailBody'),
   historyAdSlot: document.getElementById('historyAdSlot'),
   historyCount: document.getElementById('historyCount'),
+  installBanner: document.getElementById('installBanner'),
+  btnInstallFromBanner: document.getElementById('btnInstallFromBanner'),
+  btnDismissInstall: document.getElementById('btnDismissInstall'),
+  installBlock: document.getElementById('installBlock'),
+  btnInstallApp: document.getElementById('btnInstallApp'),
   trendStats: document.getElementById('trendStats'),
   trendYAxis: document.getElementById('trendYAxis'),
   trendScroll: document.getElementById('trendScroll'),
@@ -251,12 +260,6 @@ function syncCameraButtons() {
   document.body.classList.toggle('cam-front', state.facingMode === 'user');
 }
 
-/** 처음 접속(저장된 이력도 결과도 없음)인 동안 메시지 영역에 손가락 위치 와이어를 보여준다. */
-function updateFirstRunState() {
-  const firstRun = !state.lastResult && loadHistory().length === 0;
-  document.body.classList.toggle('is-first-run', firstRun);
-}
-
 function syncLangButtons() {
   const lang = getLang();
   els.langBtns.forEach((btn) => {
@@ -312,7 +315,6 @@ function applyTranslations() {
   drawLiveWaveform();
   updateCalibBannerUI();
   renderHistory();
-  updateFirstRunState();
   document.body.classList.add('i18n-ready');
 }
 
@@ -707,7 +709,6 @@ function finishMeasurement() {
   saveRecordToHistory(record);
   els.btnShareImage.hidden = false;
   els.btnSaveImage.hidden = false;
-  updateFirstRunState();
   logDebug(
     `Measurement completed: BPM=${record.bpm}, status=${record.status}, CV=${record.cv}, saved to 30-run baseline.`
   );
@@ -1225,9 +1226,11 @@ const APP_URL = location.href.split('#')[0];
 const navLayers = []; // 'sheet:<id>' 또는 'detail'
 let navSilentPops = 0; // 우리가 history.go() 로 되돌린 popstate 를 무시하는 횟수
 let navClosingFromHistory = false; // 뒤로가기로 시트를 닫는 중에는 history 를 다시 건드리지 않음
+let backExitArmedAt = 0; // 메인에서 종료 안내를 띄운 시각 (2초 안에 다시 뒤로가면 종료)
 
 function pushNavLayer(name) {
   navLayers.push(name);
+  backExitArmedAt = 0; // 화면을 다시 열면 종료 대기 상태를 초기화한다.
   history.pushState({ htLayer: navLayers.length }, '', APP_URL);
 }
 
@@ -1260,7 +1263,16 @@ window.addEventListener('popstate', () => {
     return;
   }
   if (navLayers.length === 0) {
-    location.replace(APP_URL); // 메인에서 뒤로가기: 초기 화면으로 다시 연다
+    // 메인 화면에서 뒤로가기: 첫 번째는 종료 안내(2초), 두 번째는 앱 밖으로 나간다.
+    const now = Date.now();
+    if (now - backExitArmedAt < 2000) {
+      backExitArmedAt = 0;
+      history.back();
+      return;
+    }
+    backExitArmedAt = now;
+    showAlert(t('app.exit.confirm'), 2000);
+    history.pushState({ htGuard: true }, '', APP_URL); // 재접속(새로고침) 없이 앱 유지
     return;
   }
   const top = navLayers.pop();
@@ -1281,10 +1293,25 @@ function shareRecord(record) {
   shareResultAsImage(record, { t, formatDateTime: formatHistoryDateTime, formatNumber });
 }
 
-/** 공유 시트를 거치지 않고 결과 이미지를 바로 내려받는다. */
+/** 저장(다운로드): 저장 중 플로팅 메시지 → 완료 후 저장된 이미지를 연다. */
 function downloadRecord(record) {
   if (!record) return;
-  downloadResultAsImage(record, { t, formatDateTime: formatHistoryDateTime, formatNumber });
+  showAlert(t('share.save.saving'), 6000);
+  window.setTimeout(() => {
+    downloadResultAsImage(record, {
+      t,
+      formatDateTime: formatHistoryDateTime,
+      formatNumber,
+      onDone: (imageUrl) => {
+        hideAlert();
+        showAlert(t('share.save.done'), 2600);
+        // 저장된 이미지를 새 탭으로 연다 (차단되면 플로팅 메시지로만 안내).
+        if (imageUrl && !window.open(imageUrl, '_blank')) {
+          logDebug('Opening the saved image was blocked by the browser.');
+        }
+      }
+    });
+  }, 300);
 }
 
 async function switchCamera(facing) {
@@ -1294,6 +1321,7 @@ async function switchCamera(facing) {
 
   state.facingMode = facing;
   camera.setFacing(facing);
+  saveAppSettings({ facingMode: facing });
   syncCameraButtons();
   logDebug(`Camera facing switched to: ${facing}`);
 
@@ -1389,6 +1417,7 @@ els.durBtns.forEach((btn) => {
   btn.addEventListener('click', () => {
     if (state.isMeasuring) return;
     state.durationSec = Number(btn.getAttribute('data-duration'));
+    saveAppSettings({ durationSec: state.durationSec });
     els.durBtns.forEach((b) => b.classList.toggle('active', b === btn));
     els.timerBadge.textContent = formatTimer(state.durationSec);
   });
@@ -1607,6 +1636,70 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
+/* ── PWA 설치 제안: 브라우저가 설치 자격을 갖추면 배너/설정 버튼 노출 ───── */
+const installState = { prompt: null };
+const INSTALL_DISMISS_KEY = 'hearttune_install_dismissed';
+
+function isStandaloneDisplay() {
+  return window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+}
+
+function updateInstallUI() {
+  const installable = Boolean(installState.prompt) && !isStandaloneDisplay();
+  els.installBlock.hidden = !installable;
+  const dismissed = (() => {
+    try {
+      return sessionStorage.getItem(INSTALL_DISMISS_KEY) === '1';
+    } catch (_) {
+      return false;
+    }
+  })();
+  els.installBanner.hidden = !(installable && !dismissed);
+}
+
+window.addEventListener('beforeinstallprompt', (event) => {
+  event.preventDefault();
+  installState.prompt = event;
+  updateInstallUI();
+  logDebug('Install prompt captured (beforeinstallprompt).');
+});
+
+window.addEventListener('appinstalled', () => {
+  installState.prompt = null;
+  els.installBanner.hidden = true;
+  updateInstallUI();
+  showAlert(t('pwa.install.done'), 2600);
+  logDebug('App installed to home screen.');
+});
+
+async function promptInstall() {
+  const deferred = installState.prompt;
+  if (!deferred) return;
+  try {
+    deferred.prompt();
+    const choice = await deferred.userChoice;
+    if (choice && choice.outcome === 'accepted') {
+      els.installBanner.hidden = true;
+    }
+  } catch (err) {
+    logDebug(`Install prompt failed: ${err.message}`);
+  } finally {
+    installState.prompt = null;
+    updateInstallUI();
+  }
+}
+
+els.btnInstallFromBanner.addEventListener('click', () => promptInstall());
+els.btnInstallApp.addEventListener('click', () => promptInstall());
+els.btnDismissInstall.addEventListener('click', () => {
+  try {
+    sessionStorage.setItem(INSTALL_DISMISS_KEY, '1');
+  } catch (_) {
+    // 무시
+  }
+  els.installBanner.hidden = true;
+});
+
 function initApp() {
   const parity = validateI18nKeyParity();
   logDebug(`i18n parity check: valid=${parity.valid} (${parity.totalKeys} keys)`);
@@ -1617,13 +1710,28 @@ function initApp() {
   sheets.bind();
   syncConfigUI();
 
+  // 저장된 사용자 설정(측정 시간·카메라 방향)을 화면에 반영한다.
+  els.timerBadge.textContent = formatTimer(state.durationSec);
+  camera.setFacing(state.facingMode);
+  updateInstallUI();
+
   // 페이지 진입 즉시 카메라 미리보기 시작 → 측정 전에 손가락 위치를 잡을 수 있다.
   openIdleCamera();
 
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-    navigator.serviceWorker.register('./sw.js').catch((err) => {
-      logDebug(`SW registration skipped: ${err.message}`);
-    });
+    // updateViaCache:'none' → 방문할 때마다 sw.js 를 HTTP 캐시 없이 확인해서
+    // 새 배포(빌드 해시 변경)가 있으면 자산을 자동으로 다시 받는다.
+    navigator.serviceWorker
+      .register('./sw.js', { updateViaCache: 'none' })
+      .then((registration) => {
+        // 화면을 다시 띄울 때(가려졌다 복귀 등)도 갱신을 확인한다.
+        document.addEventListener('visibilitychange', () => {
+          if (!document.hidden) registration.update().catch(() => {});
+        });
+      })
+      .catch((err) => {
+        logDebug(`SW registration skipped: ${err.message}`);
+      });
   }
 }
 

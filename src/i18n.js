@@ -100,6 +100,8 @@ export const dictionaries = {
     'share.action.label': '이미지로 공유·저장',
     'share.action.share': '이미지 공유하기',
     'share.action.save': '이미지 파일로 저장',
+    'share.save.saving': '이미지 저장 중…',
+    'share.save.done': '이미지를 저장했습니다. 저장된 이미지를 엽니다.',
     'history.undo.message': '삭제되었습니다.',
     'history.undo.button': '삭제 취소',
     'history.action.delete': '삭제',
@@ -115,7 +117,9 @@ export const dictionaries = {
     'guide.step2.title': '2. 5초 고속 영점 조절 & 실시간 추적',
     'guide.step2.desc': '측정 시작 후 5초 만에 첫 심박수를 포착하고, 종료될 때까지 내 맥박 주파수를 따라 필터가 자동 조절됩니다. 측정 기록은 최대 100건까지 휴대폰 안(브라우저 저장공간)에 저장됩니다.',
     'guide.step3.title': '3. 가족에게 큰 글씨 이미지 공유',
-    'guide.step3.desc': '측정이 끝나면 [공유] 버튼으로 큰 글씨 결과 이미지를 카카오톡 등으로 바로 보내거나, [저장] 버튼으로 이미지를 내려받아 자녀나 부모님께 보여줄 수 있습니다.',
+    'guide.step3.desc.a': '측정이 끝나면',
+    'guide.step3.desc.b': '버튼으로 큰 글씨 결과 이미지를 카카오톡 등으로 바로 보내거나,',
+    'guide.step3.desc.c': '버튼으로 이미지를 내려받아 자녀나 부모님께 보여줄 수 있습니다.',
     'guide.rhythm.title': '부정맥·빈맥·서맥이란?',
     'guide.rhythm.note': '아래 설명은 일반 건강 정보입니다. 이 앱의 측정 결과는 참고용 신호이며, 확정적인 의학적 판단을 대신하지 않습니다.',
     'guide.rhythm.arrhythmia': '심장 박동의 속도나 리듬이 평소와 다르게 나타나는 여러 상태를 가리키는 말입니다.',
@@ -128,7 +132,7 @@ export const dictionaries = {
     'legal.disclaimer.short': '본 앱은 의료기기가 아니며, 결과는 참고용입니다.',
     'legal.title': '법적 고지',
     'legal.privacy.title': '개인정보 처리방침',
-    'legal.privacy.intro': 'HeartTune은 웹앱입니다. 화면 파일을 웹에서 내려받는 것 외에, 접속 이후 카메라 측정·데이터 처리·기록 관리 등 모든 작업은 휴대폰의 브라우저 안에서 이루어지며, 측정 데이터는 휴대폰 밖으로 전송되지 않습니다.',
+    'legal.privacy.intro': '앱 접속 이후 카메라 측정, 데이터 처리, 기록 관리 등 모든 작업은 휴대폰의 브라우저 안에서 이루어지며, 측정 데이터는 휴대폰 밖으로 전송되지 않습니다.',
     'legal.privacy.camera.title': '카메라 영상',
     'legal.privacy.camera.desc': '측정 중 카메라 영상은 브라우저 메모리에서 실시간 분석에만 쓰이고, 영상 그대로는 저장하지 않고 즉시 버려집니다.',
     'legal.privacy.stored.title': '저장되는 정보',
@@ -141,7 +145,11 @@ export const dictionaries = {
     'legal.privacy.delete.desc': '측정 이력에서 기록을 건별로 지우거나 한 번에 전체 삭제할 수 있고, 브라우저의 사이트 데이터를 지우면 모두 삭제됩니다.',
     'debug.resize': '디버그 창 크기 조절',
     'pwa.install.banner': '홈 화면에 [오늘심박]을 추가하면 언제든 한 번에 열 수 있어요.',
-    'pwa.install.btn': '홈 화면 설치'
+    'pwa.install.btn': '홈 화면 설치',
+    'pwa.install.title': '앱 설치',
+    'pwa.install.later': '나중에',
+    'pwa.install.done': '홈 화면에 설치했습니다.',
+    'app.exit.confirm': '뒤로가기를 한 번 더 누르면 앱이 종료됩니다.'
   },
 
   en: {
@@ -240,6 +248,8 @@ export const dictionaries = {
     'share.action.label': 'Share or save as image',
     'share.action.share': 'Share as image',
     'share.action.save': 'Save image file',
+    'share.save.saving': 'Saving image…',
+    'share.save.done': 'Image saved. Opening the saved image…',
     'history.undo.message': 'Deleted.',
     'history.undo.button': 'Undo',
     'history.action.delete': 'Delete',
@@ -255,7 +265,9 @@ export const dictionaries = {
     'guide.step2.title': '2. 5s Fast Lock & Adaptive Tracking',
     'guide.step2.desc': 'Locks onto your pulse within 5 seconds and continuously adapts the filter band until completion. Up to 100 records are kept on your phone (browser storage).',
     'guide.step3.title': '3. Share Large-Print Image Card',
-    'guide.step3.desc': 'After measuring, tap [Share] to send the large-print result image via KakaoTalk or any app, or tap [Save] to download it and show your family.',
+    'guide.step3.desc.a': 'After measuring, tap',
+    'guide.step3.desc.b': 'to send the large-print result image via KakaoTalk or any app, or',
+    'guide.step3.desc.c': 'to download it and show your family.',
     'guide.rhythm.title': 'About arrhythmia, tachycardia and bradycardia',
     'guide.rhythm.note': 'These are general health explanations. App readings are reference signals and do not replace professional medical judgment.',
     'guide.rhythm.arrhythmia': 'A general term for changes in the speed or rhythm of the heartbeat.',
@@ -268,7 +280,7 @@ export const dictionaries = {
     'legal.disclaimer.short': 'Not a medical device. Results are for reference only.',
     'legal.title': 'Legal notice',
     'legal.privacy.title': 'Privacy policy',
-    'legal.privacy.intro': 'HeartTune is a web app. Apart from fetching the page files, everything after that — camera measurement, data processing, and record management — runs inside your phone\'s browser, and measurement data never leaves your phone.',
+    'legal.privacy.intro': 'After you open the app, everything — camera measurement, data processing, and record management — runs inside your phone\'s browser, and measurement data never leaves your phone.',
     'legal.privacy.camera.title': 'Camera video',
     'legal.privacy.camera.desc': 'Camera frames are used only for real-time analysis in browser memory and are discarded immediately — never stored.',
     'legal.privacy.stored.title': 'What is stored',
@@ -281,7 +293,11 @@ export const dictionaries = {
     'legal.privacy.delete.desc': 'Delete records individually or all at once from the history sheet, or clear everything via your browser\'s site data settings.',
     'debug.resize': 'Resize debug panel',
     'pwa.install.banner': 'Add HeartTune to your Home Screen for quick one-tap access.',
-    'pwa.install.btn': 'Install App'
+    'pwa.install.btn': 'Install App',
+    'pwa.install.title': 'Install app',
+    'pwa.install.later': 'Not now',
+    'pwa.install.done': 'Added to your Home Screen.',
+    'app.exit.confirm': 'Press back again to exit the app.'
   }
 };
 
