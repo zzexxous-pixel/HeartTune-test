@@ -49,15 +49,18 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
         icons: manifest.icons.map((icon) => ({
           sizes: icon.sizes,
           purpose: icon.purpose,
-          svg: decodeURIComponent(icon.src.slice(icon.src.indexOf(',') + 1))
+          src: icon.src
         }))
       };
     });
-    expect(iconConfig.favicon).toContain('translate(14 14) scale(.72)');
-    expect(iconConfig.icons.map((icon) => icon.sizes)).toEqual(['192x192', '512x512']);
+    // 파비콘은 설치 아이콘과 같은 디자인: 좌상→우하 그라데이션 + 하트 .68 정중앙
+    expect(iconConfig.favicon).toContain('linearGradient');
+    expect(iconConfig.favicon).toContain('translate(16 18) scale(.68)');
+    // 매니페스트 아이콘은 PNG any+maskable 쌍 — WebAPK(실제 앱 설치)·PC 아이콘 지원
+    expect(iconConfig.icons.map((icon) => icon.sizes)).toEqual(['192x192', '192x192', '512x512', '512x512']);
+    expect(iconConfig.icons.map((icon) => icon.purpose)).toEqual(['any', 'maskable', 'any', 'maskable']);
     for (const icon of iconConfig.icons) {
-      expect(icon.purpose).toContain('maskable');
-      expect(icon.svg).toContain('scale(.72)');
+      expect(icon.src).toMatch(/\.\/assets\/icon-(192|512)\.png$/);
     }
 
     // 첫 화면에는 법적 고지 푸터/탭이 없어야 한다 (결과 화면·시트로 이동)
@@ -186,7 +189,7 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
       return [rect.x, rect.y, rect.width, rect.height];
     }));
     const idleZones = await captureZones();
-    const idleMessageBox = await page.locator('#stageGuideText').boundingBox();
+    const idleMessageBox = await page.locator('#idleGuide').boundingBox();
     const ctaBtn = page.locator('#btnPrimaryMeasure');
     await ctaBtn.click();
     await expect(ctaBtn).toHaveText('측정 취소');
