@@ -2239,7 +2239,7 @@ body.has-result .waveform-box {
   flex: 1 1 0;
   min-height: 0;
   overflow-y: auto;
-  overscroll-behavior: contain;
+  overscroll-behavior: none; /* 맨 위에서의 아래 스와이프는 시트 닫기 드래그로 (스크롤 우선 규칙은 JS가 판정) */
   -webkit-overflow-scrolling: touch;
   gap: 8px;
   padding: 2px 2px 8px;
@@ -2403,7 +2403,7 @@ body.has-result .waveform-box {
 .history-pane-detail {
   touch-action: pan-y;
   overflow-y: auto;
-  overscroll-behavior: contain;
+  overscroll-behavior: none; /* 맨 위에서의 아래 스와이프는 시트 닫기 드래그로 */
   -webkit-overflow-scrolling: touch;
   padding: 12px 16px 24px;
 }

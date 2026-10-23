@@ -1539,6 +1539,20 @@ const SHEET_DRAG_IGNORE_SELECTOR = [
   '.history-delete'
 ].join(', ');
 
+/** target 에서 시트(sheet)까지 올라가며 '이미 아래로 스크롤된 세로 스크롤 요소'가 있는지 찾는다.
+ *  (이력 시트처럼 .sheet-body 는 overflow:hidden 이고 실제 스크롤은 .history-list·
+ *   자세히 보기 pane 이 맡는 구조도 있어 범용으로 탐색한다) */
+function hasScrolledVerticalAncestor(sheet, target) {
+  for (let node = target; node && node !== sheet; node = node.parentElement) {
+    if (!(node instanceof Element)) continue;
+    const overflowY = window.getComputedStyle(node).overflowY;
+    if ((overflowY === 'auto' || overflowY === 'scroll') && node.scrollHeight > node.clientHeight && node.scrollTop > 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function bindSheetDismissDrag(sheet) {
   let drag = null;
 
@@ -1550,9 +1564,8 @@ function bindSheetDismissDrag(sheet) {
     if (!onHandle) {
       // 1) 조작 요소(버튼·링크·입력·이력 행 등) 위에서는 드래그를 시작하지 않는다.
       if (event.target.closest(SHEET_DRAG_IGNORE_SELECTOR)) return;
-      // 2) 스크롤 가능한 본문이 이미 아래로 내려가 있으면 스크롤을 우선한다.
-      const scroller = event.target.closest('.sheet-body');
-      if (scroller && scroller.scrollHeight > scroller.clientHeight && scroller.scrollTop > 0) return;
+      // 2) 세로 스크롤이 가능한 조상이 이미 아래로 내려가 있으면 스크롤을 우선한다.
+      if (hasScrolledVerticalAncestor(sheet, event.target)) return;
     }
 
     drag = {

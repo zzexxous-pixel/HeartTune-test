@@ -747,22 +747,25 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     await expect(sheet).toHaveClass(/open/);
     await page.waitForTimeout(400);
 
-    // 이력 목록을 맨 아래까지 스크롤한다 (스크롤 가능성 자체도 검증)
+    // 이력 목록(실제 스크롤 컨테이너)을 맨 아래까지 스크롤한다 — 스크롤 가능성 자체도 검증
     const scrolled = await page.evaluate(() => {
-      const body = document.querySelector('#historySheet .sheet-body');
-      body.scrollTop = body.scrollHeight;
-      return body.scrollTop;
+      const list = document.querySelector('#historySheet .history-list');
+      list.scrollTop = list.scrollHeight;
+      return list.scrollTop;
     });
     expect(scrolled).toBeGreaterThan(0);
 
-    // 스크롤된 상태에서 빈 영역(하단 법적 고지 문구)을 아래로 드래그해도 닫히지 않는다
-    const legal = page.locator('#historyAdSlot .history-legal');
-    const legalBox = await legal.boundingBox();
-    const lx = legalBox.x + legalBox.width / 2;
-    const ly = legalBox.y + legalBox.height / 2;
-    await page.mouse.move(lx, ly);
+    // 스크롤된 목록 '안'의 빈 영역(마지막 두 행 사이 간격)에서 아래로 드래그해도
+    // 시트가 닫히지 않는다(내부 스크롤 우선)
+    const gap = await page.evaluate(() => {
+      const items = document.querySelectorAll('#historySheet .history-list .history-item');
+      const a = items[items.length - 2].getBoundingClientRect();
+      const b = items[items.length - 1].getBoundingClientRect();
+      return { x: a.left + a.width / 2, y: (a.bottom + b.top) / 2 };
+    });
+    await page.mouse.move(gap.x, gap.y);
     await page.mouse.down();
-    await page.mouse.move(lx, ly + 170, { steps: 8 });
+    await page.mouse.move(gap.x, gap.y + 170, { steps: 8 });
     await page.mouse.up();
     await expect(sheet).toHaveClass(/open/);
   });
