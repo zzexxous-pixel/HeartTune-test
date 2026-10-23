@@ -56,7 +56,7 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     // 파비콘은 설치 아이콘과 같은 디자인: 좌상→우하 그라데이션 + 하트 .8078 정중앙(10% 추가 확대)
     expect(iconConfig.favicon).toContain('linearGradient');
     expect(iconConfig.favicon).toContain('translate(9.61 12.03) scale(.8078)');
-    // 매니페스트 아이콘: any 용도는 둥근 모서리+투명 배경(PC 설치), maskable 용도는 풀블리드
+    // 매니페스트 아이콘: 모든 용도(any·maskable)가 둥근 모서리+투명 배경의 동일한 디자인(7차 통일)
     expect(iconConfig.icons.map((icon) => icon.sizes)).toEqual(['192x192', '192x192', '512x512', '512x512']);
     expect(iconConfig.icons.map((icon) => icon.purpose)).toEqual(['any', 'maskable', 'any', 'maskable']);
     for (const icon of iconConfig.icons) {
