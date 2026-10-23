@@ -53,14 +53,14 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
         }))
       };
     });
-    // 파비콘은 설치 아이콘과 같은 디자인: 좌상→우하 그라데이션 + 하트 .7344 정중앙(8% 확대)
+    // 파비콘은 설치 아이콘과 같은 디자인: 좌상→우하 그라데이션 + 하트 .8078 정중앙(10% 추가 확대)
     expect(iconConfig.favicon).toContain('linearGradient');
-    expect(iconConfig.favicon).toContain('translate(13.28 15.48) scale(.7344)');
-    // 매니페스트 아이콘은 PNG any+maskable 쌍 — WebAPK(실제 앱 설치)·PC 아이콘 지원
+    expect(iconConfig.favicon).toContain('translate(9.61 12.03) scale(.8078)');
+    // 매니페스트 아이콘: any 용도는 둥근 모서리+투명 배경(PC 설치), maskable 용도는 풀블리드
     expect(iconConfig.icons.map((icon) => icon.sizes)).toEqual(['192x192', '192x192', '512x512', '512x512']);
     expect(iconConfig.icons.map((icon) => icon.purpose)).toEqual(['any', 'maskable', 'any', 'maskable']);
     for (const icon of iconConfig.icons) {
-      expect(icon.src).toMatch(/\.\/assets\/icon-(192|512)\.png$/);
+      expect(icon.src).toMatch(/\.\/assets\/icon-(192|512)(-maskable)?\.png$/);
     }
 
     // 첫 화면에는 법적 고지 푸터/탭이 없어야 한다 (결과 화면·시트로 이동)
@@ -680,23 +680,8 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     await page.goBack();
     await expect(page.locator('#historySheet')).not.toHaveClass(/open/);
 
-    // 메인에서 뒤로가기 → '종료할까요?' 확인 다이얼로그, 앱 유지(재접속 없음)
+    // 메인에서 뒤로가기 → 확인 팝업 없이 그대로 앱 밖으로 나간다(새 탭의 이전 문서 = about:blank)
     await page.goBack();
-    await expect(page.locator('#confirmBackdrop')).toHaveClass(/open/);
-    await expect(page.locator('#confirmMessage')).toContainText('종료');
-    await expect(page.locator('#btnMenu')).toBeVisible();
-    expect(page.url()).toBe(appUrl);
-    await expect(page.locator('#historySheet')).not.toHaveClass(/open/);
-
-    // 취소하면 다이얼로그만 닫히고 앱에 머문다
-    await page.locator('#confirmCancel').click();
-    await expect(page.locator('#confirmBackdrop')).not.toHaveClass(/open/);
-    expect(page.url()).toBe(appUrl);
-
-    // 다시 뒤로가기 → [종료] 확인 → 앱 밖으로 나간다(새 탭의 이전 문서 = about:blank)
-    await page.goBack();
-    await expect(page.locator('#confirmBackdrop')).toHaveClass(/open/);
-    await page.locator('#confirmOk').click();
     await page.waitForURL('about:blank', { timeout: 5000 });
   });
 
@@ -779,25 +764,11 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     await expect(sheet).toHaveClass(/open/);
   });
 
-  test('17. 초기화면 접속 직후 뒤로가기: 종료 확인 다이얼로그 후 종료', async ({ page }) => {
+  test('17. 초기화면 접속 직후 뒤로가기: 확인 없이 바로 앱 밖으로 종료', async ({ page }) => {
     await page.goto('./');
-    const appUrl = page.url();
 
-    // 첫 번째 뒤로가기 → '종료할까요?' 확인 다이얼로그, 앱은 유지
+    // 뒤로가기 → 종료 확인 팝업 없이 그대로 앱 밖으로(이전 문서 = about:blank)
     await page.goBack();
-    await expect(page.locator('#confirmBackdrop')).toHaveClass(/open/);
-    await expect(page.locator('#confirmMessage')).toContainText('종료');
-    expect(page.url()).toBe(appUrl);
-
-    // 취소 → 다이얼로그만 닫히고 앱에 머문다
-    await page.locator('#confirmCancel').click();
-    await expect(page.locator('#confirmBackdrop')).not.toHaveClass(/open/);
-    expect(page.url()).toBe(appUrl);
-
-    // 다시 뒤로가기 → [종료] 확인 → 앱 밖으로(새 탭의 이전 문서 = about:blank)
-    await page.goBack();
-    await expect(page.locator('#confirmBackdrop')).toHaveClass(/open/);
-    await page.locator('#confirmOk').click();
     await page.waitForURL('about:blank', { timeout: 5000 });
   });
 });

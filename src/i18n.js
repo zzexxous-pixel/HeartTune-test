@@ -147,9 +147,6 @@ export const dictionaries = {
     'debug.resize': '디버그 창 크기 조절',
     'pwa.install.btn': '홈 화면에 앱 설치',
     'pwa.install.title': '앱 설치',
-    'app.exit.title': '앱 종료',
-    'app.exit.message': '앱을 종료할까요?',
-    'app.exit.confirm': '종료'
   },
 
   en: {
@@ -295,9 +292,6 @@ export const dictionaries = {
     'debug.resize': 'Resize debug panel',
     'pwa.install.btn': 'Install App to Home Screen',
     'pwa.install.title': 'Install app',
-    'app.exit.title': 'Exit app',
-    'app.exit.message': 'Exit the app?',
-    'app.exit.confirm': 'Exit'
   }
 };
 

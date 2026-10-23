@@ -1345,23 +1345,13 @@ function onHistorySheetClosed() {
 /* ── 브라우저 뒤로가기 ───────────────────────────────────────────────────
  * 열린 시트·자세히 보기마다 history 항목 하나를 쌓는다.
  *  · 뒤로가기 → 가장 위 화면을 닫는다 (시트 → 메인, 자세히 보기 → 목록).
- *  · 메인 화면에서 뒤로가기 → 앱 주소로 다시 열어 초기 화면으로 간다 (앱 밖으로 나가지 않음).
+ *  · 메인 화면에서 뒤로가기 → 확인 없이 그대로 앱을 종료한다(초기 접속 직후와 동일).
  * ─────────────────────────────────────────────────────────────────────── */
 
 const APP_URL = location.href.split('#')[0];
 const navLayers = []; // 'sheet:<id>' 또는 'detail'
 let navSilentPops = 0; // 우리가 history.go() 로 되돌린 popstate 를 무시하는 횟수
 let navClosingFromHistory = false; // 뒤로가기로 시트를 닫는 중에는 history 를 다시 건드리지 않음
-let exitFlowConfirmed = false; // [종료] 확인 후 가드 항목을 통과해 앱 밖으로 나가는 중
-
-// 뒤로가기 가드: index.html <head> 의 인라인 스크립트가 이미 history 항목을 확보했으면
-// 중복으로 쌓지 않는다(항목이 두 배가 되면 종료에 필요한 뒤로가기 횟수가 늘어난다).
-// 인라인 스크립트가 없는 환경을 대비해 여기서도 한 번 확보한다.
-if (!(window.__htHistoryGuard && history.state && (history.state.htGuard || history.state.htRoot))) {
-  history.replaceState({ htRoot: true }, '', APP_URL);
-  history.pushState({ htGuard: true }, '', APP_URL);
-}
-window.__htNavReady = true; // 이후 popstate 는 이 모듈의 핸들러가 맡는다(인라인 폴백 정지)
 
 function pushNavLayer(name) {
   navLayers.push(name);
@@ -1396,32 +1386,7 @@ window.addEventListener('popstate', () => {
     navSilentPops -= 1;
     return;
   }
-  if (navLayers.length === 0) {
-    // 메인 화면에서 뒤로가기: '종료할까요?' 확인 다이얼로그 (초기 접속 직후 포함 통일)
-    if (exitFlowConfirmed) {
-      // [종료] 확인: 가드 항목을 하나 더 지나 앱 밖으로 나간다.
-      exitFlowConfirmed = false;
-      history.back();
-      return;
-    }
-    history.pushState({ htGuard: true }, '', APP_URL); // 재접속(새로고침) 없이 앱 유지
-    if (isConfirmOpen()) {
-      // 다이얼로그가 열려 있을 때 또 뒤로가기 → 다이얼로그 닫기(취소 취급)
-      settleConfirm(false);
-      return;
-    }
-    showConfirmDialog({
-      titleKey: 'app.exit.title',
-      messageKey: 'app.exit.message',
-      confirmKey: 'app.exit.confirm'
-    }).then((confirmed) => {
-      if (confirmed) {
-        exitFlowConfirmed = true;
-        history.back(); // 가드 항목 → 루트 항목으로 이동(다음 popstate 에서 실제 종료)
-      }
-    });
-    return;
-  }
+  if (navLayers.length === 0) return; // 메인 화면: 뒤로가기 = 확인 없이 그대로 앱 종료
   const top = navLayers.pop();
   if (top === 'detail') {
     closeHistoryDetailView();
