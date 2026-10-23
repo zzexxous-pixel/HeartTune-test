@@ -95,7 +95,9 @@ export const dictionaries = {
     'history.stats.max': '최고 심박',
     'history.header.clearAll': '측정 이력 전체 삭제',
     'history.confirm.clearAll': '측정 이력을 모두 삭제하시겠습니까?',
-    'history.confirm.deleteOne': '이 측정 기록을 삭제하시겠습니까?',
+    'history.confirm.clearAllTitle': '전체 삭제',
+    'app.confirm.cancel': '취소',
+    'app.confirm.delete': '삭제',
     'history.detail.back': '뒤로',
     'history.detail.delete': '이 기록 삭제',
     'share.action.label': '이미지로 공유·저장',
@@ -145,8 +147,9 @@ export const dictionaries = {
     'debug.resize': '디버그 창 크기 조절',
     'pwa.install.btn': '홈 화면에 앱 설치',
     'pwa.install.title': '앱 설치',
-    'pwa.install.done': '홈 화면에 설치했습니다.',
-    'app.exit.confirm': '뒤로가기를 한 번 더 누르면 앱이 종료됩니다.'
+    'app.exit.title': '앱 종료',
+    'app.exit.message': '앱을 종료할까요?',
+    'app.exit.confirm': '종료'
   },
 
   en: {
@@ -240,7 +243,9 @@ export const dictionaries = {
     'history.stats.max': 'Highest',
     'history.header.clearAll': 'Delete all measurement history',
     'history.confirm.clearAll': 'Delete all measurement history?',
-    'history.confirm.deleteOne': 'Delete this measurement record?',
+    'history.confirm.clearAllTitle': 'Delete all',
+    'app.confirm.cancel': 'Cancel',
+    'app.confirm.delete': 'Delete',
     'history.detail.back': 'Back',
     'history.detail.delete': 'Delete this record',
     'share.action.label': 'Share or save as image',
@@ -290,8 +295,9 @@ export const dictionaries = {
     'debug.resize': 'Resize debug panel',
     'pwa.install.btn': 'Install App to Home Screen',
     'pwa.install.title': 'Install app',
-    'pwa.install.done': 'Added to your Home Screen.',
-    'app.exit.confirm': 'Press back again to exit the app.'
+    'app.exit.title': 'Exit app',
+    'app.exit.message': 'Exit the app?',
+    'app.exit.confirm': 'Exit'
   }
 };
 

@@ -532,15 +532,17 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('hearttune_history_v1')).length);
     expect(stored).toBe(2);
 
-    // 전체 삭제: 확인 취소 시 유지, 확인 시 비워짐
-    page.once('dialog', (dialog) => {
-      expect(dialog.message()).toBe('측정 이력을 모두 삭제하시겠습니까?');
-      dialog.dismiss();
-    });
+    // 전체 삭제: 앱 톤 확인 다이얼로그 — 취소 시 유지, 확인 시 비워짐
     await page.locator('#btnClearHistory').click();
+    await expect(page.locator('#confirmBackdrop')).toHaveClass(/open/);
+    await expect(page.locator('#confirmMessage')).toContainText('모두 삭제');
+    await page.locator('#confirmCancel').click();
+    await expect(page.locator('#confirmBackdrop')).not.toHaveClass(/open/);
     await expect(items).toHaveCount(2);
-    page.once('dialog', (dialog) => dialog.accept());
     await page.locator('#btnClearHistory').click();
+    await expect(page.locator('#confirmBackdrop')).toHaveClass(/open/);
+    await page.locator('#confirmOk').click();
+    await expect(page.locator('#confirmBackdrop')).not.toHaveClass(/open/);
     await expect(items).toHaveCount(0);
     await expect(page.locator('#historyList .history-empty')).toBeVisible();
   });
@@ -678,16 +680,23 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     await page.goBack();
     await expect(page.locator('#historySheet')).not.toHaveClass(/open/);
 
-    // 메인에서 뒤로가기 → 종료 안내 플로팅 메시지(3초) 후 앱 유지(재접속 없음)
+    // 메인에서 뒤로가기 → '종료할까요?' 확인 다이얼로그, 앱 유지(재접속 없음)
     await page.goBack();
-    await expect(page.locator('#liveAlertBox')).toBeVisible();
-    await expect(page.locator('#liveAlertBox')).toContainText('종료');
+    await expect(page.locator('#confirmBackdrop')).toHaveClass(/open/);
+    await expect(page.locator('#confirmMessage')).toContainText('종료');
     await expect(page.locator('#btnMenu')).toBeVisible();
     expect(page.url()).toBe(appUrl);
     await expect(page.locator('#historySheet')).not.toHaveClass(/open/);
 
-    // 안내 중 한 번 더 뒤로가기 → 앱 밖으로 나간다(새 탭의 이전 문서 = about:blank)
+    // 취소하면 다이얼로그만 닫히고 앱에 머문다
+    await page.locator('#confirmCancel').click();
+    await expect(page.locator('#confirmBackdrop')).not.toHaveClass(/open/);
+    expect(page.url()).toBe(appUrl);
+
+    // 다시 뒤로가기 → [종료] 확인 → 앱 밖으로 나간다(새 탭의 이전 문서 = about:blank)
     await page.goBack();
+    await expect(page.locator('#confirmBackdrop')).toHaveClass(/open/);
+    await page.locator('#confirmOk').click();
     await page.waitForURL('about:blank', { timeout: 5000 });
   });
 
@@ -770,18 +779,25 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     await expect(sheet).toHaveClass(/open/);
   });
 
-  test('17. 초기화면 접속 직후 뒤로가기: 안내 후 두 번째에서만 앱 밖으로', async ({ page }) => {
+  test('17. 초기화면 접속 직후 뒤로가기: 종료 확인 다이얼로그 후 종료', async ({ page }) => {
     await page.goto('./');
     const appUrl = page.url();
 
-    // 첫 번째 뒤로가기 → 종료 안내 메시지 + 앱 유지(재접속 없음)
+    // 첫 번째 뒤로가기 → '종료할까요?' 확인 다이얼로그, 앱은 유지
     await page.goBack();
-    await expect(page.locator('#liveAlertBox')).toBeVisible();
-    await expect(page.locator('#liveAlertBox')).toContainText('종료');
+    await expect(page.locator('#confirmBackdrop')).toHaveClass(/open/);
+    await expect(page.locator('#confirmMessage')).toContainText('종료');
     expect(page.url()).toBe(appUrl);
 
-    // 두 번째 뒤로가기 → 앱 밖으로 나간다(새 탭의 이전 문서 = about:blank)
+    // 취소 → 다이얼로그만 닫히고 앱에 머문다
+    await page.locator('#confirmCancel').click();
+    await expect(page.locator('#confirmBackdrop')).not.toHaveClass(/open/);
+    expect(page.url()).toBe(appUrl);
+
+    // 다시 뒤로가기 → [종료] 확인 → 앱 밖으로(새 탭의 이전 문서 = about:blank)
     await page.goBack();
+    await expect(page.locator('#confirmBackdrop')).toHaveClass(/open/);
+    await page.locator('#confirmOk').click();
     await page.waitForURL('about:blank', { timeout: 5000 });
   });
 });

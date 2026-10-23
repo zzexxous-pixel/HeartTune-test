@@ -56,6 +56,7 @@ const state = {
   stealthTimer: null,
   facingMode: initialSettings.facingMode,
   cameraState: 'idle', // idle | starting | ready | error
+  cameraErrorKey: null, // 카메라 오류 원인 i18n 키 (error.camera.denied 등)
   previewToken: 0,
 
   // 적응형 캘리브레이션 & 수동 샌드박스 상태
@@ -106,6 +107,12 @@ const els = {
   btnDetailsShare: document.getElementById('btnDetailsShare'),
   btnDetailsSave: document.getElementById('btnDetailsSave'),
   historyUndoToast: document.getElementById('historyUndoToast'),
+  confirmBackdrop: document.getElementById('confirmBackdrop'),
+  confirmDialog: document.getElementById('confirmDialog'),
+  confirmTitle: document.getElementById('confirmTitle'),
+  confirmMessage: document.getElementById('confirmMessage'),
+  confirmCancel: document.getElementById('confirmCancel'),
+  confirmOk: document.getElementById('confirmOk'),
   btnUndoDelete: document.getElementById('btnUndoDelete'),
   btnHistoryBack: document.getElementById('btnHistoryBack'),
   btnHistoryDetailShare: document.getElementById('btnHistoryDetailShare'),
@@ -165,7 +172,7 @@ function logDebug(msg) {
   }
 }
 
-function showAlert(msg, durationMs = 4500) {
+function showAlert(msg, durationMs = 3000) {
   els.liveAlertBox.textContent = msg;
   els.liveAlertBox.classList.add('visible');
   clearTimeout(toastTimer);
@@ -178,6 +185,60 @@ function hideAlert() {
   clearTimeout(toastTimer);
   toastTimer = null;
 }
+
+/* --------------------------------------------------------------------------
+   확인 다이얼로그 — 브라우저 기본 confirm 대신 앱 톤으로 통일
+   (앱 종료 확인·이력 전체 삭제 확인 등)
+   -------------------------------------------------------------------------- */
+const confirmState = { resolve: null };
+
+function isConfirmOpen() {
+  return confirmState.resolve !== null;
+}
+
+/** 확인 다이얼로그를 띄운다. 확인/취소(배경·ESC 포함) 결과를 Promise 로 돌려준다. */
+function showConfirmDialog({ titleKey, messageKey, confirmKey, cancelKey = 'app.confirm.cancel' }) {
+  return new Promise((resolve) => {
+    if (confirmState.resolve) confirmState.resolve(false); // 이미 열려 있으면 이전 요청은 취소 취급
+    confirmState.resolve = resolve;
+
+    els.confirmTitle.setAttribute('data-i18n', titleKey);
+    els.confirmTitle.textContent = t(titleKey);
+    els.confirmMessage.setAttribute('data-i18n', messageKey);
+    els.confirmMessage.textContent = t(messageKey);
+    els.confirmCancel.setAttribute('data-i18n', cancelKey);
+    els.confirmCancel.textContent = t(cancelKey);
+    els.confirmOk.textContent = t(confirmKey);
+
+    els.confirmBackdrop.classList.add('open');
+    els.confirmBackdrop.setAttribute('aria-hidden', 'false');
+    els.confirmDialog.setAttribute('aria-hidden', 'false');
+    els.confirmCancel.focus({ preventScroll: true });
+  });
+}
+
+function settleConfirm(result) {
+  if (!confirmState.resolve) return;
+  const resolve = confirmState.resolve;
+  confirmState.resolve = null;
+  els.confirmBackdrop.classList.remove('open');
+  els.confirmBackdrop.setAttribute('aria-hidden', 'true');
+  els.confirmDialog.setAttribute('aria-hidden', 'true');
+  resolve(result);
+}
+
+els.confirmOk.addEventListener('click', () => settleConfirm(true));
+els.confirmCancel.addEventListener('click', () => settleConfirm(false));
+els.confirmBackdrop.addEventListener('click', (event) => {
+  if (event.target === els.confirmBackdrop) settleConfirm(false); // 배경 = 취소
+});
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && isConfirmOpen()) {
+    event.preventDefault();
+    event.stopImmediatePropagation(); // 시트 ESC 닫힘 핸들러까지 전파되지 않게(다이얼로그만 닫기)
+    settleConfirm(false);
+  }
+});
 
 // 카메라 제어(스트림/토치/전면·후면 전환)는 features/camera.js 로 분리
 const camera = createCameraController({
@@ -233,25 +294,85 @@ function updateCalibBannerUI() {
 /** 대기 상태 안내 문구 — 후면/전면 카메라 렌즈를 문구에서 구분해 안내한다. */
 function setReadyGuideText() {
   const key = state.facingMode === 'user' ? 'measure.status.readyFront' : 'measure.status.readyRear';
-  els.stageGuideText.setAttribute('data-i18n', key);
-  els.stageGuideText.textContent = t(key);
+  setStageGuideText(key); // 경고 스타일(is-warning)도 함께 해제
 }
 
 function updateIdleGuide() {
   if (state.isMeasuring) return;
   if (state.lastResult) {
-    els.stageGuideText.textContent = t('measure.status.completed');
+    setStageGuideText('measure.status.completed');
     return;
   }
   if (state.cameraState === 'starting') {
-    els.stageGuideText.textContent = t('measure.status.cameraStarting');
+    setStageGuideText('measure.status.cameraStarting');
     return;
   }
   if (state.cameraState === 'error') {
-    els.stageGuideText.textContent = t('measure.status.cameraUnavailable');
+    // 카메라 오류는 메시지 영역에 표시: 원인(권한 거부 등)에 맞는 문구를 유지한다.
+    setStageGuideText(state.cameraErrorKey || 'measure.status.cameraUnavailable', true);
     return;
   }
   setReadyGuideText();
+}
+
+/** 스테이지 안내 문구를 i18n 키로 지정한다(언어 전환 시에도 문구가 따라오게). */
+function setStageGuideText(key, isWarning = false) {
+  els.stageGuideText.setAttribute('data-i18n', key);
+  els.stageGuideText.textContent = t(key);
+  els.stageGuideText.classList.toggle('is-warning', isWarning);
+}
+
+/* 측정 중 신호 경고: 토스트 대신 메시지 영역에 표시한다.
+ * · 일단 표시되면 최소 1초 유지(프레임 단위 깜빡임 방지)
+ * · 손가락·조명 등 원인이 해소되면 제거하고 측정 중 기본 안내로 돌아간다. */
+const signalNotice = { key: null, since: 0, hideTimer: null };
+
+function signalNoticeActive() {
+  return signalNotice.key !== null;
+}
+
+function setSignalNotice(key) {
+  if (signalNotice.hideTimer) {
+    clearTimeout(signalNotice.hideTimer);
+    signalNotice.hideTimer = null;
+  }
+  if (signalNotice.key === key) return; // 같은 경고 유지
+  signalNotice.key = key;
+  signalNotice.since = Date.now();
+  setStageGuideText(key, true);
+}
+
+function clearSignalNotice() {
+  if (!signalNotice.key) return;
+  const elapsed = Date.now() - signalNotice.since;
+  if (elapsed >= 1000) {
+    hideSignalNotice();
+  } else if (!signalNotice.hideTimer) {
+    signalNotice.hideTimer = setTimeout(() => {
+      signalNotice.hideTimer = null;
+      hideSignalNotice();
+    }, 1000 - elapsed);
+  }
+}
+
+function hideSignalNotice() {
+  if (signalNotice.hideTimer) {
+    clearTimeout(signalNotice.hideTimer);
+    signalNotice.hideTimer = null;
+  }
+  signalNotice.key = null;
+  signalNotice.since = 0;
+  els.stageGuideText.classList.remove('is-warning');
+  if (state.isMeasuring) {
+    const elapsedSec = (performance.now() - state.startTimeMs) / 1000;
+    const key = elapsedSec < 5
+      ? (state.simMode === 'camera' ? 'measure.status.stabilizing' : 'measure.status.simulating')
+      : 'measure.status.measuringLive';
+    els.stageGuideText.setAttribute('data-i18n', key);
+    els.stageGuideText.textContent = t(key);
+  } else {
+    updateIdleGuide();
+  }
 }
 
 function syncCameraButtons() {
@@ -442,11 +563,12 @@ function onFrameTick() {
       const sample = extractFrameSample(imgData, 64, 64);
 
       if (!sample.isFingerDetected) {
-        if (sample.qualityHint === 'tooDark') showAlert(t('error.signal.tooDark'));
-        else if (sample.qualityHint === 'tooBright') showAlert(t('error.signal.tooBright'));
-        else showAlert(t('error.signal.pressHarder'));
+        // 신호 경고는 메시지 영역에 표시(최소 1초 유지, 해소 시 제거)
+        if (sample.qualityHint === 'tooDark') setSignalNotice('error.signal.tooDark');
+        else if (sample.qualityHint === 'tooBright') setSignalNotice('error.signal.tooBright');
+        else setSignalNotice('error.signal.pressHarder');
       } else {
-        hideAlert();
+        clearSignalNotice();
       }
 
       state.rawSamples.push({ t: now, v: sample.value });
@@ -468,8 +590,9 @@ function onFrameTick() {
 
   // 5초 시점 고속 초기 캘리브레이션 + 이후 측정 종료까지 2초 주기로 지속적 적응형 트래킹(Throttled 2s)
   if (elapsedSec < 5) {
-    els.stageGuideText.textContent =
-      state.simMode === 'camera' ? t('measure.status.stabilizing') : t('measure.status.simulating');
+    if (!signalNoticeActive()) {
+      setStageGuideText(state.simMode === 'camera' ? 'measure.status.stabilizing' : 'measure.status.simulating');
+    }
   } else {
     const tickStep = Math.floor(elapsedSec);
     // 5초에 첫 캘리브레이션 포착 후 매 2초(5, 7, 9, 11, 13, 15, ...)마다 필터 대역 추적 및 BPM 갱신
@@ -488,7 +611,7 @@ function onFrameTick() {
 
       if (liveAnalysis.bpm > 0) {
         els.bpmNumber.textContent = formatNumber(liveAnalysis.bpm);
-        els.stageGuideText.textContent = t('measure.status.measuringLive');
+        if (!signalNoticeActive()) setStageGuideText('measure.status.measuringLive');
         if (isFirstLock) {
           playTone(660, 110);
         }
@@ -587,18 +710,16 @@ async function startMeasurement() {
     try {
       await camera.open({ torch: state.facingMode === 'environment' });
       state.cameraState = 'ready';
-      hideAlert();
+      state.cameraErrorKey = null; // 오류 해소
     } catch (err) {
       logDebug(`Camera open error: ${err.name} - ${err.message}`);
       state.cameraState = 'error';
-      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-        showAlert(t('error.camera.denied'), 6000);
-      } else {
-        showAlert(t('error.camera.notFound'), 6000);
-      }
+      state.cameraErrorKey = err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError'
+        ? 'error.camera.denied'
+        : 'error.camera.notFound';
       state.isStarting = false;
       els.btnPrimaryMeasure.disabled = false;
-      updateIdleGuide();
+      updateIdleGuide(); // 메시지 영역에 오류 표시(해소 시 자동 제거)
       return;
     }
     state.isStarting = false;
@@ -1231,7 +1352,7 @@ const APP_URL = location.href.split('#')[0];
 const navLayers = []; // 'sheet:<id>' 또는 'detail'
 let navSilentPops = 0; // 우리가 history.go() 로 되돌린 popstate 를 무시하는 횟수
 let navClosingFromHistory = false; // 뒤로가기로 시트를 닫는 중에는 history 를 다시 건드리지 않음
-let backExitArmedAt = 0; // 메인에서 종료 안내를 띄운 시각 (3초 안에 다시 뒤로가면 종료)
+let exitFlowConfirmed = false; // [종료] 확인 후 가드 항목을 통과해 앱 밖으로 나가는 중
 
 // 뒤로가기 가드: index.html <head> 의 인라인 스크립트가 이미 history 항목을 확보했으면
 // 중복으로 쌓지 않는다(항목이 두 배가 되면 종료에 필요한 뒤로가기 횟수가 늘어난다).
@@ -1244,7 +1365,6 @@ window.__htNavReady = true; // 이후 popstate 는 이 모듈의 핸들러가 �
 
 function pushNavLayer(name) {
   navLayers.push(name);
-  backExitArmedAt = 0; // 화면을 다시 열면 종료 대기 상태를 초기화한다.
   history.pushState({ htLayer: navLayers.length }, '', APP_URL);
 }
 
@@ -1277,16 +1397,29 @@ window.addEventListener('popstate', () => {
     return;
   }
   if (navLayers.length === 0) {
-    // 메인 화면에서 뒤로가기: 첫 번째는 종료 안내(3초), 두 번째는 앱 밖으로 나간다.
-    const now = Date.now();
-    if (now - backExitArmedAt < 3000) {
-      backExitArmedAt = 0;
+    // 메인 화면에서 뒤로가기: '종료할까요?' 확인 다이얼로그 (초기 접속 직후 포함 통일)
+    if (exitFlowConfirmed) {
+      // [종료] 확인: 가드 항목을 하나 더 지나 앱 밖으로 나간다.
+      exitFlowConfirmed = false;
       history.back();
       return;
     }
-    backExitArmedAt = now;
-    showAlert(t('app.exit.confirm'), 3000);
     history.pushState({ htGuard: true }, '', APP_URL); // 재접속(새로고침) 없이 앱 유지
+    if (isConfirmOpen()) {
+      // 다이얼로그가 열려 있을 때 또 뒤로가기 → 다이얼로그 닫기(취소 취급)
+      settleConfirm(false);
+      return;
+    }
+    showConfirmDialog({
+      titleKey: 'app.exit.title',
+      messageKey: 'app.exit.message',
+      confirmKey: 'app.exit.confirm'
+    }).then((confirmed) => {
+      if (confirmed) {
+        exitFlowConfirmed = true;
+        history.back(); // 가드 항목 → 루트 항목으로 이동(다음 popstate 에서 실제 종료)
+      }
+    });
     return;
   }
   const top = navLayers.pop();
@@ -1336,15 +1469,12 @@ async function switchCamera(facing) {
   } catch (err) {
     if (token === state.previewToken) {
       state.cameraState = 'error';
-      showAlert(
-        err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError'
-          ? t('error.camera.denied')
-          : t('error.camera.notFound'),
-        6000
-      );
+      state.cameraErrorKey = err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError'
+        ? 'error.camera.denied'
+        : 'error.camera.notFound';
     }
   }
-  updateIdleGuide();
+  updateIdleGuide(); // 메시지 영역에 오류 표시(카메라가 열리면 자동 제거)
 }
 
 /* --------------------------------------------------------------------------
@@ -1429,9 +1559,14 @@ els.camBtns.forEach((btn) => {
   });
 });
 
-els.btnClearHistory.addEventListener('click', () => {
+els.btnClearHistory.addEventListener('click', async () => {
   if (loadHistory().length === 0) return;
-  if (!window.confirm(t('history.confirm.clearAll'))) return;
+  const confirmed = await showConfirmDialog({
+    titleKey: 'history.confirm.clearAllTitle',
+    messageKey: 'history.confirm.clearAll',
+    confirmKey: 'app.confirm.delete'
+  });
+  if (!confirmed) return;
   cancelPendingDelete();
   clearStoredData();
   updateCalibBannerUI();
@@ -1554,19 +1689,43 @@ function hasScrolledVerticalAncestor(sheet, target) {
 }
 
 function bindSheetDismissDrag(sheet) {
-  let drag = null;
+  let drag = null; // 마우스/펜 드래그 상태
+  let touch = null; // 터치 드래그 상태
 
+  const canStartBodyDrag = (target) => {
+    // 1) 조작 요소(버튼·링크·입력·이력 행 등) 위에서는 드래그를 시작하지 않는다.
+    if (target.closest(SHEET_DRAG_IGNORE_SELECTOR)) return false;
+    // 2) 세로 스크롤이 가능한 조상이 이미 아래로 내려가 있으면 스크롤을 우선한다.
+    if (hasScrolledVerticalAncestor(sheet, target)) return false;
+    return true;
+  };
+
+  const applyDrag = (dy) => {
+    sheet.style.transform = `translate(-50%, ${dy}px)`;
+  };
+
+  const finishDrag = (dy, velocity) => {
+    const shouldClose = dy > 110 || (dy > 40 && velocity > 0.7);
+    if (shouldClose) {
+      // 손을 뗀 위치에서 아래로 슬라이드하며 닫힌다.
+      sheet.style.transform = 'translate(-50%, 105%)';
+      window.setTimeout(() => {
+        sheet.style.transform = '';
+        sheets.close();
+      }, 210);
+    } else {
+      sheet.style.transform = '';
+    }
+  };
+
+  /* ── 마우스/펜: Pointer Events ── */
   sheet.addEventListener('pointerdown', (event) => {
+    if (event.pointerType === 'touch') return; // 터치는 아래 touchstart/touchmove 핸들러가 맡는다
     if (event.pointerType === 'mouse' && event.button !== 0) return;
     if (sheets.current !== sheet) return; // 닫혀 있는 시트는 무시
 
     const onHandle = Boolean(event.target.closest('.sheet-grab'));
-    if (!onHandle) {
-      // 1) 조작 요소(버튼·링크·입력·이력 행 등) 위에서는 드래그를 시작하지 않는다.
-      if (event.target.closest(SHEET_DRAG_IGNORE_SELECTOR)) return;
-      // 2) 세로 스크롤이 가능한 조상이 이미 아래로 내려가 있으면 스크롤을 우선한다.
-      if (hasScrolledVerticalAncestor(sheet, event.target)) return;
-    }
+    if (!onHandle && !canStartBodyDrag(event.target)) return;
 
     drag = {
       id: event.pointerId,
@@ -1613,7 +1772,7 @@ function bindSheetDismissDrag(sheet) {
       drag.lastT = now;
     }
     drag.dy = Math.max(0, event.clientY - drag.startY);
-    sheet.style.transform = `translate(-50%, ${drag.dy}px)`;
+    applyDrag(drag.dy);
   });
 
   const endDrag = (event) => {
@@ -1622,21 +1781,82 @@ function bindSheetDismissDrag(sheet) {
     drag = null;
     sheet.classList.remove('is-dragging');
     if (!locked) return; // 방향 확정 전에 손을 뗀 경우 그대로 둔다.
-    const shouldClose = dy > 110 || (dy > 40 && velocity > 0.7);
-    if (shouldClose) {
-      // 손을 뗀 위치에서 아래로 슬라이드하며 닫힌다.
-      sheet.style.transform = 'translate(-50%, 105%)';
-      window.setTimeout(() => {
-        sheet.style.transform = '';
-        sheets.close();
-      }, 210);
-    } else {
-      sheet.style.transform = '';
-    }
+    finishDrag(dy, velocity);
   };
 
   sheet.addEventListener('pointerup', endDrag);
   sheet.addEventListener('pointercancel', endDrag);
+
+  /* ── 터치: Touch Events + preventDefault ──
+     터치에서는 브라우저가 세로 팬을 곧바로 스크롤로 가져가기 때문에
+     Pointer Events 만으로는 본문 드래그가 시작 직후 끊긴다(시트가 꿈틀거림).
+     닫기 드래그로 판정된 touchmove 는 preventDefault 로 브라우저 인계를 차단하고,
+     스크롤·가로 제스처로 판정되면 아무것도 막지 않고 양보한다. */
+  sheet.addEventListener('touchstart', (event) => {
+    if (event.touches.length !== 1) return; // 두 손가락 이상은 무시
+    if (sheets.current !== sheet) return;
+    const first = event.changedTouches[0];
+    const onHandle = Boolean(event.target.closest('.sheet-grab'));
+    touch = {
+      id: first.identifier,
+      startY: first.clientY,
+      startX: first.clientX,
+      dragging: false,
+      canDrag: onHandle || canStartBodyDrag(event.target), // 손잡이는 항상, 본문은 가드 통과 시
+      lastY: first.clientY,
+      lastT: performance.now(),
+      velocity: 0
+    };
+  }, { passive: true });
+
+  sheet.addEventListener('touchmove', (event) => {
+    if (!touch) return;
+    const t = Array.from(event.changedTouches).find((item) => item.identifier === touch.id);
+    if (!t) return;
+
+    const dx = t.clientX - touch.startX;
+    const dyRaw = t.clientY - touch.startY;
+
+    if (!touch.dragging) {
+      if (!touch.canDrag) return; // 버튼·스크롤 영역 등 — 절대 막지 않는다
+      if (dyRaw >= 8 && Math.abs(dx) <= dyRaw) {
+        // 아래(세로) 방향 확정 → 이제부터 브라우저 스크롤을 막고 시트를 움직인다.
+        touch.dragging = true;
+        sheet.classList.add('is-dragging');
+      } else if (dyRaw <= -8 || Math.abs(dx) > Math.abs(dyRaw)) {
+        touch = null; // 위로 스크롤·가로 제스처 → 완전히 양보
+        return;
+      } else {
+        return; // 아직 방향 미확정 — 기본 동작 유지
+      }
+    }
+
+    event.preventDefault(); // 닫기 드래그 중: 브라우저가 스크롤로 가져가지 않게 차단
+
+    const now = performance.now();
+    if (now > touch.lastT) {
+      touch.velocity = (t.clientY - touch.lastY) / (now - touch.lastT); // px/ms
+      touch.lastY = t.clientY;
+      touch.lastT = now;
+    }
+    applyDrag(Math.max(0, dyRaw));
+  }, { passive: false });
+
+  const endTouch = (event) => {
+    if (!touch) return;
+    const t = Array.from(event.changedTouches).find((item) => item.identifier === touch.id);
+    if (!t) return;
+    const { dragging, velocity } = touch;
+    const dy = Math.max(0, t.clientY - touch.startY);
+    touch = null;
+    sheet.classList.remove('is-dragging');
+    if (!dragging) return; // 방향 확정 전 종료 — 탭·스크롤에 영향을 주지 않는다
+    event.preventDefault(); // 드래그 직후의 합성 클릭 방지
+    finishDrag(dy, velocity);
+  };
+
+  sheet.addEventListener('touchend', endTouch, { passive: false });
+  sheet.addEventListener('touchcancel', endTouch, { passive: false });
 }
 
 document.querySelectorAll('.sheet').forEach(bindSheetDismissDrag);
@@ -1728,7 +1948,6 @@ window.addEventListener('beforeinstallprompt', (event) => {
 window.addEventListener('appinstalled', () => {
   installState.prompt = null;
   updateInstallUI();
-  showAlert(t('pwa.install.done'), 2600);
   logDebug('App installed to home screen.');
 });
 
