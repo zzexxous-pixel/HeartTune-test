@@ -53,9 +53,9 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
         }))
       };
     });
-    // 파비콘은 설치 아이콘과 같은 디자인: 좌상→우하 그라데이션 + 하트 .68 정중앙
+    // 파비콘은 설치 아이콘과 같은 디자인: 좌상→우하 그라데이션 + 하트 .7344 정중앙(8% 확대)
     expect(iconConfig.favicon).toContain('linearGradient');
-    expect(iconConfig.favicon).toContain('translate(16 18) scale(.68)');
+    expect(iconConfig.favicon).toContain('translate(13.28 15.48) scale(.7344)');
     // 매니페스트 아이콘은 PNG any+maskable 쌍 — WebAPK(실제 앱 설치)·PC 아이콘 지원
     expect(iconConfig.icons.map((icon) => icon.sizes)).toEqual(['192x192', '192x192', '512x512', '512x512']);
     expect(iconConfig.icons.map((icon) => icon.purpose)).toEqual(['any', 'maskable', 'any', 'maskable']);
@@ -678,7 +678,7 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     await page.goBack();
     await expect(page.locator('#historySheet')).not.toHaveClass(/open/);
 
-    // 메인에서 뒤로가기 → 종료 안내 플로팅 메시지(2초) 후 앱 유지(재접속 없음)
+    // 메인에서 뒤로가기 → 종료 안내 플로팅 메시지(3초) 후 앱 유지(재접속 없음)
     await page.goBack();
     await expect(page.locator('#liveAlertBox')).toBeVisible();
     await expect(page.locator('#liveAlertBox')).toContainText('종료');
@@ -687,6 +687,97 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     await expect(page.locator('#historySheet')).not.toHaveClass(/open/);
 
     // 안내 중 한 번 더 뒤로가기 → 앱 밖으로 나간다(새 탭의 이전 문서 = about:blank)
+    await page.goBack();
+    await page.waitForURL('about:blank', { timeout: 5000 });
+  });
+
+  test('15. 시트 본문 드래그: 빈 영역을 아래로 쓸어내리면 닫힘(버튼은 기능 우선)', async ({ page }) => {
+    await page.goto('./');
+    await page.locator('#btnSettings').click();
+    const sheet = page.locator('#settingsSheet');
+    await expect(sheet).toHaveClass(/open/);
+    // 슬라이드 인 애니메이션이 끝난 뒤 좌표를 잡는다.
+    await page.waitForTimeout(400);
+
+    // 조작 요소(측정 시간 버튼)에서 시작한 아래 드래그는 시트를 닫지 않는다(기능 우선)
+    const durBtn = page.locator('.dur-btn[data-duration="30"]');
+    const durBox = await durBtn.boundingBox();
+    const dx = durBox.x + durBox.width / 2;
+    const dy = durBox.y + durBox.height / 2;
+    await page.mouse.move(dx, dy);
+    await page.mouse.down();
+    await page.mouse.move(dx, dy + 170, { steps: 8 });
+    await page.mouse.up();
+    await expect(sheet).toHaveClass(/open/);
+
+    // 액션이 아닌 영역(헤더 제목)에서 아래로 끌면 시트가 닫힌다
+    const title = page.locator('#settingsSheetTitle');
+    const titleBox = await title.boundingBox();
+    const tx = titleBox.x + 6;
+    const ty = titleBox.y + titleBox.height / 2;
+    await page.mouse.move(tx, ty);
+    await page.mouse.down();
+    await page.mouse.move(tx, ty + 170, { steps: 8 });
+    await page.mouse.up();
+    await expect(sheet).not.toHaveClass(/open/);
+  });
+
+  test('16. 시트 본문 드래그: 스크롤된 목록에서는 내부 스크롤이 우선한다', async ({ page }) => {
+    await page.addInitScript(() => {
+      const items = [];
+      for (let i = 0; i < 8; i += 1) {
+        items.push({
+          id: `ht_${i}`,
+          timestamp: new Date(2026, 9, 20 + i, 9, 5, 3).getTime(),
+          bpm: 62 + i * 3,
+          status: 'normal',
+          irregular: false,
+          quality: 80,
+          duration: 30,
+          waveform: [0, 1, 0, -1]
+        });
+      }
+      localStorage.setItem('hearttune_history_v1', JSON.stringify(items));
+    });
+    await page.setViewportSize({ width: 390, height: 700 });
+    await page.goto('./');
+    await page.locator('#btnMenu').click();
+    await page.locator('#menuHistory').click();
+    const sheet = page.locator('#historySheet');
+    await expect(sheet).toHaveClass(/open/);
+    await page.waitForTimeout(400);
+
+    // 이력 목록을 맨 아래까지 스크롤한다 (스크롤 가능성 자체도 검증)
+    const scrolled = await page.evaluate(() => {
+      const body = document.querySelector('#historySheet .sheet-body');
+      body.scrollTop = body.scrollHeight;
+      return body.scrollTop;
+    });
+    expect(scrolled).toBeGreaterThan(0);
+
+    // 스크롤된 상태에서 빈 영역(하단 법적 고지 문구)을 아래로 드래그해도 닫히지 않는다
+    const legal = page.locator('#historyAdSlot .history-legal');
+    const legalBox = await legal.boundingBox();
+    const lx = legalBox.x + legalBox.width / 2;
+    const ly = legalBox.y + legalBox.height / 2;
+    await page.mouse.move(lx, ly);
+    await page.mouse.down();
+    await page.mouse.move(lx, ly + 170, { steps: 8 });
+    await page.mouse.up();
+    await expect(sheet).toHaveClass(/open/);
+  });
+
+  test('17. 초기화면 접속 직후 뒤로가기: 안내 후 두 번째에서만 앱 밖으로', async ({ page }) => {
+    await page.goto('./');
+    const appUrl = page.url();
+
+    // 첫 번째 뒤로가기 → 종료 안내 메시지 + 앱 유지(재접속 없음)
+    await page.goBack();
+    await expect(page.locator('#liveAlertBox')).toBeVisible();
+    await expect(page.locator('#liveAlertBox')).toContainText('종료');
+    expect(page.url()).toBe(appUrl);
+
+    // 두 번째 뒤로가기 → 앱 밖으로 나간다(새 탭의 이전 문서 = about:blank)
     await page.goBack();
     await page.waitForURL('about:blank', { timeout: 5000 });
   });

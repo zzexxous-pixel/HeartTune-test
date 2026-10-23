@@ -1231,7 +1231,16 @@ const APP_URL = location.href.split('#')[0];
 const navLayers = []; // 'sheet:<id>' 또는 'detail'
 let navSilentPops = 0; // 우리가 history.go() 로 되돌린 popstate 를 무시하는 횟수
 let navClosingFromHistory = false; // 뒤로가기로 시트를 닫는 중에는 history 를 다시 건드리지 않음
-let backExitArmedAt = 0; // 메인에서 종료 안내를 띄운 시각 (2초 안에 다시 뒤로가면 종료)
+let backExitArmedAt = 0; // 메인에서 종료 안내를 띄운 시각 (3초 안에 다시 뒤로가면 종료)
+
+// 뒤로가기 가드: index.html <head> 의 인라인 스크립트가 이미 history 항목을 확보했으면
+// 중복으로 쌓지 않는다(항목이 두 배가 되면 종료에 필요한 뒤로가기 횟수가 늘어난다).
+// 인라인 스크립트가 없는 환경을 대비해 여기서도 한 번 확보한다.
+if (!(window.__htHistoryGuard && history.state && (history.state.htGuard || history.state.htRoot))) {
+  history.replaceState({ htRoot: true }, '', APP_URL);
+  history.pushState({ htGuard: true }, '', APP_URL);
+}
+window.__htNavReady = true; // 이후 popstate 는 이 모듈의 핸들러가 맡는다(인라인 폴백 정지)
 
 function pushNavLayer(name) {
   navLayers.push(name);
@@ -1268,15 +1277,15 @@ window.addEventListener('popstate', () => {
     return;
   }
   if (navLayers.length === 0) {
-    // 메인 화면에서 뒤로가기: 첫 번째는 종료 안내(2초), 두 번째는 앱 밖으로 나간다.
+    // 메인 화면에서 뒤로가기: 첫 번째는 종료 안내(3초), 두 번째는 앱 밖으로 나간다.
     const now = Date.now();
-    if (now - backExitArmedAt < 2000) {
+    if (now - backExitArmedAt < 3000) {
       backExitArmedAt = 0;
       history.back();
       return;
     }
     backExitArmedAt = now;
-    showAlert(t('app.exit.confirm'), 2000);
+    showAlert(t('app.exit.confirm'), 3000);
     history.pushState({ htGuard: true }, '', APP_URL); // 재접속(새로고침) 없이 앱 유지
     return;
   }
@@ -1510,26 +1519,80 @@ els.btnExportCsv.addEventListener('click', () => {
 });
 
 /* --------------------------------------------------------------------------
-   바텀시트 손잡이 드래그 — 손잡이를 잡고 아래로 끌면 시트가 따라 내려간다.
+   바텀시트 드래그 — 손잡이는 물론 시트의 빈 영역 어디서든 아래로 끌면 닫힌다.
+   · 버튼·링크·입력·이력 행 등 조작 요소에서 시작한 드래그는 무시한다(기능 우선).
+   · 시트 본문이 이미 아래로 스크롤되어 있으면 스크롤을 우선한다.
+   · 방향이 아직 확정되지 않은 드래그는 세로(아래) 방향으로 확정될 때만 움직인다.
    충분히 끌었거나 휙 던지면 닫히고, 살짝만 끌었으면 제자리로 돌아온다.
    -------------------------------------------------------------------------- */
-document.querySelectorAll('.sheet-grab').forEach((handle) => {
-  const sheet = handle.closest('.sheet');
+const SHEET_DRAG_IGNORE_SELECTOR = [
+  'button',
+  'a',
+  'input',
+  'textarea',
+  'select',
+  'label',
+  '[role="button"]',
+  '[contenteditable="true"]',
+  '[data-sheet-nodrag]',
+  '.history-row', // 이력 항목: 탭(상세 보기)·가로 스와이프(삭제) 제스처가 우선
+  '.history-delete'
+].join(', ');
+
+function bindSheetDismissDrag(sheet) {
   let drag = null;
 
-  handle.addEventListener('pointerdown', (event) => {
+  sheet.addEventListener('pointerdown', (event) => {
     if (event.pointerType === 'mouse' && event.button !== 0) return;
-    drag = { id: event.pointerId, startY: event.clientY, dy: 0, lastY: event.clientY, lastT: performance.now(), velocity: 0 };
-    try {
-      handle.setPointerCapture(event.pointerId);
-    } catch (_) {
-      // 무시
+    if (sheets.current !== sheet) return; // 닫혀 있는 시트는 무시
+
+    const onHandle = Boolean(event.target.closest('.sheet-grab'));
+    if (!onHandle) {
+      // 1) 조작 요소(버튼·링크·입력·이력 행 등) 위에서는 드래그를 시작하지 않는다.
+      if (event.target.closest(SHEET_DRAG_IGNORE_SELECTOR)) return;
+      // 2) 스크롤 가능한 본문이 이미 아래로 내려가 있으면 스크롤을 우선한다.
+      const scroller = event.target.closest('.sheet-body');
+      if (scroller && scroller.scrollHeight > scroller.clientHeight && scroller.scrollTop > 0) return;
     }
-    sheet.classList.add('is-dragging');
+
+    drag = {
+      id: event.pointerId,
+      locked: onHandle, // 손잡이는 곧바로, 본문은 방향 확정 뒤에 드래그한다.
+      startY: event.clientY,
+      startX: event.clientX,
+      dy: 0,
+      lastY: event.clientY,
+      lastT: performance.now(),
+      velocity: 0
+    };
+    if (drag.locked) {
+      try {
+        sheet.setPointerCapture(event.pointerId);
+      } catch (_) {
+        // 무시
+      }
+      sheet.classList.add('is-dragging');
+    }
   });
 
-  handle.addEventListener('pointermove', (event) => {
+  sheet.addEventListener('pointermove', (event) => {
     if (!drag || event.pointerId !== drag.id) return;
+    const dx = event.clientX - drag.startX;
+    const dyRaw = event.clientY - drag.startY;
+
+    if (!drag.locked) {
+      // 아래(세로) 방향으로 충분히 움직였을 때만 시트 이동을 시작한다.
+      // 가로 드래그는 그래프 가로 스크롤 등 다른 조작에 양보한다.
+      if (dyRaw < 8 || Math.abs(dx) > dyRaw) return;
+      drag.locked = true;
+      try {
+        sheet.setPointerCapture(event.pointerId);
+      } catch (_) {
+        // 무시
+      }
+      sheet.classList.add('is-dragging');
+    }
+
     const now = performance.now();
     if (now > drag.lastT) {
       drag.velocity = (event.clientY - drag.lastY) / (now - drag.lastT); // px/ms
@@ -1542,9 +1605,10 @@ document.querySelectorAll('.sheet-grab').forEach((handle) => {
 
   const endDrag = (event) => {
     if (!drag || (event && event.pointerId !== drag.id)) return;
-    const { dy, velocity } = drag;
+    const { dy, velocity, locked } = drag;
     drag = null;
     sheet.classList.remove('is-dragging');
+    if (!locked) return; // 방향 확정 전에 손을 뗀 경우 그대로 둔다.
     const shouldClose = dy > 110 || (dy > 40 && velocity > 0.7);
     if (shouldClose) {
       // 손을 뗀 위치에서 아래로 슬라이드하며 닫힌다.
@@ -1558,9 +1622,11 @@ document.querySelectorAll('.sheet-grab').forEach((handle) => {
     }
   };
 
-  handle.addEventListener('pointerup', endDrag);
-  handle.addEventListener('pointercancel', endDrag);
-});
+  sheet.addEventListener('pointerup', endDrag);
+  sheet.addEventListener('pointercancel', endDrag);
+}
+
+document.querySelectorAll('.sheet').forEach(bindSheetDismissDrag);
 
 /* --------------------------------------------------------------------------
    디버그 콘솔 크기 조절 — 상단 경계 드래그 (--debug-height)
@@ -1672,8 +1738,6 @@ els.btnInstallApp.addEventListener('click', () => promptInstall());
 function initApp() {
   const parity = validateI18nKeyParity();
   logDebug(`i18n parity check: valid=${parity.valid} (${parity.totalKeys} keys)`);
-  history.replaceState({ htRoot: true }, '', APP_URL);
-  history.pushState({ htGuard: true }, '', APP_URL);
   buildHistoryDetailBody();
   applyTranslations();
   sheets.bind();
