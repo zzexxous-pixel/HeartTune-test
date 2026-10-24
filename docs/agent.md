@@ -17,7 +17,7 @@
 git log --oneline -10                 # 최근에 무슨 일이 있었는지
 git status -sb                        # 미커밋 변경이 있는지
 npm run lint && npm run test:i18n     # 구문 / i18n 키
-npm run test:unit                     # DSP·표시 기준 단위·회귀 (현재 21개)
+npm run test:unit                     # DSP·표시 기준 단위·회귀 (현재 24개)
 npm run build                         # 배포 산출물 + 경로/자산 검증
 ```
 
