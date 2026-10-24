@@ -519,6 +519,26 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     await expect(items).toHaveCount(3);
     await expect(page.locator('#historyUndoToast')).toBeHidden();
 
+    // 빠른 터치 스와이프(세로 드리프트 포함)로 삭제해도 첫 탭에 '삭제 취소'가
+    // 동작한다 — 가로 방향 확정 순간 touchmove 를 preventDefault 해 브라우저가
+    // 세로 스크롤·관성으로 인계받는 것을 차단한다(8차: 스크롤 직후 탭 억제 방지)
+    const cdp = await page.context().newCDPSession(page);
+    await items.nth(2).locator('.history-row').scrollIntoViewIfNeeded();
+    const boxFast = await items.nth(2).locator('.history-row').boundingBox();
+    const cyFast = boxFast.y + boxFast.height / 2;
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: boxFast.x + boxFast.width - 20, y: cyFast }] });
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: boxFast.x + boxFast.width - 90, y: cyFast + 7 }] });
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: boxFast.x - 60, y: cyFast + 7 }] });
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await expect(items).toHaveCount(2);
+    // 페이드 인이 시작된 뒤(클래스 부여 확인) 터치 탭 한 번에 취소되어야 한다
+    await expect(page.locator('#historyUndoToast')).toHaveClass(/visible/);
+    const undoBox = await page.locator('#btnUndoDelete').boundingBox();
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: undoBox.x + undoBox.width / 2, y: undoBox.y + undoBox.height / 2 }] });
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await expect(items).toHaveCount(3);
+    await expect(page.locator('#historyUndoToast')).toBeHidden();
+
     // 다시 끝까지 밀고 3초 기다리면 실제로 삭제된다
     const box3 = await items.nth(2).locator('.history-row').boundingBox();
     const cy3 = box3.y + box3.height / 2;

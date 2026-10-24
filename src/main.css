@@ -2535,6 +2535,17 @@ body.has-result .waveform-box {
   color: #FFFFFF;
   border-radius: 14px;
   box-shadow: 0 6px 18px rgba(15, 23, 42, 0.18);
+  /* 페이드 인/아웃(8차): .toast 와 같은 움직임 — 서서히 나타나고 사라진다 */
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
+  transition: opacity 0.22s ease, transform 0.22s ease;
+}
+
+.history-undo-toast.visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
 }
 
 .history-undo-toast[hidden] {
@@ -2559,6 +2570,7 @@ body.has-result .waveform-box {
   font-size: 1rem;
   font-weight: 800;
   cursor: pointer;
+  touch-action: manipulation; /* 빠른 연속 탭에서 더블탭 줌 지연 없이 즉시 클릭 */
 }
 
 /* ==========================================================================

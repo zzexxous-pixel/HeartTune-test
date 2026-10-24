@@ -173,6 +173,7 @@ function logDebug(msg) {
 }
 
 function showAlert(msg, durationMs = 3000) {
+  clearTimeout(alertTextClearTimer);
   els.liveAlertBox.textContent = msg;
   els.liveAlertBox.classList.add('visible');
   clearTimeout(toastTimer);
@@ -181,9 +182,13 @@ function showAlert(msg, durationMs = 3000) {
 
 function hideAlert() {
   els.liveAlertBox.classList.remove('visible');
-  els.liveAlertBox.textContent = '';
   clearTimeout(toastTimer);
   toastTimer = null;
+  // 페이드 아웃이 끝난 뒤에 내용을 비운다 — 텍스트만 먼저 사라진 빈 박스가 남지 않게
+  clearTimeout(alertTextClearTimer);
+  alertTextClearTimer = window.setTimeout(() => {
+    if (!els.liveAlertBox.classList.contains('visible')) els.liveAlertBox.textContent = '';
+  }, TOAST_FADE_MS);
 }
 
 /* --------------------------------------------------------------------------
@@ -1087,6 +1092,10 @@ function closeOpenHistoryRows(except = null) {
 /* ── 측정이력: 목록 · 자세히 보기(같은 시트 안 화면 전환) · 삭제 대기(실행 취소) ── */
 
 const UNDO_DELETE_MS = 3000; // 삭제 후 이 시간 안에 취소하지 않으면 실제로 지운다
+const TOAST_FADE_MS = 220;   // 토스트 페이드 인/아웃 시간(CSS transition 과 일치)
+let lastHistorySwipeAt = 0;  // 이력 스와이프가 끝난 시각 — 직후 잔여(합성) 클릭 무시용
+let undoToastFadeTimer = null;  // 삭제 취소 토스트 페이드 아웃 → hidden 타이머
+let alertTextClearTimer = null; // 범용 토스트 페이드 아웃 후 내용 비우기 타이머
 
 /** 화면 상태. detailRecord 가 있으면 "자세히 보기" 화면, pendingId 는 삭제 대기 중인 기록. */
 const historyView = {
@@ -1147,7 +1156,23 @@ function buildHistoryItem(item) {
 
   // 가로 스와이프 제스처 (Pointer Events — 탭은 click 으로만 처리)
   let drag = null;
-  let suppressClick = false;
+  // 터치 스와이프 이중 경로: 가로 방향이 확정되는 순간 touchmove 를 preventDefault
+  // 해서 브라우저가 세로 스크롤(관성)로 인계받지 못하게 막는다. 빠르게 휙 밀면
+  // 세로 드리프트 때문에 브라우저가 스크롤을 가져가고, 그 직후의 첫 탭이 브라우저의
+  // '스크롤 직후 탭 억제'에 먹혀 삭제 취소 버튼을 두 번 눌러야 하던 문제를 방지한다.
+  let touchStart = null;
+  row.addEventListener('touchstart', (event) => {
+    touchStart = event.touches.length === 1
+      ? { x: event.touches[0].clientX, y: event.touches[0].clientY }
+      : null;
+  }, { passive: true });
+  row.addEventListener('touchmove', (event) => {
+    if (!touchStart) return;
+    const t = event.touches[0];
+    const dx = t.clientX - touchStart.x;
+    const dy = t.clientY - touchStart.y;
+    if (Math.abs(dx) >= 10 && Math.abs(dx) > Math.abs(dy)) event.preventDefault();
+  }, { passive: false });
   row.addEventListener('pointerdown', (event) => {
     if (event.pointerType === 'mouse' && event.button !== 0) return;
     drag = { id: event.pointerId, x: event.clientX, y: event.clientY, dx: 0, active: false, wasOpen: li.classList.contains('is-open') };
@@ -1177,8 +1202,9 @@ function buildHistoryItem(item) {
     row.style.transform = '';
     li.classList.remove('is-swiping');
     if (!active) return;
-    suppressClick = true;
-    window.setTimeout(() => { suppressClick = false; }, 300);
+    // 스와이프 직후 350ms 안의 클릭은 합성(잔여) 클릭으로 간주해 무시한다.
+    // 재렌더로 행이 교체돼도 살아남도록 행별 플래그 대신 공유 시각을 쓴다.
+    lastHistorySwipeAt = performance.now();
     const position = (wasOpen ? -SWIPE_MAX_PX : 0) + dx;
     if (position <= -SWIPE_MAX_PX + 1) {
       // 끝까지 밀었을 때만 삭제 대기 (중간에 놓으면 삭제하지 않는다)
@@ -1193,7 +1219,7 @@ function buildHistoryItem(item) {
   row.addEventListener('pointercancel', endDrag);
 
   row.addEventListener('click', () => {
-    if (suppressClick) return;
+    if (performance.now() - lastHistorySwipeAt < 350) return;
     if (li.classList.contains('is-open')) {
       li.classList.remove('is-open');
       return;
@@ -1255,12 +1281,22 @@ function placeUndoToast() {
 }
 
 function showUndoToast() {
+  clearTimeout(undoToastFadeTimer);
   els.historyUndoToast.hidden = false;
+  // hidden 해제 프레임과 클래스 부여 프레임을 분리해야 페이드 인이 실제로 동작한다
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => els.historyUndoToast.classList.add('visible'));
+  });
   placeUndoToast();
 }
 
 function hideUndoToast() {
-  els.historyUndoToast.hidden = true;
+  clearTimeout(undoToastFadeTimer);
+  els.historyUndoToast.classList.remove('visible');
+  // 페이드 아웃이 끝난 뒤 완전히 숨긴다
+  undoToastFadeTimer = window.setTimeout(() => {
+    els.historyUndoToast.hidden = true;
+  }, TOAST_FADE_MS);
 }
 
 /** 대기 중인 삭제를 실제로 저장소에서 지운다. (타이머 만료, 시트 닫힘, 다른 삭제 시작 시) */
