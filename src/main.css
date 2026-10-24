@@ -5,15 +5,20 @@
    ========================================================================== */
 
 :root {
-  --bg-page: #F4F7FB;
+  /* Vital Serenity (Stitch DESIGN.md 채택분): 크림슨=측정·행동, 네이비=구조·제목, 틸=안정 표시 */
+  --bg-page: #E4EAF4;
   --bg-card: #FFFFFF;
-  --bg-subtle: #EDF2F9;
-  --primary: #0F4C81;
-  --primary-hover: #0B3861;
-  --accent: #E11D48;
-  --text-main: #111827;
-  --text-sub: #4B5563;
-  --border-color: #D1D9E6;
+  --bg-subtle: #EEF2F9;
+  --primary: #184E77;
+  --primary-hover: #123C5E;
+  --accent: #D93848;
+  --accent-deep: #B61C32;
+  --teal: #0D9488;
+  --ink: #111C2D;
+  --wave-dark: #090D16;
+  --text-main: #111C2D;
+  --text-sub: #526179;
+  --border-color: #DCE4F0;
 
   --status-normal-bg: #ECFDF5;
   --status-normal-fg: #065F46;
@@ -480,7 +485,7 @@ body.i18n-ready {
 body.has-result .camera-preview-badge,
 body.has-result .timer-badge,
 body.has-result .heart-icon,
-body.has-result .stage-guide-text {
+body.has-result .idle-guide {
   display: none;
 }
 
@@ -530,9 +535,11 @@ body.has-result .bpm-row {
   max-width: 480px;
   padding: 10px 14px;
   border-radius: 12px;
-  background: #FEF3C7;
-  color: #92400E;
-  border: 2px solid #F59E0B;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  color: #FFFFFF;
+  border: none;
   font-size: 0.92rem;
   font-weight: 700;
   line-height: 1.35;
@@ -546,6 +553,91 @@ body.has-result .bpm-row {
 .toast.visible {
   opacity: 1;
   transform: translate(-50%, 0);
+}
+
+/* --------------------------------------------------------------------------
+   확인 다이얼로그 (앱 톤) — 브라우저 confirm 대체: 앱 종료·이력 전체 삭제 확인
+   -------------------------------------------------------------------------- */
+.confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease;
+  z-index: 55;
+}
+
+.confirm-backdrop.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.confirm-dialog {
+  width: 100%;
+  max-width: 340px;
+  background: #FFFFFF;
+  border-radius: 20px;
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.3);
+  padding: 22px 20px 16px;
+  text-align: center;
+  transform: scale(0.94);
+  transition: transform 0.18s ease;
+}
+
+.confirm-backdrop.open .confirm-dialog {
+  transform: scale(1);
+}
+
+.confirm-dialog h2 {
+  font-size: 1.06rem;
+  color: var(--text-main);
+  margin-bottom: 6px;
+}
+
+.confirm-dialog p {
+  font-size: 0.95rem;
+  color: var(--text-sub);
+  line-height: 1.5;
+  word-break: keep-all;
+}
+
+.confirm-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.confirm-actions button {
+  flex: 1 1 0;
+  min-height: 48px;
+  border-radius: 12px;
+  font-family: inherit;
+  font-size: 0.98rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.confirm-btn-cancel {
+  border: 2px solid var(--border-color);
+  background: #FFFFFF;
+  color: var(--text-main);
+}
+
+.confirm-btn-ok {
+  border: 2px solid var(--primary);
+  background: var(--primary);
+  color: #FFFFFF;
+}
+
+/* 메시지 영역 경고 문구(신호 경고·카메라 오류): 토스트 대신 스테이지 안내 칸에 표시 */
+.stage-guide-text.is-warning {
+  color: var(--primary);
+  font-weight: 700;
 }
 
 /* --------------------------------------------------------------------------
@@ -601,6 +693,9 @@ body.has-result .bpm-row {
   justify-content: space-between;
   padding: 4px 6px 4px 18px;
   border-bottom: 1px solid var(--border-color);
+  touch-action: none; /* 헤더(제목·여백) 제스처는 시트 닫기 드래그 전용 */
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .sheet-header h2 {
@@ -610,7 +705,7 @@ body.has-result .bpm-row {
 
 .sheet-body {
   overflow-y: auto;
-  overscroll-behavior: contain;
+  overscroll-behavior: none; /* 경계 스와이프를 브라우저가 가져가지 않는다(시트 닫기 드래그와 양립) */
   -webkit-overflow-scrolling: touch;
   padding: 12px 16px 18px;
   display: flex;
@@ -1206,9 +1301,6 @@ body.resizing-debug * {
 .stage-guide-text {
   width: 100%;
   min-height: 3em;
-  padding: 10px 14px;
-  border-radius: 14px;
-  background: #E8F0FB;
   font-size: 1.16rem;
   line-height: 1.35;
 }
@@ -1412,18 +1504,6 @@ body.resizing-debug * {
   text-wrap: pretty;
 }
 
-.waveform-box,
-body.has-result .waveform-box {
-  display: block;
-  width: min(100%, 440px);
-  height: 76px;
-  max-width: 440px;
-  padding: 6px;
-  background: #0F172A;
-  border: 1px solid #263449;
-  border-radius: 14px;
-  flex: 0 0 auto;
-}
 
 #waveformCanvas {
   width: 100%;
@@ -1769,20 +1849,12 @@ body.has-result .bpm-row {
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid #93C5FD;
-  border-radius: 14px;
-  background: #E8F0FB;
   color: var(--primary);
   font-size: clamp(1.08rem, 4.6vw, 1.24rem);
   font-weight: 700;
   line-height: 1.4;
   text-align: center;
   overflow-wrap: anywhere;
-}
-
-body.is-measuring .stage-guide-text {
-  border-color: #60A5FA;
-  background: #EFF6FF;
 }
 
 .message-area > * {
@@ -1881,7 +1953,7 @@ body.is-measuring .stage-guide-text {
 }
 
 .details-body {
-  gap: 14px;
+  gap: 16px;
 }
 
 .details-overview {
@@ -1944,7 +2016,7 @@ body.is-measuring .stage-guide-text {
 .details-waveform-section {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .details-waveform-section h3 {
@@ -1952,7 +2024,7 @@ body.is-measuring .stage-guide-text {
   font-size: 1.08rem;
 }
 
-#detailsWaveformCanvas {
+.details-body canvas[data-role="waveform"] {
   width: 100%;
   height: auto;
   display: block;
@@ -2031,13 +2103,14 @@ body.has-result .waveform-box {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  width: min(100%, 440px);
+  width: 100%; /* 링·메시지 영역과 같은 가로 폭 */
   height: 100%;
-  max-width: 440px;
+  max-width: none; /* 앞선 규칙들의 420/460px 캡 무효화 */
   padding: 0;
   border: 0;
   border-radius: 0;
   background: transparent;
+  flex: 0 0 auto; /* 세로 플렉스에서 줄어들지 않음 */
 }
 
 .waveform-title {
@@ -2179,7 +2252,7 @@ body.has-result .waveform-box {
 #trendCanvas.trend-chart {
   display: block;
   width: auto;
-  height: 150px;
+  height: 118px;
   background: transparent;
   border: 0;
   border-radius: 0;
@@ -2187,7 +2260,7 @@ body.has-result .waveform-box {
 
 .trend-tick,
 .trend-date {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   fill: #475569;
 }
@@ -2229,7 +2302,7 @@ body.has-result .waveform-box {
   flex: 1 1 0;
   min-height: 0;
   overflow-y: auto;
-  overscroll-behavior: contain;
+  overscroll-behavior: none; /* 맨 위에서의 아래 스와이프는 시트 닫기 드래그로 (스크롤 우선 규칙은 JS가 판정) */
   -webkit-overflow-scrolling: touch;
   gap: 8px;
   padding: 2px 2px 8px;
@@ -2391,9 +2464,8 @@ body.has-result .waveform-box {
 }
 
 .history-pane-detail {
-  touch-action: pan-y;
   overflow-y: auto;
-  overscroll-behavior: contain;
+  overscroll-behavior: none; /* 맨 위에서의 아래 스와이프는 시트 닫기 드래그로 */
   -webkit-overflow-scrolling: touch;
   padding: 12px 16px 24px;
 }
@@ -2405,6 +2477,10 @@ body.has-result .waveform-box {
 
 .history-detail-body .details-body {
   padding: 0;
+  /* 복제본은 sheet-body 클래스가 없어 flex 가 무시된다 — 같은 세로 간격을 유지한다. */
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 /* 헤더 두 벌: 목록 헤더 / 자세히 보기 헤더 (뒤로 · 제목 · 공유 · 삭제 · 닫기) */
@@ -2453,12 +2529,23 @@ body.has-result .waveform-box {
   justify-content: space-between;
   gap: 12px;
   padding: 10px 12px 10px 16px;
-  background: rgba(15, 23, 42, 0.55);
+  background: rgba(0, 0, 0, 0.5);
   -webkit-backdrop-filter: blur(6px);
   backdrop-filter: blur(6px);
   color: #FFFFFF;
   border-radius: 14px;
   box-shadow: 0 6px 18px rgba(15, 23, 42, 0.18);
+  /* 페이드 인/아웃(8차): .toast 와 같은 움직임 — 서서히 나타나고 사라진다 */
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
+  transition: opacity 0.22s ease, transform 0.22s ease;
+}
+
+.history-undo-toast.visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
 }
 
 .history-undo-toast[hidden] {
@@ -2483,17 +2570,923 @@ body.has-result .waveform-box {
   font-size: 1rem;
   font-weight: 800;
   cursor: pointer;
+  touch-action: manipulation; /* 빠른 연속 탭에서 더블탭 줌 지연 없이 즉시 클릭 */
 }
 
-/* 메인 결과 하단: 이미지 공유 아이콘 버튼 (기존 텍스트 버튼 대체) */
-.cta-share-icon {
+/* ==========================================================================
+   Vital Serenity 리디자인 (2026-10-22, Stitch 산출물 선별 채택)
+   · 레이아웃 치수(100dvh 3영역 고정 그리드)는 바꾸지 않고 시각 체계만 교체한다.
+   · 채택: 크림슨+네이비+틸 팔레트, 카드/필 버튼, 다크 파형 모니터, 부드러운 그림자
+   · 제외: 외부 폰트/CDN, 지어낸 수치·문구, ECG풍 파형, 스크롤형 메인 (docs/60 §7)
+   ========================================================================== */
+
+body {
+  background-color: var(--bg-page);
+}
+
+.app-shell {
+  background: linear-gradient(180deg, #FAFBFF 0%, #F3F5FA 100%);
+  box-shadow: 0 4px 28px rgba(17, 28, 45, 0.10);
+}
+
+/* ── 헤더 ─────────────────────────────────────────────────────────────── */
+.app-header {
+  background: rgba(255, 255, 255, 0.94);
+  border-bottom: 1px solid #E6ECF5;
+}
+
+.brand-heart {
+  display: inline-flex;
   flex: 0 0 auto;
-  width: 60px;
-  height: 60px;
-  min-width: 60px;
-  min-height: 60px;
-  border: 2px solid var(--primary);
+  width: 36px;
+  height: 36px;
+}
+
+.brand-heart svg {
+  display: block;
+  border-radius: 9px;
+  box-shadow: 0 3px 8px rgba(182, 28, 50, 0.28);
+}
+
+.brand-title {
+  color: var(--ink);
+}
+
+.icon-btn {
+  border-radius: 999px;
+}
+
+.icon-btn:hover,
+.icon-btn:focus-visible {
+  background: #EEF2F9;
+}
+
+.btn-lang {
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: #E7EEFF;
+  color: var(--primary);
+  font-size: 0.98rem;
+}
+
+/* ── 링 카드 ──────────────────────────────────────────────────────────── */
+.ring-zone {
+  background: var(--bg-card);
+  border: 1px solid #E3EAF4;
+  border-radius: 28px;
+  box-shadow: 0 10px 30px rgba(17, 28, 45, 0.07);
+}
+
+.progress-ring-bg {
+  stroke: #E2EAF6;
+}
+
+.progress-ring-bar {
+  stroke: var(--accent);
+}
+
+.camera-preview-badge {
+  border-color: #FFD3DA;
+  box-shadow: 0 4px 12px rgba(182, 28, 50, 0.18);
+}
+
+.bpm-value {
+  color: var(--ink);
+}
+
+.bpm-unit {
+  color: var(--accent);
+}
+
+.timer-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: #EEF4FF;
+  border: 1px solid #D3E1F3;
+  color: var(--primary);
+}
+
+.timer-badge::before {
+  content: "";
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--teal);
+  flex: 0 0 auto;
+}
+
+/* ── 파형 모니터 카드 (다크) ─────────────────────────────────────────── */
+.waveform-box,
+body.has-result .waveform-box {
+  padding: 8px 12px 10px;
+  border: 1px solid #1E2A3D;
+  border-radius: 20px;
+  background: var(--wave-dark);
+  box-shadow: 0 8px 24px rgba(9, 13, 22, 0.22);
+}
+
+.waveform-head {
+  flex: 0 0 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.waveform-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: #E8EEF7;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.waveform-live-pill {
+  display: none;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: rgba(13, 148, 136, 0.22);
+  color: #5EEAD4;
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.waveform-live-pill::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #2DD4BF;
+  animation: livePulse 1.4s ease-in-out infinite;
+}
+
+body.is-measuring .waveform-live-pill {
+  display: inline-flex;
+}
+
+@keyframes livePulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+#waveformCanvas {
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+}
+
+/* ── 메시지/결과 카드 ─────────────────────────────────────────────────── */
+/* 메시지 문구 자체에는 박스(배경·테두리·음영)를 두지 않는다(7차 피드백) */
+.stage-guide-text {
+  color: #17436E;
+}
+
+.result-banner,
+.result-banner.visible {
+  border-radius: 20px;
+  box-shadow: 0 6px 20px rgba(18, 24, 41, 0.06);
+}
+
+.btn-details {
+  border-radius: 999px;
+}
+
+/* ── 하단 CTA ─────────────────────────────────────────────────────────── */
+.cta-bar {
+  background: rgba(255, 255, 255, 0.96);
+  border-top: 1px solid #E6ECF5;
+}
+
+.btn-primary {
+  background: var(--accent);
+}
+
+.cta-primary {
+  border-radius: 999px;
+  box-shadow: 0 8px 20px rgba(217, 56, 72, 0.30);
+}
+
+.cta-primary:active {
+  transform: scale(0.98);
+}
+
+/* 측정 중에는 흰 필 + 크림슨 글자 (시작 버튼과 명확히 구분) */
+.btn-primary.measuring {
+  background: #FFFFFF;
+  color: var(--accent-deep);
+  border: 2px solid var(--accent);
+  box-shadow: none;
+}
+
+.cta-share-icon {
+  border: 2px solid #C9D5E8;
+  border-radius: 999px;
+  color: var(--primary);
+  box-shadow: 0 4px 14px rgba(18, 24, 41, 0.08);
+}
+
+/* ── 바텀시트 공통 ────────────────────────────────────────────────────── */
+.sheet {
+  border-radius: 28px 28px 0 0;
+  background: #FDFEFF;
+}
+
+.sheet-header {
+  border-bottom-color: #E8EEF6;
+}
+
+.toast {
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(18, 24, 41, 0.14);
+}
+
+/* ── 설정/메뉴/안내 ───────────────────────────────────────────────────── */
+.dur-btn {
+  border-radius: 16px;
+}
+
+.dur-btn.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  box-shadow: 0 6px 16px rgba(24, 78, 119, 0.25);
+}
+
+.segmented {
+  border-radius: 16px;
+  background: #EAF0F9;
+}
+
+.segmented button {
+  border-radius: 12px;
+}
+
+.menu-row {
+  border-color: #E3EAF4;
+  border-radius: 18px;
+  box-shadow: 0 3px 12px rgba(18, 24, 41, 0.05);
+}
+
+.menu-row svg {
+  width: 42px;
+  height: 42px;
+  padding: 10px;
+  border-radius: 13px;
+  background: #EEF4FF;
+}
+
+.guide-card {
+  background: #FFFFFF;
+  border: 1px solid #E3EAF4;
+  border-radius: 18px;
+  box-shadow: 0 3px 12px rgba(18, 24, 41, 0.05);
+}
+
+.guide-rhythm-card {
+  background: #FFFFFF;
+}
+
+/* ── 자세히 보기: BPM 히어로 + 지표 행 목록 ──────────────────────────── */
+.details-overview-item {
+  background: #FFFFFF;
+  border-color: #E3EAF4;
+  border-radius: 16px;
+}
+
+.details-overview-bpm {
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 16px 12px 18px;
+  text-align: center;
+  background: linear-gradient(180deg, #FFF5F6 0%, #FFFFFF 100%);
+  border-color: #F2C4CD;
+}
+
+.details-bpm-value {
+  align-items: baseline;
+  justify-content: center;
+  color: var(--accent);
+}
+
+.details-bpm-value strong {
+  font-size: 3.4rem;
+  line-height: 1.05;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.details-bpm-value span {
+  color: var(--accent-deep);
+}
+
+.details-body canvas[data-role="waveform"] {
+  border-radius: 18px;
+  border-color: #1E2A3D;
+}
+
+.indicator-grid {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+}
+
+.indicator-card {
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  column-gap: 12px;
+  row-gap: 3px;
+  padding: 13px 14px;
+  border-radius: 18px;
+}
+
+.indicator-light {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  align-self: center;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  color: #FFFFFF;
+  font-size: 1.25rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.indicator-card.is-clear .indicator-light::after,
+.indicator-card.quality-good .indicator-light::after {
+  content: "✓";
+}
+
+.indicator-card.is-active .indicator-light::after,
+.indicator-card.quality-fair .indicator-light::after,
+.indicator-card.quality-poor .indicator-light::after,
+.indicator-card.quality-unknown .indicator-light::after {
+  content: "!";
+}
+
+.indicator-label {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: center;
+}
+
+.indicator-state {
+  grid-column: 3;
+  grid-row: 1;
+  align-self: center;
+  padding: 4px 11px;
+  border: 1.5px solid currentColor;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.75);
+  white-space: nowrap;
+}
+
+.indicator-desc {
+  grid-column: 2 / -1;
+  grid-row: 2;
+}
+
+/* ── 측정이력 ─────────────────────────────────────────────────────────── */
+.history-count {
+  flex: 0 0 auto;
+  margin-right: auto;
+  margin-left: 8px;
+  padding: 3px 11px;
+  border-radius: 999px;
+  background: #E7EEFF;
+  color: var(--primary);
+  font-size: 0.85rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.history-sheet .trend-card {
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  background: #FFFFFF;
+  border: 1px solid #E3EAF4;
+  border-radius: 20px;
+  box-shadow: 0 4px 16px rgba(18, 24, 41, 0.05);
+}
+
+.trend-chart-row {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  min-width: 0;
+}
+
+.trend-scroll {
+  border-color: #E8EEF6;
+  background: #FBFCFE;
+}
+
+.trend-normal-band {
+  fill: rgba(13, 148, 136, 0.22);
+}
+
+.trend-line {
+  stroke: var(--accent);
+}
+
+.trend-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding-top: 7px;
+  border-top: 1px solid #E8EEF6;
+}
+
+.trend-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  min-width: 0;
+  text-align: center;
+}
+
+.trend-stat + .trend-stat {
+  border-left: 1px solid #E8EEF6;
+}
+
+.trend-stat-label {
+  color: var(--text-sub);
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.trend-stat-value {
+  color: var(--ink);
+  font-size: 1.22rem;
+  font-weight: 900;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+}
+
+.trend-stat-unit {
+  margin-left: 3px;
+  color: var(--text-sub);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.history-item {
+  border: 1px solid #E3EAF4;
+  border-radius: 18px;
+  box-shadow: 0 3px 12px rgba(18, 24, 41, 0.05);
+}
+
+.history-row {
+  border-radius: 17px;
+}
+
+.history-main {
+  gap: 5px;
+}
+
+.history-signals {
+  align-self: flex-start;
+  display: inline-flex;
+  padding: 3px 11px;
+  border-radius: 999px;
+  font-size: 0.92rem;
+  line-height: 1.35;
+}
+
+.history-signals.is-normal {
+  background: #DCFCE7;
+  color: #15803D;
+}
+
+.history-signals.is-abnormal {
+  background: #FEE2E2;
+  color: #B91C1C;
+}
+
+.history-bpm {
+  color: var(--ink);
+}
+
+.history-bpm.is-abnormal-rate {
+  color: #DC2626;
+}
+
+.history-empty {
+  border: 2px dashed #D9E2EF;
+  border-radius: 18px;
+  background: #F8FAFC;
+}
+
+.history-ad-slot {
+  background: transparent;
+}
+
+.history-legal {
+  padding: 8px 10px;
   border-radius: 14px;
+  background: #EEF4FF;
+  color: #3D5878;
+}
+
+.history-undo-toast {
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 16px;
+}
+
+.history-undo-btn {
+  border-radius: 999px;
+}
+
+/* 가로 모드: 좁은 파형 칸에서 제목/실시간 필이 넘치지 않게 */
+@media (orientation: landscape) and (max-height: 540px) {
+  .waveform-box,
+  body.has-result .waveform-box {
+    padding: 6px 8px;
+  }
+
+  .waveform-title {
+    font-size: 0.76rem;
+  }
+
+  body.is-measuring .waveform-live-pill {
+    display: none;
+  }
+
+  .ring-zone {
+    border-radius: 20px;
+  }
+}
+
+/* 시트 손잡이 요소가 본문 스크롤 높이를 밀어내지 않게 + 좁은 영어 헤더 보정 */
+.sheet-body {
+  min-height: 0;
+}
+
+@media (max-width: 400px) {
+  html[lang="en"] .history-count {
+    display: none;
+  }
+}
+
+/* ==========================================================================
+   사용자 피드백 개선 (2026-10-22, PR #6 프리뷰 테스트 반영)
+   · 시트 손잡이 드래그로 닫기 · 공유/저장 분리 · 첫 방문 손가락 와이어
+   · 추세 차트 다크 카드 + 곡선 연결 · 카메라 버튼 아이콘 · 법적 고지 재구성
+   ========================================================================== */
+
+/* ── 바텀시트 손잡이: 드래그 가능한 실제 요소 ─────────────────────────── */
+.sheet-grab {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 0 6px;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.sheet-grab:active {
+  cursor: grabbing;
+}
+
+.sheet-grab-bar {
+  width: 48px;
+  height: 5px;
+  border-radius: 999px;
+  background: #CBD5E1;
+  transition: background-color 0.15s ease;
+}
+
+.sheet-grab:hover .sheet-grab-bar,
+.sheet-grab:active .sheet-grab-bar {
+  background: #94A3B8;
+}
+
+/* 드래그 중에는 트랜지션을 끊어 손가락을 그대로 따라오게 한다. */
+.sheet.is-dragging {
+  transition: none;
+}
+
+/* 드래그 중에는 본문 글자 선택이 일어나지 않게 한다. */
+.sheet.is-dragging,
+.sheet.is-dragging * {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* ── 결과 하단 [공유] [저장] 필 버튼 ───────────────────────────────────── */
+.cta-pill {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 52px;
+  min-width: 48px;
+  padding: 0 15px;
+  border: 2px solid #C9D5E8;
+  border-radius: 999px;
   background: #FFFFFF;
   color: var(--primary);
+  font-family: inherit;
+  font-size: 0.98rem;
+  font-weight: 800;
+  box-shadow: 0 4px 14px rgba(18, 24, 41, 0.08);
+  cursor: pointer;
+}
+
+.cta-pill svg {
+  flex: 0 0 auto;
+}
+
+.cta-pill:active {
+  transform: scale(0.97);
+}
+
+@media (min-width: 480px) {
+  .cta-pill {
+    min-height: 60px;
+    padding: 0 20px;
+  }
+}
+
+/* ── 설정: 카메라 선택 — 와이어 이미지 카드 2장(크게, 둘 다 표시) ───────── */
+.cam-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.camera-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.camera-option {
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 8px 10px;
+  border: 2px solid #C9D5E8;
+  border-radius: 16px;
+  background: #FFFFFF;
+  color: var(--primary);
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.camera-option img {
+  height: 116px;
+  width: auto;
+}
+
+.camera-option.active {
+  border-color: var(--accent);
+  background: #FFF5F6;
+}
+
+.camera-option:active {
+  transform: scale(0.98);
+}
+
+/* ── 초기 화면: 손가락 위치 와이어를 왼쪽에 크게, 안내 문구를 오른쪽에 ─────
+   대기 상태에서는 메시지 박스(.idle-guide)를 흰색 카드로 만들고
+   와이어 이미지(테두리 없음)와 문구를 가로로 나란히 놓는다.
+   측정 중에는 문구 박스(.stage-guide-text)만 중앙에 표시한다. */
+.idle-guide {
+  position: relative;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.idle-guide .stage-guide-text {
+  min-height: 0;
+}
+
+.finger-guide {
+  display: none; /* 측정 중·결과 화면에서는 숨김 */
+  pointer-events: none;
+}
+
+/* 대기 상태: 왼쪽 큰 이미지 + 오른쪽 문구, 박스 배경은 이미지(흰색)에 맞춘다 */
+body:not(.is-measuring):not(.has-result) .idle-guide {
+  flex-direction: row;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 14px;
+  padding: 8px 16px;
+  border: 1px solid #93C5FD;
+  border-radius: 14px;
+  background: #FFFFFF;
+}
+
+body:not(.is-measuring):not(.has-result) .finger-guide {
+  display: flex;
+  position: static;
+  flex: 0 0 auto;
+  align-self: stretch;
+  padding: 2px 0;
+}
+
+body:not(.is-measuring):not(.has-result) .idle-guide .stage-guide-text {
+  flex: 1 1 auto;
+  width: auto;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  justify-content: flex-start;
+  text-align: left;
+  font-size: clamp(1.02rem, 4.2vw, 1.18rem);
+}
+
+.finger-guide-art {
+  display: none;
+  height: 100%;
+  width: auto;
+  object-fit: contain;
+}
+
+body:not(.cam-front) .finger-guide-art[data-facing-art="environment"] {
+  display: block;
+}
+
+body.cam-front .finger-guide-art[data-facing-art="user"] {
+  display: block;
+}
+
+/* ── 측정 이력: 추세 차트를 다크 모니터 카드로 (본문 카드와 확실히 구분) ── */
+.trend-scroll {
+  border-color: #0D1626;
+  background: #0D1626;
+}
+
+.trend-grid {
+  stroke: rgba(148, 163, 184, 0.14);
+}
+
+.trend-normal-band {
+  fill: rgba(45, 212, 191, 0.28);
+}
+
+.trend-line {
+  stroke: #FF5A6A;
+  stroke-width: 2.5;
+}
+
+.trend-dot {
+  stroke: #0D1626;
+  stroke-width: 2;
+}
+
+.trend-dot.is-normal {
+  fill: #4ADE80;
+}
+
+.trend-dot.is-abnormal {
+  fill: #FF5A6A;
+}
+
+/* 차트 안 날짜 라벨은 어두운 배경 위에 밝게 */
+#trendCanvas .trend-date {
+  fill: #9FB2CC;
+}
+
+/* ── 휴지통 버튼: 부드러운 아이콘 + 옅은 레드 칩 ───────────────────────── */
+.history-trash-btn {
+  color: #B91C1C;
+  background: #FEE2E2;
+  border: 1.5px solid #FECACA;
+}
+
+.history-trash-btn:hover,
+.history-trash-btn:focus-visible {
+  background: #FECACA;
+}
+
+.history-trash-btn:active {
+  transform: scale(0.95);
+}
+
+/* ── 측정 안내 3번: 문장 안 [공유]/[저장] 버튼 모양 인라인 칩 ───────────── */
+.guide-step3-desc {
+  display: inline;
+}
+
+.guide-inline-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 1.55em;
+  padding: 0 0.55em 0 0.45em;
+  margin: 0 3px;
+  border: 1.5px solid #C9D5E8;
+  border-radius: 0.6em;
+  background: #FFFFFF;
+  color: var(--primary);
+  font-size: 0.92em;
+  font-weight: 800;
+  line-height: 1;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.guide-inline-chip svg {
+  flex: 0 0 auto;
+}
+
+.guide-inline-chip.is-save {
+  border-color: #C9D5E8;
+  background: #FFFFFF;
+  color: var(--primary);
+}
+
+/* ── 법적 고지: 개인정보 처리방침 읽기 좋은 구성 ───────────────────────── */
+.legal-body {
+  gap: 14px;
+}
+
+.legal-lead {
+  font-weight: 700;
+}
+
+.privacy-policy {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.privacy-title {
+  margin: 0 0 2px;
+}
+
+.privacy-list {
+  display: grid;
+  gap: 10px;
+  margin: 8px 0 0;
+}
+
+.privacy-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  background: #F8FAFC;
+  border: 1px solid #E3EAF4;
+  border-radius: 14px;
+}
+
+.privacy-item dt {
+  color: var(--primary);
+  font-size: 0.98rem;
+  font-weight: 800;
+}
+
+.privacy-item dd {
+  margin: 0;
+}
+/* ── 시트 헤더 아이콘 버튼: 모든 시트에서 같은 크기로 통일 ───────────────── */
+.sheet .icon-btn {
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
+}
+
+@media (max-width: 400px) {
+  .sheet .icon-btn {
+    width: 40px;
+    min-width: 40px;
+    height: 42px;
+    min-height: 42px;
+  }
+}
+
+/* hidden 속성은 어떤 display 선언보다 우선한다 (버튼/배너 초기 숨김 보장) */
+[hidden] {
+  display: none !important;
+}
+
+/* 설정 시트: 앱 설치 버튼 */
+.install-btn {
+  width: 100%;
 }

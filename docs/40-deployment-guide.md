@@ -1,7 +1,7 @@
 # 40 · 배포, CI/CD 및 저장소 운영 가이드
 
 > 오늘심박 (HeartTune) — 개발 검증과 운영 이관을 **분리**한 워크플로 운영 문서.
-> 최종 업데이트: 2026-10-19
+> 최종 업데이트: 2026-10-24
 
 ---
 
@@ -12,7 +12,7 @@
     │  github.dev(. 키) 또는 웹에서 커밋
     ▼
  ① Dev CI (HeartTune-test)                    ← ci.yml → verify.yml
-    ├─ lint / i18n 키 일치 / DSP 단위·회귀(15) / Playwright E2E(5) / dist 빌드
+    ├─ lint / i18n 키 일치 / 단위·회귀(24) / Playwright E2E(18) / dist 빌드
     │
     ├─ ❌ 하나라도 실패 → 여기서 끝. 개발 화면도 갱신되지 않음
     │
@@ -126,7 +126,7 @@ E2E가 실패하면 **실패 로그가 PR 코멘트로 자동 게시**됩니다.
 | 이관 ⓪ 확인 | `confirm == PROMOTE` 검사 | 아무 것도 배포되지 않음 |
 | 이관 ① 소스 재검증 | 개발 CI와 **완전히 동일한** 검증 | 운영 반영 중단 |
 | 이관 ② 운영 저장소 반영 | `dist/` → `HeartTune`의 `main` push (PAT) | 운영 반영 중단 |
-| 이관 ③ 운영 배포 확인 | 운영 URL의 **기대 빌드 해시**(`<meta name="hearttune-build">`) + **모든 자산(10종) 내용에 동일 해시 포함 여부**로 신/구버전 판별(시간 의존 없음) — **최대 10분 폴링, 잡 타임아웃 20분** | 실패 표시. **Summary 안내 확인 → Re-run failed jobs로 ③만 재실행** (8-1절) |
+| 이관 ③ 운영 배포 확인 | 운영 URL의 **기대 빌드 해시**(`<meta name="hearttune-build">`) + **모든 자산(12종) 내용에 동일 해시 포함 여부**로 신/구버전 판별(시간 의존 없음) — **최대 10분 폴링, 잡 타임아웃 20분** | 실패 표시. **Summary 안내 확인 → Re-run failed jobs로 ③만 재실행** (8-1절) |
 
 ### 결과 확인
 
@@ -160,7 +160,7 @@ E2E가 실패하면 **실패 로그가 PR 코멘트로 자동 게시**됩니다.
 
 빌드 로그 예:
 ```
-[build-dist] 성공: 10개 파일 · 참조 자산 3개 검증 · 빌드 27cde79f · 캐시 hearttune-cache-27cde79f
+[build-dist] 성공: 21개 파일 · 참조 자산 7개 검증 · 빌드 62f060c9 · 캐시 hearttune-cache-62f060c9
 ```
 
 ---
@@ -168,7 +168,7 @@ E2E가 실패하면 **실패 로그가 PR 코멘트로 자동 게시**됩니다.
 ## 6. 소스 구조
 
 ```
-index.html                 ← 마크업만 (약 250줄)
+index.html                 ← 마크업만 (약 560줄)
 src/
   main.css                 ← 스타일 전체
   main.js                  ← UI/네비게이션/측정 오케스트레이션
@@ -178,9 +178,13 @@ src/
     camera.js              ← 카메라 스트림·토치·장치 목록
     storage.js             ← 측정 이력·캘리브레이션 localStorage
     share.js               ← 결과 이미지 생성 및 공유/다운로드
+    detail-view.js         ← 결과 상세·이력 상세·공유 이미지 단일 뷰모델
+    result-indicators.js   ← 결과 지표 플래그·신호 품질 경계
 tests/
-  dsp.test.js              ← Node 단위·회귀 테스트 15개
-  e2e/hearttune.spec.js    ← Playwright E2E 5개
+  dsp.test.js              ← Node DSP 단위·회귀 18개
+  detail-view.test.js      ← 상세 뷰모델 단위
+  result-indicators.test.js ← 지표 플래그·문구 매핑 단위
+  e2e/hearttune.spec.js    ← Playwright E2E 18개
 scripts/
   build-dist.js            ← dist 빌드 + 버전 자동화
   serve.js                 ← 의존성 없는 정적 서버 (로컬/E2E)
@@ -203,9 +207,9 @@ sw.js, manifest.webmanifest
 | 검증 | 명령 | 내용 |
 | :--- | :--- | :--- |
 | 구문·모듈 lint | `npm run lint` | 모든 JS/ESM 모듈 구문 검사 |
-| i18n 키 일치 | `npm run test:i18n` | ko/en 키 집합 100% 일치 (65키) |
-| DSP 단위·회귀 | `npm run test:unit` | 15개 — BPM 정확도, 하모닉 혼동, 박동 검출, 리듬, 적응형 캘리브레이션 |
-| E2E | `npm run test:e2e` | 5개 — 렌더링/법적 고지/언어 전환/조명/측정 플로우/디버그 샌드박스 |
+| i18n 키 일치 | `npm run test:i18n` | ko/en 키 집합 100% 일치 (132키) |
+| 단위·회귀 | `npm run test:unit` | 24개 — BPM 정확도, 하모닉 혼동, 박동 검출, 리듬(안정화·아티팩트 방어), 적응형 캘리브레이션, 상세 뷰모델, 지표 매핑 |
+| E2E | `npm run test:e2e` | 18개 — 렌더링/아이콘·매니페스트/3영역 기하/측정 플로우/이력 스와이프 삭제·취소(터치 포함)/시트 드래그 닫기/설정 저장/법적 고지/뒤로가기 종료/디버그 샌드박스 |
 | 산출물 빌드 | `npm run build` | dist 생성 + 경로/자산 검증 + 캐시 버전 자동화 |
 
 로컬에서 화면을 보고 싶을 때(카메라 테스트 포함):
@@ -245,7 +249,7 @@ npm run serve          # http://localhost:8080
 | 판정 기준이 `오늘심박` 문자열 → 이전 빌드도 같은 문구를 포함하므로 **새 빌드 반영 여부를 구분할 수 없음** | **판정 기준을 `dist/index.html`의 `<meta name="hearttune-build" content="해시">`로 변경**. 기대 해시는 빌드 산출물에서 추출하고, 운영 응답에 같은 해시가 나타날 때만 성공으로 본다. |
 | 최대 5분(30회×10초) 폴링 → Pages 브랜치 배포는 push 후 **수 분 지연**될 수 있어 타임아웃 | **최대 10분 폴링(60회×10초), 잡 `timeout-minutes: 20`** 으로 연장. 매 시도마다 "현재 서빙 중인 빌드 해시"를 로그에 출력해 진행 상황을 알 수 있다. |
 | 실패 시 "무엇이 서빙 중인지" 알 수 없음 → 원인 파악 불가 | **실패 시 현재 서빙 중인 빌드 해시와 페이지 크기/헤드를 로그에 출력**. `README` 문자열이 감지되면 "Pages가 아직 README를 서빙 중"임을 명시 — 운영 저장소 push는 됐지만 Pages 빌드가 끝나지 않은 상태. |
-| 자산 검증 4종 한 번 체크 → CDN/Pages 전파 지연으로 **일시 404가 실패로 처리** | **자산 10종 전부 검증 + 각각 최대 1분 재시도(6회×10초)**. 대상: `src/main.css`, `src/main.js`, `src/dsp.js`, `src/i18n.js`, `src/features/camera.js`, `src/features/sheets.js`, `src/features/storage.js`, `src/features/share.js`, `sw.js`, `manifest.webmanifest` ( `RUNTIME_FILES` + `main.css`/`manifest` 포함). |
+| 자산 검증 4종 한 번 체크 → CDN/Pages 전파 지연으로 **일시 404가 실패로 처리** | **자산 12종 전부 검증 + 각각 최대 1분 재시도(6회×10초)**. 대상: `src/main.css`, `src/main.js`, `src/dsp.js`, `src/i18n.js`, `src/features/` 6종(camera·detail-view·result-indicators·sheets·storage·share), `sw.js`, `manifest.webmanifest`. |
 | 파일명은 같지만 **내용이 다른 구버전**이 캐시/지연으로 서빙될 수 있음(시간/`Last-Modified`로는 구분 불가) | **빌드 시 모든 자산에 동일 해시 주입(JS/CSS/sw.js는 `/* hearttune-build: 해시 */`, manifest는 `_build` 필드, index.html은 meta, sw.js는 CACHE_NAME)** → 스모크가 각 파일 내용에 기대 해시가 포함됐는지로 판별. 함수명 같은 1회용 마커가 아니라 매 빌드 해시로 지속 가능. |
 | ③ 실패 시 "이관 전체가 실패한 것처럼" 보여 사용자 혼란 → 운영 저장소 커밋은 이미 된 상태 | **실패 시 Summary에 안내 추가**: "이관 ②(운영 저장소 반영)는 이미 완료됐을 수 있음 — HeartTune 커밋 이력 확인 → Pages 지연이면 **Actions → 해당 실행 → Re-run failed jobs**로 ③만 재실행". 전체 워크플로를 다시 돌릴 필요가 없다. |
 
@@ -264,7 +268,7 @@ for 1..60 (10초 간격, 10분):
   없으면 현재 서빙 해시/README 여부를 로그에 남기고 대기
 → 실패 시 현재 서빙 빌드/README/페이지 헤드를 에러 로그로 출력
 
-자산 10종 각각 (src/main.css, src/main.js, src/dsp.js, src/i18n.js, src/features/*.js 4종, sw.js, manifest.webmanifest):
+자산 12종 각각 (src/main.css, src/main.js, src/dsp.js, src/i18n.js, src/features/*.js 6종, sw.js, manifest.webmanifest):
   for 1..6 (10초 간격, 1분):
     PROD_URL + asset 을 no-cache로 GET
     → HTTP 200 이고 응답 본문에 기대 해시(91282438)가 포함되면 통과
@@ -281,13 +285,14 @@ for 1..60 (10초 간격, 10분):
 
 ---
 
-## 9. 현재 상태 (2026-10-19)
+## 9. 현재 상태 (2026-10-24)
 
-- ✅ DSP 단위·회귀 테스트 **15/15 통과**
-- ✅ Playwright E2E **5/5 통과**
-- ✅ i18n **65키** ko/en 일치
-- ✅ 빌드·경로 검증 통과, Service Worker 캐시 버전 자동화 (빌드 91282438)
-- ✅ **개발/운영 분리 완료 — ② Promote 첫 이관 성공 (Re-run 1회)**, 운영 서빙 중: https://zzexxous-pixel.github.io/HeartTune/ (빌드 91282438, `hearttune-build` 메타로 확인)
-- ✅ **이관 ③ 스모크 로직 개선 완료 (2026-10-19, 지속 체계)** — 빌드 해시 판정 / 10분 폴링 + 진단 로그 / 자산 10종 각각 1분 재시도 + 내용에 해시 포함 여부로 구버전 판별(모든 자산에 `hearttune-build` 주입) / Summary Re-run 안내 / timeout 20분 (8-1절)
-- ⚠️ **개발 저장소 Pages Source 를 `GitHub Actions` 로 변경해야** 미리보기 게이트가 동작합니다 (2-1)
-- ⚠️ 실측(실제 카메라) 신호 검증은 아직 합성 신호 수준입니다 — 디버그 콘솔 CSV 로 실측 튜닝 필요
+- ✅ 단위·회귀 테스트 **24/24 통과** (dsp 18 + 상세 뷰모델·지표 6)
+- ✅ Playwright E2E **18/18 통과** (터치 스와이프·뒤로가기 종료 등 포함)
+- ✅ i18n **132키** ko/en 일치
+- ✅ 빌드·경로 검증 통과, Service Worker 캐시 버전 자동화 (최신 빌드 `62f060c9`, dist 21파일 — 아이콘 5종 포함)
+- ✅ **개발/운영 분리 — ② Promote 첫 이관 성공(2026-10-19, Re-run 1회)**, 운영: https://zzexxous-pixel.github.io/HeartTune/
+- ✅ **이관 ③ 스모크 로직 개선 (2026-10-19, 지속 체계)** — 빌드 해시 판정 / 10분 폴링 + 진단 로그 / **자산 12종**(2026-10-24 detail-view.js 추가) 각각 1분 재시도 + 내용 해시 판별 / Summary Re-run 안내 / timeout 20분 (8-1절)
+- ✅ **실측 검증 1차 수행 (2026-10-24)** — 사용자 제공 원시 PPG CSV로 부정맥 오탐 재현·수정(카메라 3초 워밍업 + IBI MAD 정제, `docs/30-algorithm-dsp.md` 2-2절). 추가 실측 데이터 수집 지속 필요
+- ✅ PR #6 (Stitch 리디자인 + 사용자 피드백 9차) 사용자 승인으로 병합 (2026-10-24)
+- ⚠️ 운영 반영은 별도 실행: **② Promote to Production** 수동 실행 필요 (4절)

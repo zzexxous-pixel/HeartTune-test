@@ -19,12 +19,15 @@ import {
   deleteHistoryById,
   clearStoredData,
   loadCalibrationBaseline,
-  saveCalibrationSample
+  saveCalibrationSample,
+  loadAppSettings,
+  saveAppSettings
 } from './features/storage.js';
 import { createCameraController } from './features/camera.js';
-import { getResultIndicators, getHistoryPresentation } from './features/result-indicators.js';
+import { getHistoryPresentation } from './features/result-indicators.js';
 import { createSheetController } from './features/sheets.js';
-import { shareResultAsImage } from './features/share.js';
+import { shareResultAsImage, downloadResultAsImage } from './features/share.js';
+import { buildDetailViewModel } from './features/detail-view.js';
 
 const RING_CIRCUMFERENCE = 2 * Math.PI * 106;
 const DEBUG_MIN_HEIGHT = 200;
@@ -32,12 +35,14 @@ const DEBUG_MAX_RATIO = 0.8;
 
 // 기저 심박수/필터 대역 학습값은 features/storage.js 가 관리합니다.
 const initialBaseline = loadCalibrationBaseline();
+// 사용자 설정(측정 시간·카메라 방향)도 storage.js 가 관리 — 재접속 시 유지된다.
+const initialSettings = loadAppSettings();
 
 // 애플리케이션 상태
 const state = {
   isMeasuring: false,
   isStarting: false,
-  durationSec: 30,
+  durationSec: initialSettings.durationSec,
   startTimeMs: 0,
   lastSampleMs: 0,
   lastAdaptiveTickSec: 0,
@@ -49,8 +54,9 @@ const state = {
   lastResult: null,
   stealthClicks: 0,
   stealthTimer: null,
-  facingMode: 'environment',
+  facingMode: initialSettings.facingMode,
   cameraState: 'idle', // idle | starting | ready | error
+  cameraErrorKey: null, // 카메라 오류 원인 i18n 키 (error.camera.denied 등)
   previewToken: 0,
 
   // 적응형 캘리브레이션 & 수동 샌드박스 상태
@@ -96,15 +102,28 @@ const els = {
   btnDetails: document.getElementById('btnDetails'),
   btnPrimaryMeasure: document.getElementById('btnPrimaryMeasure'),
   btnShareImage: document.getElementById('btnShareImage'),
+  btnSaveImage: document.getElementById('btnSaveImage'),
   btnClearHistory: document.getElementById('btnClearHistory'),
   btnDetailsShare: document.getElementById('btnDetailsShare'),
+  btnDetailsSave: document.getElementById('btnDetailsSave'),
   historyUndoToast: document.getElementById('historyUndoToast'),
+  confirmBackdrop: document.getElementById('confirmBackdrop'),
+  confirmDialog: document.getElementById('confirmDialog'),
+  confirmTitle: document.getElementById('confirmTitle'),
+  confirmMessage: document.getElementById('confirmMessage'),
+  confirmCancel: document.getElementById('confirmCancel'),
+  confirmOk: document.getElementById('confirmOk'),
   btnUndoDelete: document.getElementById('btnUndoDelete'),
   btnHistoryBack: document.getElementById('btnHistoryBack'),
   btnHistoryDetailShare: document.getElementById('btnHistoryDetailShare'),
+  btnHistoryDetailSave: document.getElementById('btnHistoryDetailSave'),
   btnHistoryDetailDelete: document.getElementById('btnHistoryDetailDelete'),
   historyDetailBody: document.getElementById('historyDetailBody'),
   historyAdSlot: document.getElementById('historyAdSlot'),
+  historyCount: document.getElementById('historyCount'),
+  installBlock: document.getElementById('installBlock'),
+  btnInstallApp: document.getElementById('btnInstallApp'),
+  trendStats: document.getElementById('trendStats'),
   trendYAxis: document.getElementById('trendYAxis'),
   trendScroll: document.getElementById('trendScroll'),
   trendCanvas: document.getElementById('trendCanvas'),
@@ -143,6 +162,11 @@ const waveCtx = els.waveformCanvas.getContext('2d');
 
 let toastTimer = null;
 
+// 카메라 자동노출/손가락 접촉 안정화 구간: 이 동안 신호값이 크게 요동하며
+// 가짜 박동을 만들어 정상 리듬을 부정맥으로 오탐하게 하므로 기록·분석에서 제외한다.
+// (경고 표시·타이머·진행 링은 정상 동작, 화면 파형은 안정화 후 그려진다)
+const CAMERA_SIGNAL_WARMUP_SEC = 3;
+
 function logDebug(msg) {
   const timeStr = new Date().toLocaleTimeString('ko-KR', { hour12: false });
   const line = document.createElement('div');
@@ -153,7 +177,8 @@ function logDebug(msg) {
   }
 }
 
-function showAlert(msg, durationMs = 4500) {
+function showAlert(msg, durationMs = 3000) {
+  clearTimeout(alertTextClearTimer);
   els.liveAlertBox.textContent = msg;
   els.liveAlertBox.classList.add('visible');
   clearTimeout(toastTimer);
@@ -162,10 +187,68 @@ function showAlert(msg, durationMs = 4500) {
 
 function hideAlert() {
   els.liveAlertBox.classList.remove('visible');
-  els.liveAlertBox.textContent = '';
   clearTimeout(toastTimer);
   toastTimer = null;
+  // 페이드 아웃이 끝난 뒤에 내용을 비운다 — 텍스트만 먼저 사라진 빈 박스가 남지 않게
+  clearTimeout(alertTextClearTimer);
+  alertTextClearTimer = window.setTimeout(() => {
+    if (!els.liveAlertBox.classList.contains('visible')) els.liveAlertBox.textContent = '';
+  }, TOAST_FADE_MS);
 }
+
+/* --------------------------------------------------------------------------
+   확인 다이얼로그 — 브라우저 기본 confirm 대신 앱 톤으로 통일
+   (앱 종료 확인·이력 전체 삭제 확인 등)
+   -------------------------------------------------------------------------- */
+const confirmState = { resolve: null };
+
+function isConfirmOpen() {
+  return confirmState.resolve !== null;
+}
+
+/** 확인 다이얼로그를 띄운다. 확인/취소(배경·ESC 포함) 결과를 Promise 로 돌려준다. */
+function showConfirmDialog({ titleKey, messageKey, confirmKey, cancelKey = 'app.confirm.cancel' }) {
+  return new Promise((resolve) => {
+    if (confirmState.resolve) confirmState.resolve(false); // 이미 열려 있으면 이전 요청은 취소 취급
+    confirmState.resolve = resolve;
+
+    els.confirmTitle.setAttribute('data-i18n', titleKey);
+    els.confirmTitle.textContent = t(titleKey);
+    els.confirmMessage.setAttribute('data-i18n', messageKey);
+    els.confirmMessage.textContent = t(messageKey);
+    els.confirmCancel.setAttribute('data-i18n', cancelKey);
+    els.confirmCancel.textContent = t(cancelKey);
+    els.confirmOk.textContent = t(confirmKey);
+
+    els.confirmBackdrop.classList.add('open');
+    els.confirmBackdrop.setAttribute('aria-hidden', 'false');
+    els.confirmDialog.setAttribute('aria-hidden', 'false');
+    els.confirmCancel.focus({ preventScroll: true });
+  });
+}
+
+function settleConfirm(result) {
+  if (!confirmState.resolve) return;
+  const resolve = confirmState.resolve;
+  confirmState.resolve = null;
+  els.confirmBackdrop.classList.remove('open');
+  els.confirmBackdrop.setAttribute('aria-hidden', 'true');
+  els.confirmDialog.setAttribute('aria-hidden', 'true');
+  resolve(result);
+}
+
+els.confirmOk.addEventListener('click', () => settleConfirm(true));
+els.confirmCancel.addEventListener('click', () => settleConfirm(false));
+els.confirmBackdrop.addEventListener('click', (event) => {
+  if (event.target === els.confirmBackdrop) settleConfirm(false); // 배경 = 취소
+});
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && isConfirmOpen()) {
+    event.preventDefault();
+    event.stopImmediatePropagation(); // 시트 ESC 닫힘 핸들러까지 전파되지 않게(다이얼로그만 닫기)
+    settleConfirm(false);
+  }
+});
 
 // 카메라 제어(스트림/토치/전면·후면 전환)는 features/camera.js 로 분리
 const camera = createCameraController({
@@ -218,21 +301,88 @@ function updateCalibBannerUI() {
   }
 }
 
+/** 대기 상태 안내 문구 — 후면/전면 카메라 렌즈를 문구에서 구분해 안내한다. */
+function setReadyGuideText() {
+  const key = state.facingMode === 'user' ? 'measure.status.readyFront' : 'measure.status.readyRear';
+  setStageGuideText(key); // 경고 스타일(is-warning)도 함께 해제
+}
+
 function updateIdleGuide() {
   if (state.isMeasuring) return;
   if (state.lastResult) {
-    els.stageGuideText.textContent = t('measure.status.completed');
+    setStageGuideText('measure.status.completed');
     return;
   }
   if (state.cameraState === 'starting') {
-    els.stageGuideText.textContent = t('measure.status.cameraStarting');
+    setStageGuideText('measure.status.cameraStarting');
     return;
   }
   if (state.cameraState === 'error') {
-    els.stageGuideText.textContent = t('measure.status.cameraUnavailable');
+    // 카메라 오류는 메시지 영역에 표시: 원인(권한 거부 등)에 맞는 문구를 유지한다.
+    setStageGuideText(state.cameraErrorKey || 'measure.status.cameraUnavailable', true);
     return;
   }
-  els.stageGuideText.textContent = t('measure.status.readyTitle');
+  setReadyGuideText();
+}
+
+/** 스테이지 안내 문구를 i18n 키로 지정한다(언어 전환 시에도 문구가 따라오게). */
+function setStageGuideText(key, isWarning = false) {
+  els.stageGuideText.setAttribute('data-i18n', key);
+  els.stageGuideText.textContent = t(key);
+  els.stageGuideText.classList.toggle('is-warning', isWarning);
+}
+
+/* 측정 중 신호 경고: 토스트 대신 메시지 영역에 표시한다.
+ * · 일단 표시되면 최소 1초 유지(프레임 단위 깜빡임 방지)
+ * · 손가락·조명 등 원인이 해소되면 제거하고 측정 중 기본 안내로 돌아간다. */
+const signalNotice = { key: null, since: 0, hideTimer: null };
+
+function signalNoticeActive() {
+  return signalNotice.key !== null;
+}
+
+function setSignalNotice(key) {
+  if (signalNotice.hideTimer) {
+    clearTimeout(signalNotice.hideTimer);
+    signalNotice.hideTimer = null;
+  }
+  if (signalNotice.key === key) return; // 같은 경고 유지
+  signalNotice.key = key;
+  signalNotice.since = Date.now();
+  setStageGuideText(key, true);
+}
+
+function clearSignalNotice() {
+  if (!signalNotice.key) return;
+  const elapsed = Date.now() - signalNotice.since;
+  if (elapsed >= 1000) {
+    hideSignalNotice();
+  } else if (!signalNotice.hideTimer) {
+    signalNotice.hideTimer = setTimeout(() => {
+      signalNotice.hideTimer = null;
+      hideSignalNotice();
+    }, 1000 - elapsed);
+  }
+}
+
+function hideSignalNotice() {
+  if (signalNotice.hideTimer) {
+    clearTimeout(signalNotice.hideTimer);
+    signalNotice.hideTimer = null;
+  }
+  signalNotice.key = null;
+  signalNotice.since = 0;
+  els.stageGuideText.classList.remove('is-warning');
+  if (state.isMeasuring) {
+    const elapsedSec = (performance.now() - state.startTimeMs) / 1000;
+    const key = elapsedSec < 5
+      ? (state.simMode === 'camera' ? 'measure.status.stabilizing' : 'measure.status.simulating')
+      : 'measure.status.measuringLive';
+    els.stageGuideText.setAttribute('data-i18n', key);
+    els.stageGuideText.textContent = t(key);
+  } else {
+    updateIdleGuide();
+  }
 }
 
 function syncCameraButtons() {
@@ -241,6 +391,8 @@ function syncCameraButtons() {
     btn.classList.toggle('active', active);
     btn.setAttribute('aria-pressed', String(active));
   });
+  // 첫 방문 손가락 와이어 이미지를 카메라 설정(전면/후면)에 맞게 바꾼다.
+  document.body.classList.toggle('cam-front', state.facingMode === 'user');
 }
 
 function syncLangButtons() {
@@ -324,11 +476,18 @@ function drawWaveformValues(values) {
   const h = els.waveformCanvas.height;
   waveCtx.clearRect(0, 0, w, h);
 
-  waveCtx.strokeStyle = 'rgba(148, 163, 184, 0.18)';
+  // 어두운 모니터 카드용 격자 (가로 4등분 · 세로 6등분)
+  waveCtx.strokeStyle = 'rgba(148, 163, 184, 0.16)';
   waveCtx.lineWidth = 1;
   waveCtx.beginPath();
-  waveCtx.moveTo(0, h / 2);
-  waveCtx.lineTo(w, h / 2);
+  for (let i = 1; i < 4; i++) {
+    waveCtx.moveTo(0, (h / 4) * i);
+    waveCtx.lineTo(w, (h / 4) * i);
+  }
+  for (let i = 1; i < 6; i++) {
+    waveCtx.moveTo((w / 6) * i, 0);
+    waveCtx.lineTo((w / 6) * i, h);
+  }
   waveCtx.stroke();
 
   const recent = values;
@@ -342,8 +501,10 @@ function drawWaveformValues(values) {
   }
   const range = Math.max(0.8, maxV - minV);
 
-  waveCtx.strokeStyle = '#38BDF8';
-  waveCtx.lineWidth = 2.5;
+  waveCtx.strokeStyle = '#FF5A6A';
+  waveCtx.lineWidth = 3;
+  waveCtx.shadowColor = 'rgba(255, 90, 106, 0.45)';
+  waveCtx.shadowBlur = 7;
   waveCtx.lineJoin = 'round';
   waveCtx.beginPath();
 
@@ -355,6 +516,7 @@ function drawWaveformValues(values) {
     else waveCtx.lineTo(x, y);
   });
   waveCtx.stroke();
+  waveCtx.shadowBlur = 0;
 }
 
 function prepareSimulationSignal() {
@@ -411,14 +573,17 @@ function onFrameTick() {
       const sample = extractFrameSample(imgData, 64, 64);
 
       if (!sample.isFingerDetected) {
-        if (sample.qualityHint === 'tooDark') showAlert(t('error.signal.tooDark'));
-        else if (sample.qualityHint === 'tooBright') showAlert(t('error.signal.tooBright'));
-        else showAlert(t('error.signal.pressHarder'));
+        // 신호 경고는 메시지 영역에 표시(최소 1초 유지, 해소 시 제거)
+        if (sample.qualityHint === 'tooDark') setSignalNotice('error.signal.tooDark');
+        else if (sample.qualityHint === 'tooBright') setSignalNotice('error.signal.tooBright');
+        else setSignalNotice('error.signal.pressHarder');
       } else {
-        hideAlert();
+        clearSignalNotice();
       }
 
-      state.rawSamples.push({ t: now, v: sample.value });
+      if (elapsedSec >= CAMERA_SIGNAL_WARMUP_SEC) {
+        state.rawSamples.push({ t: now, v: sample.value });
+      }
     } else {
       const sampleIdx = Math.min(
         state.syntheticPrebuffer.length - 1,
@@ -437,8 +602,9 @@ function onFrameTick() {
 
   // 5초 시점 고속 초기 캘리브레이션 + 이후 측정 종료까지 2초 주기로 지속적 적응형 트래킹(Throttled 2s)
   if (elapsedSec < 5) {
-    els.stageGuideText.textContent =
-      state.simMode === 'camera' ? t('measure.status.stabilizing') : t('measure.status.simulating');
+    if (!signalNoticeActive()) {
+      setStageGuideText(state.simMode === 'camera' ? 'measure.status.stabilizing' : 'measure.status.simulating');
+    }
   } else {
     const tickStep = Math.floor(elapsedSec);
     // 5초에 첫 캘리브레이션 포착 후 매 2초(5, 7, 9, 11, 13, 15, ...)마다 필터 대역 추적 및 BPM 갱신
@@ -457,7 +623,7 @@ function onFrameTick() {
 
       if (liveAnalysis.bpm > 0) {
         els.bpmNumber.textContent = formatNumber(liveAnalysis.bpm);
-        els.stageGuideText.textContent = t('measure.status.measuringLive');
+        if (!signalNoticeActive()) setStageGuideText('measure.status.measuringLive');
         if (isFirstLock) {
           playTone(660, 110);
         }
@@ -540,6 +706,7 @@ async function startMeasurement() {
   els.resultBanner.className = 'result-banner';
   els.resultShortNote.hidden = true;
   els.btnShareImage.hidden = true;
+  els.btnSaveImage.hidden = true;
   els.bpmNumber.textContent = '--';
   els.timerBadge.textContent = formatTimer(state.durationSec);
   updateProgressRing(0);
@@ -555,18 +722,16 @@ async function startMeasurement() {
     try {
       await camera.open({ torch: state.facingMode === 'environment' });
       state.cameraState = 'ready';
-      hideAlert();
+      state.cameraErrorKey = null; // 오류 해소
     } catch (err) {
       logDebug(`Camera open error: ${err.name} - ${err.message}`);
       state.cameraState = 'error';
-      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-        showAlert(t('error.camera.denied'), 6000);
-      } else {
-        showAlert(t('error.camera.notFound'), 6000);
-      }
+      state.cameraErrorKey = err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError'
+        ? 'error.camera.denied'
+        : 'error.camera.notFound';
       state.isStarting = false;
       els.btnPrimaryMeasure.disabled = false;
-      updateIdleGuide();
+      updateIdleGuide(); // 메시지 영역에 오류 표시(해소 시 자동 제거)
       return;
     }
     state.isStarting = false;
@@ -586,6 +751,7 @@ async function startMeasurement() {
   els.btnPrimaryMeasure.classList.add('measuring');
   els.btnPrimaryMeasure.textContent = t('measure.cta.stop');
   els.btnShareImage.hidden = true;
+  els.btnSaveImage.hidden = true;
   playTone(480, 100);
   logDebug(
     `Measurement started (${state.durationSec}s, mode=${state.simMode}, priorBPM=${state.priorBpm})`
@@ -617,7 +783,7 @@ function cancelMeasurement() {
   els.heartBeatIcon.classList.remove('beating');
   els.btnPrimaryMeasure.classList.remove('measuring');
   els.btnPrimaryMeasure.textContent = t('measure.cta.start');
-  els.stageGuideText.textContent = t('measure.status.readyTitle');
+  setReadyGuideText();
   state.rawSamples = [];
   drawLiveWaveform();
   els.timerBadge.textContent = formatTimer(state.durationSec);
@@ -679,6 +845,7 @@ function finishMeasurement() {
   renderResultBanner(record);
   saveRecordToHistory(record);
   els.btnShareImage.hidden = false;
+  els.btnSaveImage.hidden = false;
   logDebug(
     `Measurement completed: BPM=${record.bpm}, status=${record.status}, CV=${record.cv}, saved to 30-run baseline.`
   );
@@ -698,47 +865,52 @@ const RESULT_ICONS = {
   irregular: SVG_ALERT
 };
 
-function renderResultIndicators(record, root = els.detailsSheet) {
-  const indicators = getResultIndicators(record);
-  ['arrhythmia', 'bradycardia', 'tachycardia'].forEach((name) => {
-    const card = root.querySelector(`[data-indicator="${name}"]`);
-    const active = indicators[name];
-    card.classList.toggle('is-active', active);
-    card.classList.toggle('is-clear', !active);
-    card.setAttribute('aria-label', `${t(`measure.indicator.${name}`)}: ${t(active ? 'measure.indicator.detected' : 'measure.indicator.notDetected')}`);
-    card.querySelector('[data-indicator-state]').textContent = t(active ? 'measure.indicator.detected' : 'measure.indicator.notDetected');
+function renderResultIndicators(model, root = els.detailsSheet) {
+  model.indicators.forEach((ind) => {
+    const card = root.querySelector(`[data-indicator="${ind.key}"]`);
+    if (!card) return;
+    card.classList.toggle('is-active', ind.tone === 'active');
+    card.classList.toggle('is-clear', ind.tone === 'clear');
+    if (ind.key === 'signal-quality') {
+      card.classList.remove('quality-good', 'quality-fair', 'quality-poor', 'quality-unknown');
+      card.classList.add(`quality-${ind.quality}`);
+    }
+    card.setAttribute('aria-label', `${ind.label}: ${ind.state}`);
+    card.querySelector('[data-indicator-state]').textContent = ind.state;
   });
-
-  const qualityCard = root.querySelector('[data-indicator="signal-quality"]');
-  qualityCard.classList.remove('quality-good', 'quality-fair', 'quality-poor', 'quality-unknown');
-  qualityCard.classList.add(`quality-${indicators.quality}`);
-  qualityCard.setAttribute('aria-label', `${t('measure.indicator.signalQuality')}: ${t(`measure.indicator.quality.${indicators.quality}`)}`);
-  root.querySelector('[data-indicator-state="signal-quality"]').textContent = t(`measure.indicator.quality.${indicators.quality}`);
 }
 
-function drawDetailsWaveform(record, root = els.detailsSheet) {
+function drawDetailsWaveform(values, root = els.detailsSheet) {
   const canvas = root.querySelector('[data-role="waveform"]');
   const ctx = canvas.getContext('2d');
   const width = canvas.width;
   const height = canvas.height;
   ctx.clearRect(0, 0, width, height);
-  ctx.fillStyle = '#0F172A';
+  ctx.fillStyle = '#090D16';
   ctx.fillRect(0, 0, width, height);
 
-  ctx.strokeStyle = 'rgba(148, 163, 184, 0.22)';
+  ctx.strokeStyle = 'rgba(148, 163, 184, 0.16)';
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(0, height / 2);
-  ctx.lineTo(width, height / 2);
+  for (let i = 1; i < 4; i++) {
+    ctx.moveTo(0, (height / 4) * i);
+    ctx.lineTo(width, (height / 4) * i);
+  }
+  for (let i = 1; i < 6; i++) {
+    ctx.moveTo((width / 6) * i, 0);
+    ctx.lineTo((width / 6) * i, height);
+  }
   ctx.stroke();
 
-  const waveform = Array.isArray(record.waveform) ? record.waveform : [];
+  const waveform = values;
   if (waveform.length < 2) return;
   const min = Math.min(...waveform);
   const max = Math.max(...waveform);
   const range = Math.max(0.8, max - min);
-  ctx.strokeStyle = '#38BDF8';
-  ctx.lineWidth = 2.5;
+  ctx.strokeStyle = '#FF5A6A';
+  ctx.lineWidth = 3;
+  ctx.shadowColor = 'rgba(255, 90, 106, 0.45)';
+  ctx.shadowBlur = 7;
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
   ctx.beginPath();
@@ -749,16 +921,23 @@ function drawDetailsWaveform(record, root = els.detailsSheet) {
     else ctx.lineTo(x, y);
   });
   ctx.stroke();
+  ctx.shadowBlur = 0;
+}
+
+/** 상세 화면 뷰모델: 측정 결과 상세·이력 상세·공유 이미지가 함께 쓰는 단일 소스. */
+function buildViewModel(record) {
+  return buildDetailViewModel(record, { t, formatDateTime: formatHistoryDateTime, formatNumber });
 }
 
 /** 측정 상세 내용을 root(측정 상세 시트 또는 이력 자세히 보기) 안에 채운다. */
 function renderDetails(record, root = els.detailsSheet) {
   if (!record) return;
-  root.querySelector('[data-role="date"]').textContent = formatHistoryDateTime(record.timestamp);
-  root.querySelector('[data-role="duration"]').textContent = t('details.duration.value', { seconds: record.duration });
-  root.querySelector('[data-role="bpm"]').textContent = formatNumber(record.bpm);
-  drawDetailsWaveform(record, root);
-  renderResultIndicators(record, root);
+  const model = buildViewModel(record);
+  root.querySelector('[data-role="date"]').textContent = model.meta[0].value;
+  root.querySelector('[data-role="duration"]').textContent = model.meta[1].value;
+  root.querySelector('[data-role="bpm"]').textContent = model.bpm.value;
+  drawDetailsWaveform(model.waveform.values, root);
+  renderResultIndicators(model, root);
 }
 
 function renderResultBanner(record) {
@@ -772,7 +951,7 @@ function renderResultBanner(record) {
     : t(`result.${record.status}.title`);
   els.resultDesc.textContent = t(`result.${record.status}.desc`);
   els.resultShortNote.hidden = !record.isShortMeasurement;
-  renderResultIndicators(record);
+  renderResultIndicators(buildViewModel(record));
 }
 
 function saveRecordToHistory(record) {
@@ -789,15 +968,34 @@ function saveRecordToHistory(record) {
    -------------------------------------------------------------------------- */
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const TREND = {
-  height: 150,      // CSS 높이와 동일 (viewBox 단위 = px)
-  plotTop: 24,      // 상단 단위(회/분) 표시 공간
-  plotBottom: 26,   // 하단 날짜 라벨 공간
+  height: 118,      // CSS 높이와 동일 (viewBox 단위 = px). 통계 스트립 추가 후 목록 가시 영역 확보를 위해 축소
+  plotTop: 18,      // 상단 단위(회/분) 표시 공간
+  plotBottom: 22,   // 하단 날짜 라벨 공간
   yAxisWidth: 40,
   padX: 24,
   pointGap: 46      // 측정 1건당 X축 간격(px) → 많으면 가로 스크롤
 };
 const SWIPE_MAX_PX = 96;   // 삭제 버튼 폭
 const SWIPE_OPEN_PX = 48;  // 이 이상 밀면 삭제 버튼이 열린 상태로 고정
+
+/** 추세 선을 Catmull-Rom → 3차 베지어로 부드럽게 이어 그린다. (y는 플롯 영역을 벗어나지 않게 가둔다) */
+function smoothTrendPath(pts, minY, maxY) {
+  const clamp = (v) => Math.max(minY, Math.min(maxY, v));
+  const f = (v) => Number(v.toFixed(1));
+  let d = `M ${f(pts[0].x)} ${f(clamp(pts[0].y))}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[Math.max(0, i - 1)];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const p3 = pts[Math.min(pts.length - 1, i + 2)];
+    const c1x = p1.x + (p2.x - p0.x) / 6;
+    const c1y = clamp(p1.y + (p2.y - p0.y) / 6);
+    const c2x = p2.x - (p3.x - p1.x) / 6;
+    const c2y = clamp(p2.y - (p3.y - p1.y) / 6);
+    d += ` C ${f(c1x)} ${f(c1y)} ${f(c2x)} ${f(c2y)} ${f(p2.x)} ${f(clamp(p2.y))}`;
+  }
+  return d;
+}
 
 function svgNode(tag, attrs = {}, text = null) {
   const node = document.createElementNS(SVG_NS, tag);
@@ -812,10 +1010,11 @@ function getTrendRange(records) {
   const minB = bpms.length ? Math.min(...bpms) : 60;
   const maxB = bpms.length ? Math.max(...bpms) : 100;
   const lo = Math.min(50, Math.floor((minB - 5) / 10) * 10);
-  const hi = Math.max(110, Math.ceil((maxB + 5) / 10) * 10);
-  const step = hi - lo > 80 ? 20 : 10;
-  const ticks = [];
-  for (let v = lo; v <= hi; v += step) ticks.push(v);
+  const hiRaw = Math.max(110, Math.ceil((maxB + 5) / 10) * 10);
+  // 세로 축 라벨이 빽빽하지 않게 항상 4개(아래·1/3·2/3·위)만 표시한다.
+  const step = Math.max(10, Math.ceil((hiRaw - lo) / 3 / 10) * 10);
+  const hi = lo + step * 3;
+  const ticks = [lo, lo + step, lo + step * 2, hi];
   return { lo, hi, ticks };
 }
 
@@ -851,6 +1050,15 @@ function drawTrendChart(records) {
   els.trendCanvas.setAttribute('height', H);
   els.trendCanvas.setAttribute('viewBox', `0 0 ${viewW} ${H}`);
 
+  // 일반 참고 범위(60~100 회/분) 밴드 — 표시 기준을 바꾸지 않고 배경으로만 보여준다.
+  if (hi >= 60 && lo <= 100) {
+    const bandTop = yOf(Math.min(100, hi));
+    const bandBottom = yOf(Math.max(60, lo));
+    els.trendCanvas.appendChild(svgNode('rect', {
+      x: 0, y: bandTop, width: viewW, height: Math.max(0, bandBottom - bandTop), class: 'trend-normal-band'
+    }));
+  }
+
   ticks.forEach((v) => {
     els.trendCanvas.appendChild(svgNode('line', {
       x1: 0, x2: viewW, y1: yOf(v), y2: yOf(v), class: 'trend-grid'
@@ -858,8 +1066,11 @@ function drawTrendChart(records) {
   });
 
   if (n > 1) {
-    const points = records.map((r, i) => `${xOf(i)},${yOf(Number(r.bpm))}`).join(' ');
-    els.trendCanvas.appendChild(svgNode('polyline', { points, class: 'trend-line' }));
+    const pts = records.map((r, i) => ({ x: xOf(i), y: yOf(Number(r.bpm)) }));
+    els.trendCanvas.appendChild(svgNode('path', {
+      d: smoothTrendPath(pts, TREND.plotTop, H - TREND.plotBottom),
+      class: 'trend-line'
+    }));
   }
 
   records.forEach((rec, i) => {
@@ -888,6 +1099,10 @@ function closeOpenHistoryRows(except = null) {
 /* ── 측정이력: 목록 · 자세히 보기(같은 시트 안 화면 전환) · 삭제 대기(실행 취소) ── */
 
 const UNDO_DELETE_MS = 3000; // 삭제 후 이 시간 안에 취소하지 않으면 실제로 지운다
+const TOAST_FADE_MS = 220;   // 토스트 페이드 인/아웃 시간(CSS transition 과 일치)
+let lastHistorySwipeAt = 0;  // 이력 스와이프가 끝난 시각 — 직후 잔여(합성) 클릭 무시용
+let undoToastFadeTimer = null;  // 삭제 취소 토스트 페이드 아웃 → hidden 타이머
+let alertTextClearTimer = null; // 범용 토스트 페이드 아웃 후 내용 비우기 타이머
 
 /** 화면 상태. detailRecord 가 있으면 "자세히 보기" 화면, pendingId 는 삭제 대기 중인 기록. */
 const historyView = {
@@ -948,7 +1163,23 @@ function buildHistoryItem(item) {
 
   // 가로 스와이프 제스처 (Pointer Events — 탭은 click 으로만 처리)
   let drag = null;
-  let suppressClick = false;
+  // 터치 스와이프 이중 경로: 가로 방향이 확정되는 순간 touchmove 를 preventDefault
+  // 해서 브라우저가 세로 스크롤(관성)로 인계받지 못하게 막는다. 빠르게 휙 밀면
+  // 세로 드리프트 때문에 브라우저가 스크롤을 가져가고, 그 직후의 첫 탭이 브라우저의
+  // '스크롤 직후 탭 억제'에 먹혀 삭제 취소 버튼을 두 번 눌러야 하던 문제를 방지한다.
+  let touchStart = null;
+  row.addEventListener('touchstart', (event) => {
+    touchStart = event.touches.length === 1
+      ? { x: event.touches[0].clientX, y: event.touches[0].clientY }
+      : null;
+  }, { passive: true });
+  row.addEventListener('touchmove', (event) => {
+    if (!touchStart) return;
+    const t = event.touches[0];
+    const dx = t.clientX - touchStart.x;
+    const dy = t.clientY - touchStart.y;
+    if (Math.abs(dx) >= 10 && Math.abs(dx) > Math.abs(dy)) event.preventDefault();
+  }, { passive: false });
   row.addEventListener('pointerdown', (event) => {
     if (event.pointerType === 'mouse' && event.button !== 0) return;
     drag = { id: event.pointerId, x: event.clientX, y: event.clientY, dx: 0, active: false, wasOpen: li.classList.contains('is-open') };
@@ -978,8 +1209,9 @@ function buildHistoryItem(item) {
     row.style.transform = '';
     li.classList.remove('is-swiping');
     if (!active) return;
-    suppressClick = true;
-    window.setTimeout(() => { suppressClick = false; }, 300);
+    // 스와이프 직후 350ms 안의 클릭은 합성(잔여) 클릭으로 간주해 무시한다.
+    // 재렌더로 행이 교체돼도 살아남도록 행별 플래그 대신 공유 시각을 쓴다.
+    lastHistorySwipeAt = performance.now();
     const position = (wasOpen ? -SWIPE_MAX_PX : 0) + dx;
     if (position <= -SWIPE_MAX_PX + 1) {
       // 끝까지 밀었을 때만 삭제 대기 (중간에 놓으면 삭제하지 않는다)
@@ -994,7 +1226,7 @@ function buildHistoryItem(item) {
   row.addEventListener('pointercancel', endDrag);
 
   row.addEventListener('click', () => {
-    if (suppressClick) return;
+    if (performance.now() - lastHistorySwipeAt < 350) return;
     if (li.classList.contains('is-open')) {
       li.classList.remove('is-open');
       return;
@@ -1022,6 +1254,21 @@ function renderHistory() {
   els.btnClearHistory.disabled = list.length === 0;
   drawTrendChart(list.slice().reverse());
 
+  // 저장 건수와 최저/평균/최고 요약 (실측 기록에서만 계산하는 사실 정보)
+  els.historyCount.textContent = t('history.header.count', { count: formatNumber(list.length) });
+  const bpms = list.map((record) => Number(record.bpm)).filter((value) => Number.isFinite(value));
+  els.trendStats.hidden = bpms.length === 0;
+  if (bpms.length > 0) {
+    const stats = {
+      min: Math.min(...bpms),
+      avg: Math.round(bpms.reduce((sum, value) => sum + value, 0) / bpms.length),
+      max: Math.max(...bpms)
+    };
+    Object.entries(stats).forEach(([name, value]) => {
+      els.trendStats.querySelector(`[data-trend-stat="${name}"]`).textContent = formatNumber(value);
+    });
+  }
+
   els.historyList.innerHTML = '';
   if (list.length === 0) {
     const empty = document.createElement('li');
@@ -1041,12 +1288,22 @@ function placeUndoToast() {
 }
 
 function showUndoToast() {
+  clearTimeout(undoToastFadeTimer);
   els.historyUndoToast.hidden = false;
+  // hidden 해제 프레임과 클래스 부여 프레임을 분리해야 페이드 인이 실제로 동작한다
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => els.historyUndoToast.classList.add('visible'));
+  });
   placeUndoToast();
 }
 
 function hideUndoToast() {
-  els.historyUndoToast.hidden = true;
+  clearTimeout(undoToastFadeTimer);
+  els.historyUndoToast.classList.remove('visible');
+  // 페이드 아웃이 끝난 뒤 완전히 숨긴다
+  undoToastFadeTimer = window.setTimeout(() => {
+    els.historyUndoToast.hidden = true;
+  }, TOAST_FADE_MS);
 }
 
 /** 대기 중인 삭제를 실제로 저장소에서 지운다. (타이머 만료, 시트 닫힘, 다른 삭제 시작 시) */
@@ -1131,7 +1388,7 @@ function onHistorySheetClosed() {
 /* ── 브라우저 뒤로가기 ───────────────────────────────────────────────────
  * 열린 시트·자세히 보기마다 history 항목 하나를 쌓는다.
  *  · 뒤로가기 → 가장 위 화면을 닫는다 (시트 → 메인, 자세히 보기 → 목록).
- *  · 메인 화면에서 뒤로가기 → 앱 주소로 다시 열어 초기 화면으로 간다 (앱 밖으로 나가지 않음).
+ *  · 메인 화면에서 뒤로가기 → 확인 없이 그대로 앱을 종료한다(초기 접속 직후와 동일).
  * ─────────────────────────────────────────────────────────────────────── */
 
 const APP_URL = location.href.split('#')[0];
@@ -1172,10 +1429,7 @@ window.addEventListener('popstate', () => {
     navSilentPops -= 1;
     return;
   }
-  if (navLayers.length === 0) {
-    location.replace(APP_URL); // 메인에서 뒤로가기: 초기 화면으로 다시 연다
-    return;
-  }
+  if (navLayers.length === 0) return; // 메인 화면: 뒤로가기 = 확인 없이 그대로 앱 종료
   const top = navLayers.pop();
   if (top === 'detail') {
     closeHistoryDetailView();
@@ -1194,6 +1448,12 @@ function shareRecord(record) {
   shareResultAsImage(record, { t, formatDateTime: formatHistoryDateTime, formatNumber });
 }
 
+/** 저장(다운로드): 브라우저 기본 다운로드 표시만 사용한다. */
+function downloadRecord(record) {
+  if (!record) return;
+  downloadResultAsImage(record, { t, formatDateTime: formatHistoryDateTime, formatNumber });
+}
+
 async function switchCamera(facing) {
   if (state.isMeasuring || state.isStarting) return;
   if (facing !== 'environment' && facing !== 'user') return;
@@ -1201,7 +1461,9 @@ async function switchCamera(facing) {
 
   state.facingMode = facing;
   camera.setFacing(facing);
+  saveAppSettings({ facingMode: facing });
   syncCameraButtons();
+  setReadyGuideText();
   logDebug(`Camera facing switched to: ${facing}`);
 
   if (state.simMode !== 'camera') return;
@@ -1215,15 +1477,12 @@ async function switchCamera(facing) {
   } catch (err) {
     if (token === state.previewToken) {
       state.cameraState = 'error';
-      showAlert(
-        err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError'
-          ? t('error.camera.denied')
-          : t('error.camera.notFound'),
-        6000
-      );
+      state.cameraErrorKey = err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError'
+        ? 'error.camera.denied'
+        : 'error.camera.notFound';
     }
   }
-  updateIdleGuide();
+  updateIdleGuide(); // 메시지 영역에 오류 표시(카메라가 열리면 자동 제거)
 }
 
 /* --------------------------------------------------------------------------
@@ -1234,8 +1493,11 @@ els.btnPrimaryMeasure.addEventListener('click', () => {
 });
 
 els.btnShareImage.addEventListener('click', () => shareRecord(state.lastResult));
+els.btnSaveImage.addEventListener('click', () => downloadRecord(state.lastResult));
 els.btnDetailsShare.addEventListener('click', () => shareRecord(state.lastResult));
+els.btnDetailsSave.addEventListener('click', () => downloadRecord(state.lastResult));
 els.btnHistoryDetailShare.addEventListener('click', () => shareRecord(historyView.detailRecord));
+els.btnHistoryDetailSave.addEventListener('click', () => downloadRecord(historyView.detailRecord));
 
 els.btnUndoDelete.addEventListener('click', () => undoPendingDelete());
 els.btnHistoryBack.addEventListener('click', () => leaveHistoryDetail());
@@ -1293,6 +1555,7 @@ els.durBtns.forEach((btn) => {
   btn.addEventListener('click', () => {
     if (state.isMeasuring) return;
     state.durationSec = Number(btn.getAttribute('data-duration'));
+    saveAppSettings({ durationSec: state.durationSec });
     els.durBtns.forEach((b) => b.classList.toggle('active', b === btn));
     els.timerBadge.textContent = formatTimer(state.durationSec);
   });
@@ -1304,9 +1567,14 @@ els.camBtns.forEach((btn) => {
   });
 });
 
-els.btnClearHistory.addEventListener('click', () => {
+els.btnClearHistory.addEventListener('click', async () => {
   if (loadHistory().length === 0) return;
-  if (!window.confirm(t('history.confirm.clearAll'))) return;
+  const confirmed = await showConfirmDialog({
+    titleKey: 'history.confirm.clearAllTitle',
+    messageKey: 'history.confirm.clearAll',
+    confirmKey: 'app.confirm.delete'
+  });
+  if (!confirmed) return;
   cancelPendingDelete();
   clearStoredData();
   updateCalibBannerUI();
@@ -1394,6 +1662,214 @@ els.btnExportCsv.addEventListener('click', () => {
 });
 
 /* --------------------------------------------------------------------------
+   바텀시트 드래그 — 손잡이는 물론 시트의 빈 영역 어디서든 아래로 끌면 닫힌다.
+   · 버튼·링크·입력·이력 행 등 조작 요소에서 시작한 드래그는 무시한다(기능 우선).
+   · 시트 본문이 이미 아래로 스크롤되어 있으면 스크롤을 우선한다.
+   · 방향이 아직 확정되지 않은 드래그는 세로(아래) 방향으로 확정될 때만 움직인다.
+   충분히 끌었거나 휙 던지면 닫히고, 살짝만 끌었으면 제자리로 돌아온다.
+   -------------------------------------------------------------------------- */
+const SHEET_DRAG_IGNORE_SELECTOR = [
+  'button',
+  'a',
+  'input',
+  'textarea',
+  'select',
+  'label',
+  '[role="button"]',
+  '[contenteditable="true"]',
+  '[data-sheet-nodrag]',
+  '.history-row', // 이력 항목: 탭(상세 보기)·가로 스와이프(삭제) 제스처가 우선
+  '.history-delete'
+].join(', ');
+
+/** target 에서 시트(sheet)까지 올라가며 '이미 아래로 스크롤된 세로 스크롤 요소'가 있는지 찾는다.
+ *  (이력 시트처럼 .sheet-body 는 overflow:hidden 이고 실제 스크롤은 .history-list·
+ *   자세히 보기 pane 이 맡는 구조도 있어 범용으로 탐색한다) */
+function hasScrolledVerticalAncestor(sheet, target) {
+  for (let node = target; node && node !== sheet; node = node.parentElement) {
+    if (!(node instanceof Element)) continue;
+    const overflowY = window.getComputedStyle(node).overflowY;
+    if ((overflowY === 'auto' || overflowY === 'scroll') && node.scrollHeight > node.clientHeight && node.scrollTop > 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function bindSheetDismissDrag(sheet) {
+  let drag = null; // 마우스/펜 드래그 상태
+  let touch = null; // 터치 드래그 상태
+
+  const canStartBodyDrag = (target) => {
+    // 1) 조작 요소(버튼·링크·입력·이력 행 등) 위에서는 드래그를 시작하지 않는다.
+    if (target.closest(SHEET_DRAG_IGNORE_SELECTOR)) return false;
+    // 2) 세로 스크롤이 가능한 조상이 이미 아래로 내려가 있으면 스크롤을 우선한다.
+    if (hasScrolledVerticalAncestor(sheet, target)) return false;
+    return true;
+  };
+
+  const applyDrag = (dy) => {
+    sheet.style.transform = `translate(-50%, ${dy}px)`;
+  };
+
+  const finishDrag = (dy, velocity) => {
+    const shouldClose = dy > 110 || (dy > 40 && velocity > 0.7);
+    if (shouldClose) {
+      // 손을 뗀 위치에서 아래로 슬라이드하며 닫힌다.
+      sheet.style.transform = 'translate(-50%, 105%)';
+      window.setTimeout(() => {
+        sheet.style.transform = '';
+        sheets.close();
+      }, 210);
+    } else {
+      sheet.style.transform = '';
+    }
+  };
+
+  /* ── 마우스/펜: Pointer Events ── */
+  sheet.addEventListener('pointerdown', (event) => {
+    if (event.pointerType === 'touch') return; // 터치는 아래 touchstart/touchmove 핸들러가 맡는다
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    if (sheets.current !== sheet) return; // 닫혀 있는 시트는 무시
+
+    const onHandle = Boolean(event.target.closest('.sheet-grab'));
+    if (!onHandle && !canStartBodyDrag(event.target)) return;
+
+    drag = {
+      id: event.pointerId,
+      locked: onHandle, // 손잡이는 곧바로, 본문은 방향 확정 뒤에 드래그한다.
+      startY: event.clientY,
+      startX: event.clientX,
+      dy: 0,
+      lastY: event.clientY,
+      lastT: performance.now(),
+      velocity: 0
+    };
+    if (drag.locked) {
+      try {
+        sheet.setPointerCapture(event.pointerId);
+      } catch (_) {
+        // 무시
+      }
+      sheet.classList.add('is-dragging');
+    }
+  });
+
+  sheet.addEventListener('pointermove', (event) => {
+    if (!drag || event.pointerId !== drag.id) return;
+    const dx = event.clientX - drag.startX;
+    const dyRaw = event.clientY - drag.startY;
+
+    if (!drag.locked) {
+      // 아래(세로) 방향으로 충분히 움직였을 때만 시트 이동을 시작한다.
+      // 가로 드래그는 그래프 가로 스크롤 등 다른 조작에 양보한다.
+      if (dyRaw < 8 || Math.abs(dx) > dyRaw) return;
+      drag.locked = true;
+      try {
+        sheet.setPointerCapture(event.pointerId);
+      } catch (_) {
+        // 무시
+      }
+      sheet.classList.add('is-dragging');
+    }
+
+    const now = performance.now();
+    if (now > drag.lastT) {
+      drag.velocity = (event.clientY - drag.lastY) / (now - drag.lastT); // px/ms
+      drag.lastY = event.clientY;
+      drag.lastT = now;
+    }
+    drag.dy = Math.max(0, event.clientY - drag.startY);
+    applyDrag(drag.dy);
+  });
+
+  const endDrag = (event) => {
+    if (!drag || (event && event.pointerId !== drag.id)) return;
+    const { dy, velocity, locked } = drag;
+    drag = null;
+    sheet.classList.remove('is-dragging');
+    if (!locked) return; // 방향 확정 전에 손을 뗀 경우 그대로 둔다.
+    finishDrag(dy, velocity);
+  };
+
+  sheet.addEventListener('pointerup', endDrag);
+  sheet.addEventListener('pointercancel', endDrag);
+
+  /* ── 터치: Touch Events + preventDefault ──
+     터치에서는 브라우저가 세로 팬을 곧바로 스크롤로 가져가기 때문에
+     Pointer Events 만으로는 본문 드래그가 시작 직후 끊긴다(시트가 꿈틀거림).
+     닫기 드래그로 판정된 touchmove 는 preventDefault 로 브라우저 인계를 차단하고,
+     스크롤·가로 제스처로 판정되면 아무것도 막지 않고 양보한다. */
+  sheet.addEventListener('touchstart', (event) => {
+    if (event.touches.length !== 1) return; // 두 손가락 이상은 무시
+    if (sheets.current !== sheet) return;
+    const first = event.changedTouches[0];
+    const onHandle = Boolean(event.target.closest('.sheet-grab'));
+    touch = {
+      id: first.identifier,
+      startY: first.clientY,
+      startX: first.clientX,
+      dragging: false,
+      canDrag: onHandle || canStartBodyDrag(event.target), // 손잡이는 항상, 본문은 가드 통과 시
+      lastY: first.clientY,
+      lastT: performance.now(),
+      velocity: 0
+    };
+  }, { passive: true });
+
+  sheet.addEventListener('touchmove', (event) => {
+    if (!touch) return;
+    const t = Array.from(event.changedTouches).find((item) => item.identifier === touch.id);
+    if (!t) return;
+
+    const dx = t.clientX - touch.startX;
+    const dyRaw = t.clientY - touch.startY;
+
+    if (!touch.dragging) {
+      if (!touch.canDrag) return; // 버튼·스크롤 영역 등 — 절대 막지 않는다
+      if (dyRaw >= 8 && Math.abs(dx) <= dyRaw) {
+        // 아래(세로) 방향 확정 → 이제부터 브라우저 스크롤을 막고 시트를 움직인다.
+        touch.dragging = true;
+        sheet.classList.add('is-dragging');
+      } else if (dyRaw <= -8 || Math.abs(dx) > Math.abs(dyRaw)) {
+        touch = null; // 위로 스크롤·가로 제스처 → 완전히 양보
+        return;
+      } else {
+        return; // 아직 방향 미확정 — 기본 동작 유지
+      }
+    }
+
+    event.preventDefault(); // 닫기 드래그 중: 브라우저가 스크롤로 가져가지 않게 차단
+
+    const now = performance.now();
+    if (now > touch.lastT) {
+      touch.velocity = (t.clientY - touch.lastY) / (now - touch.lastT); // px/ms
+      touch.lastY = t.clientY;
+      touch.lastT = now;
+    }
+    applyDrag(Math.max(0, dyRaw));
+  }, { passive: false });
+
+  const endTouch = (event) => {
+    if (!touch) return;
+    const t = Array.from(event.changedTouches).find((item) => item.identifier === touch.id);
+    if (!t) return;
+    const { dragging, velocity } = touch;
+    const dy = Math.max(0, t.clientY - touch.startY);
+    touch = null;
+    sheet.classList.remove('is-dragging');
+    if (!dragging) return; // 방향 확정 전 종료 — 탭·스크롤에 영향을 주지 않는다
+    event.preventDefault(); // 드래그 직후의 합성 클릭 방지
+    finishDrag(dy, velocity);
+  };
+
+  sheet.addEventListener('touchend', endTouch, { passive: false });
+  sheet.addEventListener('touchcancel', endTouch, { passive: false });
+}
+
+document.querySelectorAll('.sheet').forEach(bindSheetDismissDrag);
+
+/* --------------------------------------------------------------------------
    디버그 콘솔 크기 조절 — 상단 경계 드래그 (--debug-height)
    -------------------------------------------------------------------------- */
 function setDebugHeight(heightPx) {
@@ -1458,23 +1934,77 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
+/* ── PWA 설치 제안: 설치 자격이 있을 때만 설정 시트의 설치 버튼을 노출 ────── */
+const installState = { prompt: null };
+
+function isStandaloneDisplay() {
+  return window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+}
+
+function updateInstallUI() {
+  const installable = Boolean(installState.prompt) && !isStandaloneDisplay();
+  els.installBlock.hidden = !installable;
+}
+
+window.addEventListener('beforeinstallprompt', (event) => {
+  event.preventDefault();
+  installState.prompt = event;
+  updateInstallUI();
+  logDebug('Install prompt captured (beforeinstallprompt).');
+});
+
+window.addEventListener('appinstalled', () => {
+  installState.prompt = null;
+  updateInstallUI();
+  logDebug('App installed to home screen.');
+});
+
+async function promptInstall() {
+  const deferred = installState.prompt;
+  if (!deferred) return;
+  try {
+    deferred.prompt();
+    await deferred.userChoice;
+  } catch (err) {
+    logDebug(`Install prompt failed: ${err.message}`);
+  } finally {
+    installState.prompt = null;
+    updateInstallUI();
+  }
+}
+
+els.btnInstallApp.addEventListener('click', () => promptInstall());
+
 function initApp() {
   const parity = validateI18nKeyParity();
   logDebug(`i18n parity check: valid=${parity.valid} (${parity.totalKeys} keys)`);
-  history.replaceState({ htRoot: true }, '', APP_URL);
-  history.pushState({ htGuard: true }, '', APP_URL);
   buildHistoryDetailBody();
   applyTranslations();
   sheets.bind();
   syncConfigUI();
 
+  // 저장된 사용자 설정(측정 시간·카메라 방향)을 화면에 반영한다.
+  els.timerBadge.textContent = formatTimer(state.durationSec);
+  camera.setFacing(state.facingMode);
+  updateInstallUI();
+
   // 페이지 진입 즉시 카메라 미리보기 시작 → 측정 전에 손가락 위치를 잡을 수 있다.
   openIdleCamera();
 
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-    navigator.serviceWorker.register('./sw.js').catch((err) => {
-      logDebug(`SW registration skipped: ${err.message}`);
-    });
+    // updateViaCache:'none' → 방문할 때마다 sw.js 를 HTTP 캐시 없이 확인해서
+    // 새 배포(빌드 해시 변경)가 있으면 자산을 자동으로 다시 받는다.
+    navigator.serviceWorker
+      .register('./sw.js', { updateViaCache: 'none' })
+      .then((registration) => {
+        // 화면을 다시 띄울 때(가려졌다 복귀 등)도 갱신을 확인한다.
+        document.addEventListener('visibilitychange', () => {
+          if (!document.hidden) registration.update().catch(() => {});
+        });
+      })
+      .catch((err) => {
+        logDebug(`SW registration skipped: ${err.message}`);
+      });
   }
 }
 

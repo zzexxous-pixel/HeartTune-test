@@ -11,6 +11,13 @@
 const CACHE_NAME = 'hearttune-cache-v1';
 const ASSETS = [
   './',
+  './assets/finger-guide-rear.png',
+  './assets/finger-guide-front.png',
+  './assets/icon-192.png',
+  './assets/icon-192-maskable.png',
+  './assets/icon-512.png',
+  './assets/icon-512-maskable.png',
+  './assets/apple-touch-icon.png',
   './index.html',
   './manifest.webmanifest',
   './src/main.css',
@@ -18,6 +25,7 @@ const ASSETS = [
   './src/dsp.js',
   './src/i18n.js',
   './src/features/camera.js',
+  './src/features/detail-view.js',
   './src/features/result-indicators.js',
   './src/features/sheets.js',
   './src/features/share.js',
