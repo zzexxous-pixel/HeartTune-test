@@ -17,7 +17,7 @@
 ## 5-2. i18n 구조 (다국어 확장 전제)
 ```
 src/i18n.js
-  └ dictionaries = { ko: {...}, en: {...} }   ← 현재 구현 (키 81개)
+  └ dictionaries = { ko: {...}, en: {...} }   ← 현재 구현 (키 132개)
     t('key') 로더 · 언어 감지(navigator.language, 기본 ko) · 전환 · localStorage 저장
     validateI18nKeyParity()  ← ko/en 키 집합 일치 검증 (CI 필수 통과 항목)
 
@@ -68,8 +68,8 @@ HeartTune (main) → GitHub Pages 자동 배포
 ## 5-4. CI 체크 항목 (구현 완료)
 - [x] i18n **키 집합 일치** 검증 (누락 시 실패)
 - [x] 구문·모듈 lint (ESLint/Prettier 미도입 — `node --check` 기반)
-- [x] 신호처리 단위 테스트 15개 (합성 PPG → BPM 회귀, 하모닉 혼동, 리듬 판정)
-- [x] Playwright E2E 7개 (원스크린·i18n·시트·측정 플로우·기본값·디버그 리사이즈)
+- [x] 신호처리·표시 기준 단위 테스트 24개 (dsp 18: 합성 PPG → BPM 회귀, 하모닉 혼동, 리듬 판정, 안정화·아티팩트 방어 + 세부 6)
+- [x] Playwright E2E 18개 (원스크린·아이콘/매니페스트·3영역 기하 고정·측정 플로우·이력 스와이프 삭제+취소·시트 드래그 닫기·설정 저장·법적 고지·뒤로가기 종료·디버그 등)
 - [x] 빌드 산출물 생성 + 경로/자산 검증 + 캐시 버전 자동화
 
 ## 5-5. 배포 호스팅 — ✅ 확정: GitHub Pages
@@ -112,7 +112,7 @@ HeartTune (main) → GitHub Pages 자동 배포
 | 버튼 간격 | 인접 버튼 사이 **8px 이상** (오택 방지) |
 | 키보드 접근성 | 모든 조작을 **Tab + Enter**로 가능하게 (PC 사용자·접근성) |
 | 확대 | `touch-action` 제한하지 않기 — 중장년 사용자의 **핀치 줌 허용** |
-| 드래그/스와이프 | 꼭 필요할 때만 **Pointer Events** 사용 (마우스·터치·펜 통합 처리) |
+| 드래그/스와이프 | 꼭 필요할 때만 **Pointer Events** 사용 (마우스·터치·펜 통합 처리). 단 터치에서 브라우저가 세로 스크롤로 인계해 버리는 제스처(시트 드래그 닫기·이력 행 스와이프)는 **Touch Events + preventDefault 이중 경로**를 함께 쓴다(2026-10-23~24) |
 | 300ms 지연 | `<meta viewport>` 설정으로 자동 해소 (현대 브라우저) |
 
 **측정 중 손가락 위치 이슈 (중요)**
@@ -165,7 +165,7 @@ HeartTune (main) → GitHub Pages 자동 배포
 이제 마크업만 남기고 역할별로 분리했다.
 
 ```
-index.html                 ← 마크업만 (약 400줄, 원스크린 + 바텀시트 6종)
+index.html                 ← 마크업만 (약 560줄, 원스크린 + 바텀시트 6종)
 src/
   main.css                 ← 원스크린 레이아웃·시트·디버그 리사이즈
   main.js                  ← 앱 상태·이벤트·측정 오케스트레이션·시트 연결
@@ -176,9 +176,16 @@ src/
     sheets.js              ← 바텀시트 열기/닫기·포커스 트랩·ESC
     storage.js             ← 측정 이력·캘리브레이션 (localStorage 키 관리)
     share.js               ← 결과 이미지 캔버스 렌더 + Web Share/다운로드
+    detail-view.js         ← 결과 상세·이력 상세·공유 이미지의 단일 뷰모델 (2026-10-22)
+    result-indicators.js   ← 결과 지표 플래그·신호 품질 경계 계산
 scripts/
   build-dist.js            ← dist 빌드 + 버전 자동화
   serve.js                 ← 의존성 없는 정적 서버
+tests/
+  dsp.test.js              ← DSP 단위·회귀 18개 (Node)
+  detail-view.test.js      ← 상세 뷰모델 단위
+  result-indicators.test.js ← 지표 플래그·문구 매핑 단위
+  e2e/hearttune.spec.js    ← Playwright E2E 18개
 ```
 
 **분리 기준**
