@@ -162,6 +162,11 @@ const waveCtx = els.waveformCanvas.getContext('2d');
 
 let toastTimer = null;
 
+// 카메라 자동노출/손가락 접촉 안정화 구간: 이 동안 신호값이 크게 요동하며
+// 가짜 박동을 만들어 정상 리듬을 부정맥으로 오탐하게 하므로 기록·분석에서 제외한다.
+// (경고 표시·타이머·진행 링은 정상 동작, 화면 파형은 안정화 후 그려진다)
+const CAMERA_SIGNAL_WARMUP_SEC = 3;
+
 function logDebug(msg) {
   const timeStr = new Date().toLocaleTimeString('ko-KR', { hour12: false });
   const line = document.createElement('div');
@@ -576,7 +581,9 @@ function onFrameTick() {
         clearSignalNotice();
       }
 
-      state.rawSamples.push({ t: now, v: sample.value });
+      if (elapsedSec >= CAMERA_SIGNAL_WARMUP_SEC) {
+        state.rawSamples.push({ t: now, v: sample.value });
+      }
     } else {
       const sampleIdx = Math.min(
         state.syntheticPrebuffer.length - 1,

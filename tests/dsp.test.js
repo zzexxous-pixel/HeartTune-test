@@ -11,6 +11,8 @@ import {
   analyzePpgSignal,
   generateSyntheticPPG,
   resolveBpmEstimate
+,
+  evaluateRhythm
 } from '../src/dsp.js';
 import { validateI18nKeyParity } from '../src/i18n.js';
 
@@ -230,4 +232,58 @@ test('15. [하모닉 혼동 해소] 10초 미만 구간은 자기상관+IBI 중�
   });
   assert.equal(resolved.source, 'early-time-domain');
   assert.ok(Math.abs(resolved.bpm - 83.75) <= 1, `기대 83.75, 실측 ${resolved.bpm}`);
+});
+
+
+test('16. [안정화 구간 방어] 초반 자동노출 트랜지언트가 붙은 규칙 신호 → 부정맥 오탐 방지', () => {
+  // 실측 사례 재현: 카메라 자동노출/접촉 안정화 동안 첫 ~3초의 값이 5→255(포화)→190대로
+  // 크게 요동하고, 이후는 규칙적인 맥파(±1~3)인 신호. 요동 구간의 가짜 피크가
+  // 짧은 IBI를 만들어 정상 리듬이 '부정맥'로 오탐되던 문제(2026-10-24 사용자 보고).
+  const fs = TARGET_FS;
+  const warmupSec = 3;
+  const clean = generateSyntheticPPG({ bpm: 78, durationSec: 27, jitterRatio: 0.03, noiseAmp: 0.9, dcLevel: 195, seed: 77 });
+  const nWarm = Math.round(warmupSec * fs);
+  const settle = new Float64Array(nWarm);
+  for (let i = 0; i < nWarm; i++) {
+    const t = i / fs;
+    if (t < 0.6) settle[i] = 5 + (i / nWarm) * 20;           // 손가락 닿기 전 어두운 값
+    else if (t < 1.1) settle[i] = 255 - (i % 3) * 4;          // 자동노출 급상승(포화)
+    else settle[i] = 190 + 65 * Math.exp(-(t - 1.1) * 2.2);   // 기저로 지수 감쇠
+  }
+  const combined = new Float64Array(nWarm + clean.length);
+  combined.set(settle, 0);
+  combined.set(clean, nWarm);
+  const res = analyzePpgSignal(combined, fs);
+  assert.equal(res.irregular, false, `규칙 신호인데 부정맥 오탐 (cv=${res.cv})`);
+  assert.equal(res.status, 'normal', `status 기대 normal, 실측 ${res.status}`);
+  assert.ok(Math.abs(res.bpm - 78) <= 4, `기대 78±4 BPM, 실측 ${res.bpm}`);
+});
+
+test('17. [이상치 정제] 측정 중간 모션 아티팩트로 생긴 튀는 IBI는 CV에서 제외된다', () => {
+  // 78 BPM 규칙 신호 중간에 짧은 이중 검출(≈0.5×IBI)과 놓친 박동(≈2×IBI)을
+  // 흉내 낸 IBI 배열을 evaluateRhythm 에 직접 넣어 정제 동작을 검증한다.
+  const beatTimes = [];
+  let t = 0.5;
+  for (let b = 0; b < 36; b++) {
+    beatTimes.push(t);
+    t += 60 / 78; // 769ms 규칙 IBI
+  }
+  const rhythmBefore = evaluateRhythm(beatTimes, 28, 78);
+  assert.ok(rhythmBefore.cv < 0.14, `준비 확인: 규칙 IBI는 irregular 아니어야 함 (cv=${rhythmBefore.cv})`);
+
+  // 중간 3개 박동을 흔들어 이중 검출(0.52×)·놓침(1.95×) 유사 패턴을 만든다
+  const withArtifacts = [...beatTimes];
+  withArtifacts[15] += 0.19;
+  withArtifacts[16] -= 0.17;
+  withArtifacts[20] += 0.74;
+  const rhythmArt = evaluateRhythm(withArtifacts, 28, 78);
+  assert.equal(rhythmArt.irregular, false, `아티팩트 IBI가 정제되지 않아 오탐 (cv=${rhythmArt.cv})`);
+});
+
+test('18. [보존 확인] 연속적으로 넓게 변하는 불규칙 리듬은 정제 후에도 부정맥으로 유지된다', () => {
+  // 실제 불규칙 리듬(연속 변동, 이상치 아님)은 MAD 정제에 지워지지 않는다.
+  const irreg = generateSyntheticPPG({ bpm: 76, durationSec: 30, jitterRatio: 0.38, noiseAmp: 0.3, seed: 123 });
+  const res = analyzePpgSignal(irreg, TARGET_FS);
+  assert.equal(res.irregular, true, `불규칙 신호가 정상으로 둔갑 (cv=${res.cv})`);
+  assert.equal(res.status, 'irregular');
 });

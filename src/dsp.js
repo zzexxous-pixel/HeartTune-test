@@ -470,8 +470,19 @@ export function evaluateRhythm(beatTimesSec, durationSec, expectedBpm = 72) {
   const sortedIbi = [...rawIbis].sort((a, b) => a - b);
   const medianIbiMs = sortedIbi[Math.floor(sortedIbi.length / 2)];
 
+  // 1차 정제: 중앙값의 [0.45, 1.85] 배를 벗어나는 극단 IBI 제거
   const cleanIbis = rawIbis.filter((ibi) => ibi <= medianIbiMs * 1.85 && ibi >= medianIbiMs * 0.45);
-  const targetIbis = cleanIbis.length >= 2 ? cleanIbis : rawIbis;
+
+  // 2차 정제(MAD): 박동 검출 오류(이중 검출·놓침·안정화 구간 가짜 피크)로 생긴
+  // '튀는' IBI만 중앙값 ± 3.5×MAD 안쪽으로 좁혀 제거한다. 문턱이 실제 변동 폭에
+  // 비례하므로 연속적으로 넓게 변하는 불규칙 리듬(부정맥)은 그대로 보존된다.
+  // (2026-10-24 실측: 화면 파형은 안정적이었으나 초반 자동노출 요동의 가짜 박동이
+  //  짧은 IBI를 만들어 정상 리듬을 부정맥으로 오탐되던 사례 대응)
+  const deviations = cleanIbis.map((ibi) => Math.abs(ibi - medianIbiMs));
+  const madMs = percentile(deviations, 50);
+  const robustLimitMs = Math.max(3.5 * madMs, 40);
+  const robustIbis = cleanIbis.filter((ibi) => Math.abs(ibi - medianIbiMs) <= robustLimitMs);
+  const targetIbis = robustIbis.length >= 2 ? robustIbis : (cleanIbis.length >= 2 ? cleanIbis : rawIbis);
 
   const meanIbiMs = targetIbis.reduce((a, b) => a + b, 0) / targetIbis.length;
   const variance = targetIbis.reduce((acc, val) => acc + Math.pow(val - meanIbiMs, 2), 0) / targetIbis.length;
