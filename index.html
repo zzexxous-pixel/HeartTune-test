@@ -3,14 +3,17 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#0F4C81" />
+  <meta name="theme-color" content="#B61C32" />
   <meta name="description" content="오늘심박 (HeartTune) - 스마트폰 카메라로 30초 만에 심박수와 맥박 리듬을 확인하는 간편 심박수 측정기 웹앱 (참고용 건강 정보)" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="오늘심박" />
   <title>오늘심박 - 심박수 측정기 | HeartTune - Heart Rate Monitor</title>
   <link rel="manifest" href="./manifest.webmanifest" />
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='24' fill='%230F4C81'/><g transform='translate(14 14) scale(.72)'><path d='M50 78 C50 78 20 56 20 35 C20 23 30 16 40 16 C46 16 50 20 50 25 C50 20 54 16 60 16 C70 16 80 23 80 35 C80 56 50 78 50 78 Z' fill='%23FF4D6D'/><polyline points='24,48 40,48 46,34 54,62 60,48 76,48' fill='none' stroke='%23FFFFFF' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'/></g></svg>" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%23FF1053'/><stop offset='1' stop-color='%23350020'/></linearGradient></defs><rect width='100' height='100' rx='24' fill='url(%23g)'/><g transform='translate(9.61 12.03) scale(.8078)'><path d='M50 78 C50 78 20 56 20 35 C20 23 30 16 40 16 C46 16 50 20 50 25 C50 20 54 16 60 16 C70 16 80 23 80 35 C80 56 50 78 50 78 Z' fill='%23FFFFFF'/><polyline points='24,48 40,48 46,34 54,62 60,48 76,48' fill='none' stroke='%23B61C32' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'/></g></svg>" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icon-192.png" />
+  <link rel="apple-touch-icon" href="./assets/apple-touch-icon.png" />
   <link rel="stylesheet" href="./src/main.css" />
 </head>
 <body>
@@ -23,7 +26,7 @@
         </svg>
       </button>
       <div id="appTitleTrigger" class="brand-trigger">
-        <span class="brand-heart" aria-hidden="true">❤️</span>
+        <span class="brand-heart" aria-hidden="true"><svg viewBox="0 0 100 100" width="36" height="36"><defs><linearGradient id="brandBg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FF1053"/><stop offset="1" stop-color="#350020"/></linearGradient></defs><rect width="100" height="100" rx="26" fill="url(#brandBg)"/><g transform="translate(3.67 6.45) scale(.9266)"><path d="M50 78 C50 78 20 56 20 35 C20 23 30 16 40 16 C46 16 50 20 50 25 C50 20 54 16 60 16 C70 16 80 23 80 35 C80 56 50 78 50 78 Z" fill="#FFFFFF"/><polyline points="24,48 40,48 46,34 54,62 60,48 76,48" fill="none" stroke="#B61C32" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></g></svg></span>
         <span class="brand-title" data-i18n="app.brand.name">오늘심박</span>
       </div>
 
@@ -64,14 +67,23 @@
       </div>
 
       <div id="waveformBox" class="waveform-box" data-i18n-aria="measure.waveform.accessible">
-        <h2 class="waveform-title" data-i18n="measure.waveform.title">카메라 측정 파형</h2>
+        <div class="waveform-head">
+          <h2 class="waveform-title" data-i18n="measure.waveform.title">카메라 측정 파형</h2>
+          <span id="waveformLivePill" class="waveform-live-pill" data-i18n="measure.waveform.live">실시간</span>
+        </div>
         <canvas id="waveformCanvas" width="440" height="84"></canvas>
       </div>
 
       <div class="message-area">
-        <p id="stageGuideText" class="stage-guide-text" data-i18n="measure.status.readyTitle">
-          카메라 렌즈에 손가락을 가볍게 대주세요
-        </p>
+        <div id="idleGuide" class="idle-guide">
+          <div id="fingerGuide" class="finger-guide" aria-hidden="true">
+            <img class="finger-guide-art" data-facing-art="environment" src="./assets/finger-guide-rear.png" alt="" decoding="async">
+            <img class="finger-guide-art" data-facing-art="user" src="./assets/finger-guide-front.png" alt="" decoding="async">
+          </div>
+          <p id="stageGuideText" class="stage-guide-text" data-i18n="measure.status.readyRear">
+            후면 카메라 렌즈에 검지 손가락을 가볍게 대주세요
+          </p>
+        </div>
 
         <section id="resultBanner" class="result-banner" role="region" aria-live="polite">
           <div class="result-title-row">
@@ -94,12 +106,19 @@
       </div>
     </main>
 
-    <!-- 하단 고정 CTA: 결과일 때만 [이미지 저장] + [다시 측정] -->
+    <!-- 하단 고정 CTA: 결과일 때만 [공유] [저장] + [다시 측정] -->
     <div class="cta-bar">
-      <button type="button" id="btnShareImage" class="icon-btn cta-share-icon" hidden data-i18n-aria="share.action.label" aria-label="이미지로 공유·저장">
-        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <button type="button" id="btnShareImage" class="cta-pill" hidden data-i18n-aria="share.action.share">
+        <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" />
           </svg>
+        <span data-i18n="measure.cta.share">공유</span>
+      </button>
+      <button type="button" id="btnSaveImage" class="cta-pill" hidden data-i18n-aria="share.action.save">
+        <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 4v10.5" /><path d="M7.5 10.5L12 15l4.5-4.5" /><path d="M4.5 19.5h15" />
+          </svg>
+        <span data-i18n="measure.cta.save">저장</span>
       </button>
       <button type="button" id="btnPrimaryMeasure" class="btn btn-primary cta-primary" data-i18n="measure.cta.start">
         측정 시작
@@ -109,11 +128,24 @@
 
   <div id="liveAlertBox" class="toast" role="alert" aria-live="assertive"></div>
 
+  <!-- 확인 다이얼로그 (앱 톤): 앱 종료 확인·이력 전체 삭제 확인 -->
+  <div id="confirmBackdrop" class="confirm-backdrop" aria-hidden="true">
+    <div id="confirmDialog" class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmMessage" aria-hidden="true">
+      <h2 id="confirmTitle">확인</h2>
+      <p id="confirmMessage"></p>
+      <div class="confirm-actions">
+        <button type="button" id="confirmCancel" class="confirm-btn-cancel">취소</button>
+        <button type="button" id="confirmOk" class="confirm-btn-ok">확인</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 시트 공통 배경 -->
   <div id="sheetBackdrop" class="sheet-backdrop" aria-hidden="true"></div>
 
   <!-- ⚙️ 설정 시트 -->
   <section id="settingsSheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="settingsSheetTitle" aria-hidden="true">
+    <div class="sheet-grab" aria-hidden="true"><span class="sheet-grab-bar"></span></div>
     <div class="sheet-header">
       <h2 id="settingsSheetTitle" data-i18n="app.settings.title">설정</h2>
       <button type="button" class="icon-btn sheet-close" data-sheet-close aria-label="닫기" data-i18n-aria="app.close">
@@ -143,12 +175,14 @@
 
       <div class="setting-block">
         <div class="config-label" data-i18n="measure.config.cameraSelect">카메라 선택</div>
-        <div class="segmented" role="group" aria-label="카메라 선택">
-          <button type="button" class="cam-btn active" data-facing="environment" aria-pressed="true" data-i18n="measure.config.cameraRear">
-            후면 카메라
+        <div class="camera-options" role="group" aria-label="카메라 선택">
+          <button type="button" class="cam-btn camera-option active" data-facing="environment" aria-pressed="true">
+            <img src="./assets/finger-guide-rear.png" alt="" decoding="async">
+            <span data-i18n="measure.config.cameraRear">후면 카메라</span>
           </button>
-          <button type="button" class="cam-btn" data-facing="user" aria-pressed="false" data-i18n="measure.config.cameraFront">
-            전면 카메라
+          <button type="button" class="cam-btn camera-option" data-facing="user" aria-pressed="false">
+            <img src="./assets/finger-guide-front.png" alt="" decoding="async">
+            <span data-i18n="measure.config.cameraFront">전면 카메라</span>
           </button>
         </div>
       </div>
@@ -160,11 +194,18 @@
           <button type="button" class="lang-btn" data-lang="en" aria-pressed="false">EN</button>
         </div>
       </div>
+
+      <!-- 설치 가능한 브라우저에서만 노출 (iOS Safari 등 미지원 환경은 숨김) -->
+      <div class="setting-block" id="installBlock" hidden>
+        <div class="config-label" data-i18n="pwa.install.title">앱 설치</div>
+        <button type="button" id="btnInstallApp" class="btn btn-secondary install-btn" data-i18n="pwa.install.btn">홈 화면 설치</button>
+      </div>
     </div>
   </section>
 
   <!-- ≡ 메뉴 시트 -->
   <section id="menuSheet" class="sheet sheet-compact" role="dialog" aria-modal="true" aria-labelledby="menuSheetTitle" aria-hidden="true">
+    <div class="sheet-grab" aria-hidden="true"><span class="sheet-grab-bar"></span></div>
     <div class="sheet-header">
       <h2 id="menuSheetTitle" data-i18n="app.menu.title">메뉴</h2>
       <button type="button" class="icon-btn sheet-close" data-sheet-close aria-label="닫기" data-i18n-aria="app.close">
@@ -178,14 +219,14 @@
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M3 12a9 9 0 1 0 2.64-6.36" /><path d="M3 4.5V9h4.5" /><path d="M12 8v4l2.5 1.5" />
         </svg>
-        <span data-i18n="app.nav.history">측정이력</span>
+        <span data-i18n="app.nav.history">측정 이력</span>
         <span class="menu-chevron" aria-hidden="true">›</span>
       </button>
       <button type="button" id="menuGuide" class="menu-row">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z" /><path d="M4 20.5A2.5 2.5 0 0 1 6.5 18H20" />
         </svg>
-        <span data-i18n="app.nav.guide">측정안내</span>
+        <span data-i18n="app.nav.guide">측정 안내</span>
         <span class="menu-chevron" aria-hidden="true">›</span>
       </button>
       <button type="button" id="menuLegal" class="menu-row">
@@ -200,13 +241,15 @@
 
   <!-- 측정 이력 시트 (내부 스크롤 허용) -->
   <section id="historySheet" class="sheet sheet-tall history-sheet" role="dialog" aria-modal="true" aria-labelledby="historySheetTitle" aria-hidden="true">
+    <div class="sheet-grab" aria-hidden="true"><span class="sheet-grab-bar"></span></div>
     <!-- 헤더 A: 측정이력 목록 -->
     <div class="sheet-header history-header-list">
-      <h2 id="historySheetTitle" data-i18n="history.header.title">측정이력</h2>
+      <h2 id="historySheetTitle" data-i18n="history.header.title">측정 이력</h2>
+      <span id="historyCount" class="history-count"></span>
       <div class="sheet-header-actions">
         <button type="button" id="btnClearHistory" class="icon-btn history-trash-btn" data-i18n-aria="history.header.clearAll" aria-label="측정 이력 전체 삭제">
           <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M4 7h16" /><path d="M9 7V4.8c0-.44.36-.8.8-.8h4.4c.44 0 .8.36.8.8V7" /><path d="M6.5 7l.9 12.1c.06.8.73 1.4 1.53 1.4h5.14c.8 0 1.47-.6 1.53-1.4L17.5 7" /><path d="M10 11v6M14 11v6" />
+            <path d="M4.6 6.6h14.8" /><path d="M9.7 6.6V5.4c0-1 .8-1.8 1.8-1.8h1c1 0 1.8.8 1.8 1.8v1.2" /><path d="M6.6 6.6l.78 12.1c.06.98.87 1.75 1.85 1.75h5.54c.98 0 1.79-.77 1.85-1.75l.78-12.1" /><path d="M10.1 10.5v6.2M13.9 10.5v6.2" />
           </svg>
         </button>
         <button type="button" class="icon-btn sheet-close" data-sheet-close aria-label="닫기" data-i18n-aria="app.close">
@@ -219,12 +262,17 @@
     <!-- 헤더 B: 자세히 보기 (뒤로가기 · 공유 · 삭제 · 닫기) -->
     <div class="sheet-header history-header-detail">
       <button type="button" id="btnHistoryBack" class="icon-btn" data-i18n-aria="history.detail.back" aria-label="뒤로">
-        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M15 5l-7 7 7 7" />
           </svg>
       </button>
       <h2 class="history-detail-title" data-i18n="measure.result.details">자세히 보기</h2>
       <div class="sheet-header-actions">
+        <button type="button" id="btnHistoryDetailSave" class="icon-btn" data-i18n-aria="share.action.save">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 4v10.5" /><path d="M7.5 10.5L12 15l4.5-4.5" /><path d="M4.5 19.5h15" />
+          </svg>
+        </button>
         <button type="button" id="btnHistoryDetailShare" class="icon-btn" data-i18n-aria="share.action.label" aria-label="이미지로 공유·저장">
           <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" />
@@ -232,7 +280,7 @@
         </button>
         <button type="button" id="btnHistoryDetailDelete" class="icon-btn history-trash-btn" data-i18n-aria="history.detail.delete" aria-label="이 기록 삭제">
           <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M4 7h16" /><path d="M9 7V4.8c0-.44.36-.8.8-.8h4.4c.44 0 .8.36.8.8V7" /><path d="M6.5 7l.9 12.1c.06.8.73 1.4 1.53 1.4h5.14c.8 0 1.47-.6 1.53-1.4L17.5 7" /><path d="M10 11v6M14 11v6" />
+            <path d="M4.6 6.6h14.8" /><path d="M9.7 6.6V5.4c0-1 .8-1.8 1.8-1.8h1c1 0 1.8.8 1.8 1.8v1.2" /><path d="M6.6 6.6l.78 12.1c.06.98.87 1.75 1.85 1.75h5.54c.98 0 1.79-.77 1.85-1.75l.78-12.1" /><path d="M10.1 10.5v6.2M13.9 10.5v6.2" />
           </svg>
         </button>
         <button type="button" class="icon-btn sheet-close" data-sheet-close aria-label="닫기" data-i18n-aria="app.close">
@@ -248,11 +296,27 @@
       <div class="history-panes">
         <!-- 화면 1: 측정이력 목록 -->
         <div class="history-pane history-pane-list">
-          <!-- 1) 이력 그래프: Y=심박수(회/분), X=날짜(M/D), 가로 스크롤 -->
+          <!-- 1) 이력 그래프: Y=심박수(회/분), X=날짜(M/D), 가로 스크롤 + 최저/평균/최고 요약 -->
           <div class="trend-card" id="trendCard">
-            <svg id="trendYAxis" class="trend-y-axis" aria-hidden="true"></svg>
-            <div id="trendScroll" class="trend-scroll">
-              <svg id="trendCanvas" class="trend-chart" role="img" data-i18n-aria="history.header.title" aria-label="측정이력"></svg>
+            <div class="trend-chart-row">
+              <svg id="trendYAxis" class="trend-y-axis" aria-hidden="true"></svg>
+              <div id="trendScroll" class="trend-scroll">
+                <svg id="trendCanvas" class="trend-chart" role="img" data-i18n-aria="history.header.title" aria-label="측정이력"></svg>
+              </div>
+            </div>
+            <div class="trend-stats" id="trendStats">
+              <div class="trend-stat">
+                <span class="trend-stat-label" data-i18n="history.stats.min">최저 심박</span>
+                <strong class="trend-stat-value"><span data-trend-stat="min">–</span><span class="trend-stat-unit" data-i18n="measure.unit.bpm">회/분</span></strong>
+              </div>
+              <div class="trend-stat">
+                <span class="trend-stat-label" data-i18n="history.stats.avg">평균 심박</span>
+                <strong class="trend-stat-value"><span data-trend-stat="avg">–</span><span class="trend-stat-unit" data-i18n="measure.unit.bpm">회/분</span></strong>
+              </div>
+              <div class="trend-stat">
+                <span class="trend-stat-label" data-i18n="history.stats.max">최고 심박</span>
+                <strong class="trend-stat-value"><span data-trend-stat="max">–</span><span class="trend-stat-unit" data-i18n="measure.unit.bpm">회/분</span></strong>
+              </div>
             </div>
           </div>
 
@@ -283,8 +347,9 @@
 
   <!-- 측정 안내 시트 -->
   <section id="guideSheet" class="sheet sheet-tall" role="dialog" aria-modal="true" aria-labelledby="guideSheetTitle" aria-hidden="true">
+    <div class="sheet-grab" aria-hidden="true"><span class="sheet-grab-bar"></span></div>
     <div class="sheet-header">
-      <h2 id="guideSheetTitle" data-i18n="app.nav.guide">측정안내</h2>
+      <h2 id="guideSheetTitle" data-i18n="app.nav.guide">측정 안내</h2>
       <button type="button" class="icon-btn sheet-close" data-sheet-close aria-label="닫기" data-i18n-aria="app.close">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
           <path d="M6 6l12 12M18 6L6 18" />
@@ -302,7 +367,13 @@
       </div>
       <div class="guide-card">
         <h3 data-i18n="guide.step3.title">3. 가족에게 큰 글씨 이미지 공유</h3>
-        <p data-i18n="guide.step3.desc"></p>
+        <p class="guide-step3-desc">
+          <span data-i18n="guide.step3.desc.a">측정이 끝나면</span>
+          <span class="guide-inline-chip"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" /></svg><span data-i18n="measure.cta.share">공유</span></span>
+          <span data-i18n="guide.step3.desc.b">버튼으로 큰 글씨 결과 이미지를 카카오톡 등으로 바로 보내거나,</span>
+          <span class="guide-inline-chip is-save"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v10.5" /><path d="M7.5 10.5L12 15l4.5-4.5" /><path d="M4.5 19.5h15" /></svg><span data-i18n="measure.cta.save">저장</span></span>
+          <span data-i18n="guide.step3.desc.c">버튼으로 이미지를 내려받아 자녀나 부모님께 보여줄 수 있습니다.</span>
+        </p>
       </div>
       <section class="guide-card guide-rhythm-card">
         <h3 data-i18n="guide.rhythm.title">부정맥·빈맥·서맥이란?</h3>
@@ -319,6 +390,7 @@
 
   <!-- 법적 고지 시트 -->
   <section id="legalSheet" class="sheet sheet-tall" role="dialog" aria-modal="true" aria-labelledby="legalSheetTitle" aria-hidden="true">
+    <div class="sheet-grab" aria-hidden="true"><span class="sheet-grab-bar"></span></div>
     <div class="sheet-header">
       <h2 id="legalSheetTitle" data-i18n="legal.title">법적 고지</h2>
       <button type="button" class="icon-btn sheet-close" data-sheet-close aria-label="닫기" data-i18n-aria="app.close">
@@ -327,28 +399,50 @@
         </svg>
       </button>
     </div>
-    <div class="sheet-body">
-      <p class="legal-text" data-i18n="legal.disclaimer.main">
+    <div class="sheet-body legal-body">
+      <p class="legal-text legal-lead" data-i18n="legal.disclaimer.main">
         본 앱은 의료기기가 아니며, 측정 결과는 참고용 정보입니다. 의학적 판단이나 진료를 대체할 수 없습니다.
-      </p>
-      <p class="legal-text" data-i18n="legal.privacy.local">
-        카메라 영상은 심박 추출 직후 즉시 폐기되며 외부 서버로 절대 전송되지 않습니다.
       </p>
       <section class="privacy-policy" aria-labelledby="privacyPolicyTitle">
         <h3 id="privacyPolicyTitle" class="privacy-title" data-i18n="legal.privacy.title">개인정보 처리방침</h3>
-        <p class="legal-text" data-i18n="legal.privacy.serverless">본 앱은 서버가 없어 회원가입이나 로그인 없이 동작합니다.</p>
-        <p class="legal-text" data-i18n="legal.privacy.storage">측정 기록, 캘리브레이션 학습 데이터, 설정값을 포함한 모든 데이터는 이 기기(브라우저 저장공간)에만 저장되며, 측정 데이터는 휴대폰 밖으로 전송되지 않습니다.</p>
-        <p class="legal-text" data-i18n="legal.privacy.noShare">수집, 판매, 제3자 제공을 하지 않으며, 측정 데이터를 외부 서버나 광고 도구로 보내지 않습니다.</p>
-        <p class="legal-text" data-i18n="legal.privacy.delete">측정이력 시트의 휴지통 버튼으로 기록과 학습 데이터를 지울 수 있고, 브라우저의 사이트 데이터 삭제로도 모두 지울 수 있습니다.</p>
+        <p class="legal-text" data-i18n="legal.privacy.intro"></p>
+        <dl class="privacy-list">
+          <div class="privacy-item">
+            <dt data-i18n="legal.privacy.camera.title">카메라 영상</dt>
+            <dd data-i18n="legal.privacy.camera.desc"></dd>
+          </div>
+          <div class="privacy-item">
+            <dt data-i18n="legal.privacy.stored.title">저장되는 정보</dt>
+            <dd data-i18n="legal.privacy.stored.desc"></dd>
+          </div>
+          <div class="privacy-item">
+            <dt data-i18n="legal.privacy.nopii.title">개인정보 수집 없음</dt>
+            <dd data-i18n="legal.privacy.nopii.desc"></dd>
+          </div>
+          <div class="privacy-item">
+            <dt data-i18n="legal.privacy.noShare.title">제3자 제공 없음</dt>
+            <dd data-i18n="legal.privacy.noShare.desc"></dd>
+          </div>
+          <div class="privacy-item">
+            <dt data-i18n="legal.privacy.delete.title">직접 삭제</dt>
+            <dd data-i18n="legal.privacy.delete.desc"></dd>
+          </div>
+        </dl>
       </section>
     </div>
   </section>
 
   <!-- 측정 상세 시트: 사용자용 참고 신호와 측정 신호 품질 -->
   <section id="detailsSheet" class="sheet sheet-compact" role="dialog" aria-modal="true" aria-labelledby="detailsSheetTitle" aria-hidden="true">
+    <div class="sheet-grab" aria-hidden="true"><span class="sheet-grab-bar"></span></div>
     <div class="sheet-header">
       <h2 id="detailsSheetTitle" data-i18n="measure.result.details">자세히 보기</h2>
       <div class="sheet-header-actions">
+      <button type="button" id="btnDetailsSave" class="icon-btn" data-i18n-aria="share.action.save">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 4v10.5" /><path d="M7.5 10.5L12 15l4.5-4.5" /><path d="M4.5 19.5h15" />
+          </svg>
+      </button>
       <button type="button" id="btnDetailsShare" class="icon-btn" data-i18n-aria="share.action.label" aria-label="이미지로 공유·저장">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" />
@@ -363,6 +457,10 @@
     </div>
     <div class="sheet-body details-body">
       <div class="details-overview">
+        <div class="details-overview-item details-overview-bpm">
+          <span class="details-label" data-i18n="details.heartRate">맥박</span>
+          <div class="details-bpm-value"><strong id="detailsBpm" data-role="bpm"></strong><span id="detailsBpmUnit" data-i18n="measure.unit.bpm">회/분</span></div>
+        </div>
         <div class="details-overview-item">
           <span class="details-label" data-i18n="details.measurementTime">측정일시</span>
           <strong id="detailsDate" class="details-value" data-role="date"></strong>
@@ -370,10 +468,6 @@
         <div class="details-overview-item">
           <span class="details-label" data-i18n="details.duration">측정시간</span>
           <strong id="detailsDuration" class="details-value" data-role="duration"></strong>
-        </div>
-        <div class="details-overview-item details-overview-bpm">
-          <span class="details-label" data-i18n="details.heartRate">맥박</span>
-          <div class="details-bpm-value"><strong id="detailsBpm" data-role="bpm"></strong><span id="detailsBpmUnit" data-i18n="measure.unit.bpm">회/분</span></div>
         </div>
       </div>
       <section class="details-waveform-section">

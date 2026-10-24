@@ -18,6 +18,14 @@ const DIST_DIR = path.join(ROOT_DIR, 'dist');
 
 // 빌드에 포함할 런타임 파일 (경로는 저장소 루트 기준)
 const RUNTIME_FILES = [
+  '.nojekyll',
+  'assets/finger-guide-rear.png',
+  'assets/finger-guide-front.png',
+  'assets/icon-192.png',
+  'assets/icon-192-maskable.png',
+  'assets/icon-512.png',
+  'assets/icon-512-maskable.png',
+  'assets/apple-touch-icon.png',
   'index.html',
   'manifest.webmanifest',
   'sw.js',
@@ -26,6 +34,7 @@ const RUNTIME_FILES = [
   'src/dsp.js',
   'src/i18n.js',
   'src/features/camera.js',
+  'src/features/detail-view.js',
   'src/features/result-indicators.js',
   'src/features/sheets.js',
   'src/features/share.js',

@@ -35,6 +35,12 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     await expect(page.locator('#appTitleTrigger')).toContainText('오늘심박');
     await expect(page.locator('.waveform-title')).toHaveText('카메라 측정 파형');
 
+    // 초기 화면 대기 상태에서는 손가락 위치 와이어 이미지가 항상 보인다.
+    await expect(page.locator('#fingerGuide')).toBeVisible();
+    await expect(page.locator('.finger-guide-art[data-facing-art="environment"]')).toBeVisible();
+    // 설치 제안 배너는 제거됨(설정 시트의 설치 버튼만 사용)
+    await expect(page.locator('#installBanner')).toHaveCount(0);
+
     const iconConfig = await page.evaluate(async () => {
       const manifest = await fetch('./manifest.webmanifest').then((response) => response.json());
       const favicon = document.querySelector('link[rel="icon"]').getAttribute('href');
@@ -43,15 +49,18 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
         icons: manifest.icons.map((icon) => ({
           sizes: icon.sizes,
           purpose: icon.purpose,
-          svg: decodeURIComponent(icon.src.slice(icon.src.indexOf(',') + 1))
+          src: icon.src
         }))
       };
     });
-    expect(iconConfig.favicon).toContain('translate(14 14) scale(.72)');
-    expect(iconConfig.icons.map((icon) => icon.sizes)).toEqual(['192x192', '512x512']);
+    // 파비콘은 설치 아이콘과 같은 디자인: 좌상→우하 그라데이션 + 하트 .8078 정중앙(10% 추가 확대)
+    expect(iconConfig.favicon).toContain('linearGradient');
+    expect(iconConfig.favicon).toContain('translate(9.61 12.03) scale(.8078)');
+    // 매니페스트 아이콘: 모든 용도(any·maskable)가 둥근 모서리+투명 배경의 동일한 디자인(7차 통일)
+    expect(iconConfig.icons.map((icon) => icon.sizes)).toEqual(['192x192', '192x192', '512x512', '512x512']);
+    expect(iconConfig.icons.map((icon) => icon.purpose)).toEqual(['any', 'maskable', 'any', 'maskable']);
     for (const icon of iconConfig.icons) {
-      expect(icon.purpose).toContain('maskable');
-      expect(icon.svg).toContain('scale(.72)');
+      expect(icon.src).toMatch(/\.\/assets\/icon-(192|512)(-maskable)?\.png$/);
     }
 
     // 첫 화면에는 법적 고지 푸터/탭이 없어야 한다 (결과 화면·시트로 이동)
@@ -180,7 +189,7 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
       return [rect.x, rect.y, rect.width, rect.height];
     }));
     const idleZones = await captureZones();
-    const idleMessageBox = await page.locator('#stageGuideText').boundingBox();
+    const idleMessageBox = await page.locator('#idleGuide').boundingBox();
     const ctaBtn = page.locator('#btnPrimaryMeasure');
     await ctaBtn.click();
     await expect(ctaBtn).toHaveText('측정 취소');
@@ -234,6 +243,10 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     expect(waveformSampleCount).toBe(90);
     await expect(page.locator('#resultShortNote')).toBeVisible();
     await expect(page.locator('#btnShareImage')).toBeVisible();
+    await expect(page.locator('#btnShareImage')).toContainText('공유');
+    await expect(page.locator('#btnSaveImage')).toBeVisible();
+    await expect(page.locator('#btnSaveImage')).toContainText('저장');
+    await expect(page.locator('#fingerGuide')).toBeHidden();
     await expect(page.locator('#btnDetails')).toBeVisible();
     for (const type of ['arrhythmia', 'bradycardia', 'tachycardia']) {
       await expect(page.locator(`#detailsSheet [data-indicator="${type}"]`)).toHaveClass(/is-clear/);
@@ -506,6 +519,26 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     await expect(items).toHaveCount(3);
     await expect(page.locator('#historyUndoToast')).toBeHidden();
 
+    // 빠른 터치 스와이프(세로 드리프트 포함)로 삭제해도 첫 탭에 '삭제 취소'가
+    // 동작한다 — 가로 방향 확정 순간 touchmove 를 preventDefault 해 브라우저가
+    // 세로 스크롤·관성으로 인계받는 것을 차단한다(8차: 스크롤 직후 탭 억제 방지)
+    const cdp = await page.context().newCDPSession(page);
+    await items.nth(2).locator('.history-row').scrollIntoViewIfNeeded();
+    const boxFast = await items.nth(2).locator('.history-row').boundingBox();
+    const cyFast = boxFast.y + boxFast.height / 2;
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: boxFast.x + boxFast.width - 20, y: cyFast }] });
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: boxFast.x + boxFast.width - 90, y: cyFast + 7 }] });
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: boxFast.x - 60, y: cyFast + 7 }] });
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await expect(items).toHaveCount(2);
+    // 페이드 인이 시작된 뒤(클래스 부여 확인) 터치 탭 한 번에 취소되어야 한다
+    await expect(page.locator('#historyUndoToast')).toHaveClass(/visible/);
+    const undoBox = await page.locator('#btnUndoDelete').boundingBox();
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: undoBox.x + undoBox.width / 2, y: undoBox.y + undoBox.height / 2 }] });
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await expect(items).toHaveCount(3);
+    await expect(page.locator('#historyUndoToast')).toBeHidden();
+
     // 다시 끝까지 밀고 3초 기다리면 실제로 삭제된다
     const box3 = await items.nth(2).locator('.history-row').boundingBox();
     const cy3 = box3.y + box3.height / 2;
@@ -519,27 +552,34 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('hearttune_history_v1')).length);
     expect(stored).toBe(2);
 
-    // 전체 삭제: 확인 취소 시 유지, 확인 시 비워짐
-    page.once('dialog', (dialog) => {
-      expect(dialog.message()).toBe('측정 이력을 모두 삭제하시겠습니까?');
-      dialog.dismiss();
-    });
+    // 전체 삭제: 앱 톤 확인 다이얼로그 — 취소 시 유지, 확인 시 비워짐
     await page.locator('#btnClearHistory').click();
+    await expect(page.locator('#confirmBackdrop')).toHaveClass(/open/);
+    await expect(page.locator('#confirmMessage')).toContainText('모두 삭제');
+    await page.locator('#confirmCancel').click();
+    await expect(page.locator('#confirmBackdrop')).not.toHaveClass(/open/);
     await expect(items).toHaveCount(2);
-    page.once('dialog', (dialog) => dialog.accept());
     await page.locator('#btnClearHistory').click();
+    await expect(page.locator('#confirmBackdrop')).toHaveClass(/open/);
+    await page.locator('#confirmOk').click();
+    await expect(page.locator('#confirmBackdrop')).not.toHaveClass(/open/);
     await expect(items).toHaveCount(0);
     await expect(page.locator('#historyList .history-empty')).toBeVisible();
   });
 
-  test('10. 법적 고지 시트에 개인정보 처리방침(서버 없음, 기기 내 저장) 표시', async ({ page }) => {
+  test('10. 법적 고지 시트: 개인정보 처리방침(휴대폰 안 처리·최대 100건·직접 삭제) 표시', async ({ page }) => {
     await page.goto('./');
     await page.locator('#btnMenu').click();
     await page.locator('#menuLegal').click();
     await expect(page.locator('#legalSheet')).toHaveClass(/open/);
     await expect(page.locator('#legalSheet .privacy-title')).toHaveText('개인정보 처리방침');
-    await expect(page.locator('#legalSheet')).toContainText('서버가 없어');
+    await expect(page.locator('#legalSheet')).toContainText('휴대폰의 브라우저 안에서');
     await expect(page.locator('#legalSheet')).toContainText('휴대폰 밖으로 전송되지 않습니다');
+    await expect(page.locator('#legalSheet')).toContainText('최대 100건');
+    await expect(page.locator('#legalSheet .privacy-list')).toBeVisible();
+    await expect(page.locator('#legalSheet')).toContainText('직접 삭제');
+    // 웹앱이므로 "서버가 없다"는 부정확한 문구는 쓰지 않는다.
+    await expect(page.locator('#legalSheet')).not.toContainText('서버가 없');
   });
 
   test('9. 측정이력: 항목 선택 시 측정 결과 화면을 그대로 다시 보기', async ({ page }) => {
@@ -583,7 +623,59 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
       page.waitForEvent('download'),
       page.locator('#btnHistoryDetailShare').click()
     ]);
-    expect(download.suggestedFilename()).toMatch(/^HeartTune_80bpm_\d+\.png$/);
+    expect(download.suggestedFilename()).toMatch(/^HeartTune_\d{8}_\d{6}\.png$/);
+  });
+
+  test('14. 설정(측정 시간·카메라 방향)이 localStorage에 저장되어 재접속 시 유지된다', async ({ page }) => {
+    await page.goto('./');
+    await page.locator('#btnSettings').click();
+    await page.locator('.dur-btn[data-duration="60"]').click();
+    await page.locator('.cam-btn[data-facing="user"]').click();
+    // 카메라 선택 카드 2장(후면·전면 와이어 이미지)이 모두 크게 표시된다.
+    await expect(page.locator('.camera-option img')).toHaveCount(2);
+    await expect(page.locator('.cam-btn[data-facing="user"] img')).toBeVisible();
+    await page.locator('#settingsSheet [data-sheet-close]').click();
+
+    await page.reload();
+    await expect(page.locator('.dur-btn[data-duration="60"]')).toHaveClass(/active/);
+    await expect(page.locator('.cam-btn[data-facing="user"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('#timerBadge')).toHaveText('01:00');
+    const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('hearttune_settings_v1')));
+    expect(saved.durationSec).toBe(60);
+    expect(saved.facingMode).toBe('user');
+    // 초기화면 와이어는 전면 카메라 설정에 맞는 이미지로 바뀐다.
+    await expect(page.locator('.finger-guide-art[data-facing-art="user"]')).toBeVisible();
+  });
+
+  test('13. 시트 손잡이 드래그: 살짝 끌면 제자리로, 충분히 끌면 닫힌다', async ({ page }) => {
+    await page.goto('./');
+    await page.locator('#btnSettings').click();
+    const sheet = page.locator('#settingsSheet');
+    await expect(sheet).toHaveClass(/open/);
+    // 슬라이드 인 애니메이션이 끝난 뒤 손잡이 좌표를 잡는다.
+    await page.waitForTimeout(400);
+
+    const grab = page.locator('#settingsSheet .sheet-grab');
+    const box = await grab.boundingBox();
+    const cx = box.x + box.width / 2;
+    const cy = box.y + box.height / 2;
+
+    // 살짝만 끌면 시트가 그대로 유지된다
+    await page.mouse.move(cx, cy);
+    await page.mouse.down();
+    await page.mouse.move(cx, cy + 30, { steps: 4 });
+    await page.mouse.up();
+    await expect(sheet).toHaveClass(/open/);
+
+    // 충분히 아래로 끌면 닫힌다
+    const box2 = await grab.boundingBox();
+    const cx2 = box2.x + box2.width / 2;
+    const cy2 = box2.y + box2.height / 2;
+    await page.mouse.move(cx2, cy2);
+    await page.mouse.down();
+    await page.mouse.move(cx2, cy2 + 170, { steps: 8 });
+    await page.mouse.up();
+    await expect(sheet).not.toHaveClass(/open/);
   });
 
   test('12. 브라우저 뒤로가기: 자세히 보기 → 목록 → 시트 닫기 → 메인 초기화 (앱 밖으로 나가지 않음)', async ({ page }) => {
@@ -608,10 +700,95 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     await page.goBack();
     await expect(page.locator('#historySheet')).not.toHaveClass(/open/);
 
-    // 메인에서 뒤로가기 → 앱 주소로 초기 화면 (앱을 벗어나지 않음)
+    // 메인에서 뒤로가기 → 확인 팝업 없이 그대로 앱 밖으로 나간다(새 탭의 이전 문서 = about:blank)
     await page.goBack();
-    await expect(page.locator('#btnMenu')).toBeVisible({ timeout: 15000 });
-    expect(page.url()).toBe(appUrl);
-    await expect(page.locator('#historySheet')).not.toHaveClass(/open/);
+    await page.waitForURL('about:blank', { timeout: 5000 });
+  });
+
+  test('15. 시트 본문 드래그: 빈 영역을 아래로 쓸어내리면 닫힘(버튼은 기능 우선)', async ({ page }) => {
+    await page.goto('./');
+    await page.locator('#btnSettings').click();
+    const sheet = page.locator('#settingsSheet');
+    await expect(sheet).toHaveClass(/open/);
+    // 슬라이드 인 애니메이션이 끝난 뒤 좌표를 잡는다.
+    await page.waitForTimeout(400);
+
+    // 조작 요소(측정 시간 버튼)에서 시작한 아래 드래그는 시트를 닫지 않는다(기능 우선)
+    const durBtn = page.locator('.dur-btn[data-duration="30"]');
+    const durBox = await durBtn.boundingBox();
+    const dx = durBox.x + durBox.width / 2;
+    const dy = durBox.y + durBox.height / 2;
+    await page.mouse.move(dx, dy);
+    await page.mouse.down();
+    await page.mouse.move(dx, dy + 170, { steps: 8 });
+    await page.mouse.up();
+    await expect(sheet).toHaveClass(/open/);
+
+    // 액션이 아닌 영역(헤더 제목)에서 아래로 끌면 시트가 닫힌다
+    const title = page.locator('#settingsSheetTitle');
+    const titleBox = await title.boundingBox();
+    const tx = titleBox.x + 6;
+    const ty = titleBox.y + titleBox.height / 2;
+    await page.mouse.move(tx, ty);
+    await page.mouse.down();
+    await page.mouse.move(tx, ty + 170, { steps: 8 });
+    await page.mouse.up();
+    await expect(sheet).not.toHaveClass(/open/);
+  });
+
+  test('16. 시트 본문 드래그: 스크롤된 목록에서는 내부 스크롤이 우선한다', async ({ page }) => {
+    await page.addInitScript(() => {
+      const items = [];
+      for (let i = 0; i < 8; i += 1) {
+        items.push({
+          id: `ht_${i}`,
+          timestamp: new Date(2026, 9, 20 + i, 9, 5, 3).getTime(),
+          bpm: 62 + i * 3,
+          status: 'normal',
+          irregular: false,
+          quality: 80,
+          duration: 30,
+          waveform: [0, 1, 0, -1]
+        });
+      }
+      localStorage.setItem('hearttune_history_v1', JSON.stringify(items));
+    });
+    await page.setViewportSize({ width: 390, height: 700 });
+    await page.goto('./');
+    await page.locator('#btnMenu').click();
+    await page.locator('#menuHistory').click();
+    const sheet = page.locator('#historySheet');
+    await expect(sheet).toHaveClass(/open/);
+    await page.waitForTimeout(400);
+
+    // 이력 목록(실제 스크롤 컨테이너)을 맨 아래까지 스크롤한다 — 스크롤 가능성 자체도 검증
+    const scrolled = await page.evaluate(() => {
+      const list = document.querySelector('#historySheet .history-list');
+      list.scrollTop = list.scrollHeight;
+      return list.scrollTop;
+    });
+    expect(scrolled).toBeGreaterThan(0);
+
+    // 스크롤된 목록 '안'의 빈 영역(마지막 두 행 사이 간격)에서 아래로 드래그해도
+    // 시트가 닫히지 않는다(내부 스크롤 우선)
+    const gap = await page.evaluate(() => {
+      const items = document.querySelectorAll('#historySheet .history-list .history-item');
+      const a = items[items.length - 2].getBoundingClientRect();
+      const b = items[items.length - 1].getBoundingClientRect();
+      return { x: a.left + a.width / 2, y: (a.bottom + b.top) / 2 };
+    });
+    await page.mouse.move(gap.x, gap.y);
+    await page.mouse.down();
+    await page.mouse.move(gap.x, gap.y + 170, { steps: 8 });
+    await page.mouse.up();
+    await expect(sheet).toHaveClass(/open/);
+  });
+
+  test('17. 초기화면 접속 직후 뒤로가기: 확인 없이 바로 앱 밖으로 종료', async ({ page }) => {
+    await page.goto('./');
+
+    // 뒤로가기 → 종료 확인 팝업 없이 그대로 앱 밖으로(이전 문서 = about:blank)
+    await page.goBack();
+    await page.waitForURL('about:blank', { timeout: 5000 });
   });
 });
