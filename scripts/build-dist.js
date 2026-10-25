@@ -43,6 +43,23 @@ const RUNTIME_FILES = [
 
 const SW_CACHE_PATTERN = /const CACHE_NAME = '[^']*';/;
 
+/**
+ * 빌드 해시를 주입해야 하는 "텍스트 자산" 목록.
+ *
+ * RUNTIME_FILES 에서 확장자로 **자동 파생**한다. 별도 목록을 손으로 관리하면
+ * 새 파일을 RUNTIME_FILES 에만 추가하고 여기에는 빠뜨리는 사고가 난다.
+ * (2026-10-25 실제 사고: detail-view.js 가 RUNTIME_FILES·sw.js ASSETS·운영 스모크에는
+ *  모두 있었지만 이 목록에만 없어서 운영 스모크가 영구 실패했다.)
+ */
+const TEXT_ASSET_PATTERN = /\.(?:js|css)$/;
+
+function getTextAssets() {
+  return RUNTIME_FILES.filter((relPath) => TEXT_ASSET_PATTERN.test(relPath));
+}
+
+/** manifest.webmanifest 는 JSON 이라 주석 대신 _build 필드로 해시를 넣는다. */
+const MANIFEST_FILE = 'manifest.webmanifest';
+
 function ensureCleanDir(dirPath) {
   if (fs.existsSync(dirPath)) {
     fs.rmSync(dirPath, { recursive: true, force: true });
@@ -64,13 +81,22 @@ function copyRuntimeFiles() {
   }
 }
 
-/** 런타임 파일 내용을 정렬해 합친 뒤 짧은 빌드 해시를 만든다. */
+/**
+ * 런타임 파일 내용을 정렬해 합친 뒤 짧은 빌드 해시를 만든다.
+ *
+ * 빌드 스크립트(이 파일) 자신도 해시 입력에 포함한다.
+ * 스크립트만 바뀌면(예: 자산에 주입하는 내용이 바뀌면) 산출물이 달라지는데,
+ * 해시가 그대로면 "같은 해시 · 다른 내용"인 두 산출물이 생겨
+ * 운영 스모크(이관 ③)가 신/구버전을 구분하지 못한다 — 2026-10-25 사고가 정확히 이 상태였다.
+ */
 function computeBuildHash() {
   const hash = crypto.createHash('sha256');
   for (const relPath of [...RUNTIME_FILES].sort()) {
     hash.update(relPath);
     hash.update(fs.readFileSync(path.join(ROOT_DIR, relPath)));
   }
+  hash.update('scripts/build-dist.js');
+  hash.update(fs.readFileSync(path.join(ROOT_DIR, 'scripts/build-dist.js')));
   return hash.digest('hex').slice(0, 8);
 }
 
@@ -141,21 +167,9 @@ function injectBuildVersion(buildHash) {
  * 파일 시간(Last-Modified)이나 1회용 심볼(createCameraController) 대신 내용 기반 판별로 지속 가능.
  */
 function injectBuildHashIntoAssets(buildHash) {
-  const textAssets = [
-    'src/main.css',
-    'src/main.js',
-    'src/dsp.js',
-    'src/i18n.js',
-    'src/features/camera.js',
-    'src/features/result-indicators.js',
-    'src/features/sheets.js',
-    'src/features/storage.js',
-    'src/features/share.js',
-    'sw.js'
-  ];
-
   const marker = `hearttune-build: ${buildHash}`;
-  for (const relPath of textAssets) {
+
+  for (const relPath of getTextAssets()) {
     const filePath = path.join(DIST_DIR, relPath);
     let content = fs.readFileSync(filePath, 'utf8');
     if (!content.includes(marker)) {
@@ -164,16 +178,67 @@ function injectBuildHashIntoAssets(buildHash) {
     }
   }
 
-  // manifest.webmanifest는 JSON이므로 주석을 쓸 수 없어 필드로 주입
-  const manifestPath = path.join(DIST_DIR, 'manifest.webmanifest');
+  // manifest.webmanifest는 JSON이므로 주석을 쓸 수 없어 필드로 주입.
+  // 주입에 실패하면 운영 스모크가 영구 실패하므로 경고로 넘기지 않고 빌드를 중단한다.
+  const manifestPath = path.join(DIST_DIR, MANIFEST_FILE);
+  let data;
   try {
-    const raw = fs.readFileSync(manifestPath, 'utf8');
-    const data = JSON.parse(raw);
-    data._build = buildHash;
-    fs.writeFileSync(manifestPath, JSON.stringify(data, null, 2) + '\n', 'utf8');
+    data = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
   } catch (e) {
-    console.warn(`[build-dist] manifest 주입 실패 (무시): ${e.message}`);
+    throw new Error(`${MANIFEST_FILE} 를 JSON 으로 읽지 못해 빌드 해시를 주입할 수 없습니다: ${e.message}`);
   }
+  data._build = buildHash;
+  fs.writeFileSync(manifestPath, JSON.stringify(data, null, 2) + '\n', 'utf8');
+}
+
+/**
+ * dist/ 안의 "해시가 있어야 하는" 텍스트 자산을 실제 산출물에서 열거한다.
+ * 주입 목록(getTextAssets)이 아니라 **dist 자체**를 기준으로 삼아야
+ * "주입 목록에서 파일이 빠진" 사고를 잡아낼 수 있다(목록을 기준으로 검증하면 자기 자신을 검증하는 셈).
+ */
+function listDistTextAssets(dir = DIST_DIR, prefix = '') {
+  const found = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const relPath = prefix ? `${prefix}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) {
+      found.push(...listDistTextAssets(path.join(dir, entry.name), relPath));
+    } else if (TEXT_ASSET_PATTERN.test(entry.name) || relPath === MANIFEST_FILE) {
+      found.push(relPath);
+    }
+  }
+  return found.sort();
+}
+
+/**
+ * 주입 누락 자기검사.
+ *
+ * "빌드에는 해시가 없는데 운영 스모크는 그 자산에 해시를 요구"하는 상태를
+ * 개발 단계(`npm run build` = Dev CI 검증 ③)에서 즉시 실패시킨다.
+ * 이 검사가 없으면 문제가 운영 이관 ③에서야 드러나고, 그때는 이미 운영 저장소에
+ * 커밋이 반영된 뒤라 "이관은 됐는데 실패로 보이는" 거짓 실패가 된다(2026-10-25 사고).
+ */
+function verifyBuildHashInjection(buildHash) {
+  const marker = `hearttune-build: ${buildHash}`;
+  const distAssets = listDistTextAssets();
+  // manifest 는 주석을 쓸 수 없어 _build 필드로 넣으므로 아래에서 따로 검사한다.
+  const codeAssets = distAssets.filter((relPath) => relPath !== MANIFEST_FILE);
+
+  const missing = codeAssets.filter(
+    (relPath) => !fs.readFileSync(path.join(DIST_DIR, relPath), 'utf8').includes(marker)
+  );
+  if (missing.length > 0) {
+    throw new Error(
+      `빌드 해시(${buildHash})가 주입되지 않은 텍스트 자산: ${missing.join(', ')}\n` +
+        '  → 운영 스모크(이관 ③)가 이 자산에서 실패합니다. 주입 대상 선정(getTextAssets)을 확인하세요.'
+    );
+  }
+
+  const manifest = JSON.parse(fs.readFileSync(path.join(DIST_DIR, MANIFEST_FILE), 'utf8'));
+  if (manifest._build !== buildHash) {
+    throw new Error(`${MANIFEST_FILE} 의 _build 가 기대 빌드 해시(${buildHash})와 다릅니다.`);
+  }
+
+  return distAssets.length;
 }
 
 function build() {
@@ -183,6 +248,7 @@ function build() {
   const buildHash = computeBuildHash();
   injectBuildVersion(buildHash);
   injectBuildHashIntoAssets(buildHash);
+  const hashedAssets = verifyBuildHashInjection(buildHash);
 
   const indexHtml = fs.readFileSync(path.join(DIST_DIR, 'index.html'), 'utf8');
   verifyRelativePaths(indexHtml);
@@ -192,7 +258,9 @@ function build() {
   fs.writeFileSync(path.join(DIST_DIR, '.nojekyll'), '', 'utf8');
 
   console.log(
-    `[build-dist] 성공: ${RUNTIME_FILES.length}개 파일 · 참조 자산 ${refCount}개 검증 · 빌드 ${buildHash} · 캐시 hearttune-cache-${buildHash}`
+    `[build-dist] 성공: ${RUNTIME_FILES.length}개 파일 · 참조 자산 ${refCount}개 검증 · ` +
+      `해시 주입 ${hashedAssets}개 + index.html/meta + manifest/_build · ` +
+      `빌드 ${buildHash} · 캐시 hearttune-cache-${buildHash}`
   );
 }
 

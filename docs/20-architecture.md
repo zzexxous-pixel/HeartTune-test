@@ -179,7 +179,7 @@ src/
     detail-view.js         ← 결과 상세·이력 상세·공유 이미지의 단일 뷰모델 (2026-10-22)
     result-indicators.js   ← 결과 지표 플래그·신호 품질 경계 계산
 scripts/
-  build-dist.js            ← dist 빌드 + 버전 자동화
+  build-dist.js            ← dist 빌드 + 버전 자동화 + 해시 주입 자기검사
   serve.js                 ← 의존성 없는 정적 서버
 tests/
   dsp.test.js              ← DSP 단위·회귀 18개 (Node)
@@ -198,6 +198,7 @@ tests/
 
 **주의**
 - 새 파일을 추가하면 `sw.js` 의 `ASSETS` 와 `scripts/build-dist.js` 의 `RUNTIME_FILES` **양쪽**에 등록해야 한다. (빌드가 누락을 검사해 실패시켜 준다)
+  - 등록은 **이 두 곳이면 끝**이다. 빌드 해시 주입 대상은 `RUNTIME_FILES` 에서 확장자로 자동 파생되고, 운영 스모크(이관 ③)의 자산 목록은 배포 산출물에서 자동 열거된다. 별도 목록을 손으로 만들지 말 것(2026-10-25 사고, `docs/40` 8-2절).
 - `index.html` 이 `./` 상대경로로만 자산을 참조해야 GitHub Pages 하위 경로에서 동작한다.
 
 ---

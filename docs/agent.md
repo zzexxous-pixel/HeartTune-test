@@ -5,8 +5,8 @@
 > 5~7절(현재 상태 / 할 일 / 미결정)을 확인하고 작업을 시작하세요.
 > 대화 기록은 사라져도 이 문서와 저장소(코드·PR·커밋)는 남습니다. **여기가 유일한 기억입니다.**
 
-- 최종 갱신: 2026-10-24 (KST) — PR #6 프리뷰 피드백 9차·실측 CSV 점검·문서 전수 정비 반영
-- 갱신자: Arena 에이전트 세션 `arena/2644a98f-hearttune-test` (Stitch 리디자인 + 피드백 반영)
+- 최종 갱신: 2026-10-25 (KST) — 운영 이관 ③ 거짓 실패(자산 빌드 해시 주입 누락) 원인 분석·수정
+- 갱신자: Arena 에이전트 세션 `arena/dc990928-hearttune-test` (운영 이관 오류 대응)
 - 저장소: `zzexxous-pixel/HeartTune-test` (개발) / `zzexxous-pixel/HeartTune` (운영)
 
 ---
@@ -114,7 +114,7 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
    ⓪ confirm=PROMOTE 검사
    ① 동일 검증 재수행 (verify.yml)
    ② 통과한 dist/ 만 HeartTune(main) 으로 push (PAT)
-   ③ 운영 URL 스모크 테스트 (기대 빌드 해시 + 자산 10종 + 구버전 판별, 10분 폴링/timeout 20분)
+   ③ 운영 URL 스모크 테스트 (기대 빌드 해시 + 산출물에서 자동 열거한 자산 12종 + 구버전 판별, 10분 폴링/timeout 20분)
    ▼
 [운영] HeartTune (main) → https://zzexxous-pixel.github.io/HeartTune/
 ```
@@ -181,14 +181,15 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
 | 최신 main 커밋 | `fded047` (PR #3 머지 완료) | git log --oneline -5 | 2026-10-19 |
 | DSP·표시 기준 단위·회귀 | 24 / 24 통과(dsp 18+세부 6) | npm run test:unit | 2026-10-24 |
 | Playwright E2E | PR #6 18/18 통과(9차 DSP 오탐 수정 반영 `a493d73`); 로컬은 브라우저 라이브러리 부재로 미실행 | PR #6 Checks (verify ②) | 2026-10-24 |
-| i18n 키 | 135개, ko/en 일치 | npm run test:i18n | 2026-10-23 |
-| 개발 배포 빌드 | `b5ad15d2` 서빙 중 | 개발 Pages 빌드 메타 확인 | 2026-10-19 |
-| dist 빌드 | 21개 파일(아이콘 5종·.nojekyll 포함), 빌드 해시 자동(9차 빌드 `62f060c9`) | npm run build | 2026-10-24 |
+| i18n 키 | 132개, ko/en 일치 | npm run test:i18n | 2026-10-25 |
+| 개발 배포 빌드 | ⚠️ 미확인(샌드박스에서 github.io 접근 불가) | 개발 Pages 빌드 메타 확인 | — |
+| dist 빌드 | 21개 파일(아이콘 5종·.nojekyll 포함), 빌드 해시 자동(수정 후 `f5fa663d`), 해시 주입 12개 + 자기검사 | npm run build | 2026-10-25 |
 | 워크플로 | ci / verify / promote-to-production / preview-pr (PR #4 최신 코드 `/preview/` 배포 성공; main 루트 유지 확인) | [성공 run 39381191596](https://github.com/zzexxous-pixel/HeartTune-test/actions/runs/39381191596) | 2026-10-20 |
 | ① Dev CI (main) | success | Actions 탭 | 2026-10-19 |
 | ② Promote | ✅ 첫 이관 성공 (Re-run 1회로 성공) | Actions → ② 실행 이력 | 2026-10-19 |
-| 운영 배포 | ✅ 서빙 중 — https://zzexxous-pixel.github.io/HeartTune/ · 빌드 91282438 (`<meta name="hearttune-build" content="91282438">` 확인) | 운영 URL 소스에서 meta hearttune-build 확인 | 2026-10-19 |
-| 이관 ③ 로직 | ✅ 개선 완료(지속 체계) — 빌드 해시 판정 / 10분 폴링·진단 로그 / 자산 10종 각 1분 재시도 + 내용 해시 검증(모든 자산에 `hearttune-build` 주입, 시간 미의존) / Summary Re-run 안내 / timeout-minutes 20 | `scripts/build-dist.js`·`promote-to-production.yml`·docs/40 8-1절 | 2026-10-19 |
+| 운영 배포 | ✅ 서빙 중 — https://zzexxous-pixel.github.io/HeartTune/ · 빌드 `62f060c9` (운영 index.html meta 확인, 운영 저장소 커밋 `d2284ff`) | gh api repos/OWNER/HeartTune/contents/index.html | 2026-10-25 |
+| 이관 ③ 로직 | ✅ 지속 체계 — 빌드 해시 판정 / 10분 폴링·진단 로그 / **자산 목록 자동 열거(현재 12종)** 각 1분 재시도 + 내용 해시 검증 / **산출물 사전 점검** / Summary Re-run 안내 / timeout-minutes 20 | `scripts/build-dist.js`·`promote-to-production.yml`·docs/40 8-1·8-2절 | 2026-10-25 |
+| 이관 ③ 실패(2026-10-25) | ✅ 원인 규명·수정 — `build-dist.js` 해시 주입 목록에 `detail-view.js` 누락(거짓 실패). 주입 목록 자동 파생 + 빌드 자기검사 + 스모크 사전 점검으로 재발 방지. **운영 서비스에는 영향 없음**(정상 빌드 서빙 중) | docs/40 8-2절 | 2026-10-25 |
 | 개발 Pages Source | `GitHub Actions` (workflow) | 저장소 Pages 설정 | 2026-10-19 |
 | 운영 Pages Source | ✅ Deploy from a branch / main / (root) | gh api repos/OWNER/HeartTune/pages --jq .source | 2026-10-19 |
 | 실측(실제 카메라) 튜닝 | ❌ 미완 — 사용자 실기기 확인 대기 | — | 2026-10-19 |
@@ -203,7 +204,9 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
 3. **불필요한 다운로드** → `npx --yes serve` 제거, `scripts/serve.js`(의존성 0) 사용.
 4. **캐시 수동 관리** → 빌드 해시로 `CACHE_NAME` 자동 교체.
 5. **이관 ③ 스모크 불안정 (2026-10-19 개선 → 2026-10-19 지속 체계)** — "오늘심박" 문구 판정은 이전 빌드와 구분 불가 + Pages 전파 지연으로 5분 폴링 부족 + 자산 일시 404 + 구버전 서빙 미감지(시간/Last-Modified로는 구분 불가).
-   → 빌드 해시(`hearttune-build` 메타) 판정 / 10분 폴링·현재 빌드/README 진단 로그 / 자산 10종 각 1분 재시도 + **모든 자산 내용에 동일 해시 주입으로 신/구버전 판별**(`build-dist.js`가 JS/CSS/sw.js에 `/* hearttune-build: 해시 */`, manifest에 `_build` 필드 주입) / 실패 시 Summary에 "이관 ②는 이미 완료됐을 수 있음 + Re-run failed jobs 안내" / timeout 20분. 상세는 `docs/40-deployment-guide.md` 8-1절.
+   → 빌드 해시(`hearttune-build` 메타) 판정 / 10분 폴링·현재 빌드/README 진단 로그 / 모든 텍스트 자산 각 1분 재시도 + **모든 자산 내용에 동일 해시 주입으로 신/구버전 판별**(`build-dist.js`가 JS/CSS/sw.js에 `/* hearttune-build: 해시 */`, manifest에 `_build` 필드 주입) / 실패 시 Summary에 "이관 ②는 이미 완료됐을 수 있음 + Re-run failed jobs 안내" / timeout 20분. 상세는 `docs/40-deployment-guide.md` 8-1절.
+6. **이관 ③ 거짓 실패 (2026-10-25 해결)** — 운영이 정상 배포됐는데 ③이 빨간색. `detail-view.js` 가 `RUNTIME_FILES`·`sw.js ASSETS`·스모크 목록에는 있는데 **해시 주입 목록(`textAssets`)에만 없어서** 구조적으로 통과 불가능했다. 같은 자산 목록이 4곳에 흩어져 있던 것이 근본 원인.
+   → ① 주입 목록을 `RUNTIME_FILES` 에서 확장자로 **자동 파생** ② 빌드가 **`dist/` 를 실제로 훑어** 누락 시 실패(Dev CI 검증 ③에서 차단) ③ 스모크 자산 목록을 **산출물에서 자동 열거** ④ 원격 확인 전 **사전 점검**으로 "운영 문제 vs 빌드 문제"를 즉시 구분 ⑤ 빌드 해시 입력에 `build-dist.js` 자신을 포함해 "같은 해시 · 다른 내용"을 차단. 상세는 `docs/40` 8-2절.
 
 ---
 
@@ -220,7 +223,10 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
 | 0e | P1 | 2차 피드백 9건 반영 `/preview/` 재확인 | ✅ 구현 완료(2026-10-22): 설치 배너+설정 설치 버튼, SW updateViaCache:'none', 설정 localStorage 저장, 매니페스트 아이콘 맥박 라인, 저장 중→완료 플로팅+이미지 열기, 안내 3번 인라인 칩, 법적 고지 문두 정리, 두 번 뒤로가기 종료, 손가락 와이어 사용자 제공 PNG(메시지창 항상+설정 시트). 사용자 재확인 대기 |
 | 0d | P1 | 피드백 13건 반영 `/preview/` 재확인 | ✅ 구현 완료(2026-10-22): ①공유/저장 분리 ②공유 이미지=자세히 보기 동일 레이아웃(`detail-view.js` 단일 소스) ③상세 여백 통일 ④추세 곡선+다크 카드 ⑤시트 손잡이 드래그 닫기 ⑥휴지통 아이콘 ⑦CTA [공유] 텍스트 ⑧안내 100건 ⑨띄어쓰기 ⑩법적 고지 재구성 ⑪첫 방문 손가락 와이어 ⑫카메라 버튼 아이콘 ⑬안내 1·3번 갱신. 로컬 lint/i18n 127/unit 21/build 통과, PR CI 전부 통과, `/preview/` 배포(`980d040`). 사용자 재확인 대기 |
 | 1 | P1 | PR 미리보기 cleanup 실배포 확인 | PR #4 `/preview/` 배포와 main 루트 유지 확인 완료. 미병합 close 시 정리는 PR을 리뷰 중이므로 아직 실행하지 않음; 향후 미병합 PR 종료 시 `cleanup-preview` 확인 |
-| 2 | P1 | 이관 ③(smoke) 로직 개선 커밋 반영 | ✅ 완료(2026-10-19) — **지속 체계**: 빌드 해시 판정 / 10분 폴링·진단 로그 / 자산 10종(각 1분 재시도) + 모든 자산 내용에 `hearttune-build` 해시 주입(`build-dist.js`)으로 신/구버전 판별(시간 미의존) / Summary Re-run 안내 / timeout 20분 → `promote-to-production.yml`·`build-dist.js`·`docs/40` 8-1절 정리. PR 후 ② 재실행 시 안정성 검증 대기 |
+| 2 | P1 | 이관 ③(smoke) 로직 개선 커밋 반영 | ✅ 완료(2026-10-19) — **지속 체계**: 빌드 해시 판정 / 10분 폴링·진단 로그 / 모든 텍스트 자산(각 1분 재시도) + 모든 자산 내용에 `hearttune-build` 해시 주입(`build-dist.js`)으로 신/구버전 판별(시간 미의존) / Summary Re-run 안내 / timeout 20분 → `promote-to-production.yml`·`build-dist.js`·`docs/40` 8-1절 정리 |
+| 2b | **P0** | **수정 병합 후 ② Promote to Production 새로 실행** | ③이 초록으로 끝나는지 확인. **실패했던 run 40172601954 의 `Re-run failed jobs` 는 금지**(같은 산출물을 다시 내려받아 또 실패). 사용자 권한 필요(workflow_dispatch) |
+| 2c | P2 | 자산 목록 4번째 사본(`sw.js` `ASSETS`) 자동 검증 | 현재 빌드는 `RUNTIME_FILES` 에 있는 파일이 `dist/` 에 실제로 복사됐는지만 확인. `sw.js ASSETS` ↔ `dist/` 교차 검사는 미구현(누락 시 오프라인만 깨짐) |
+| 2d | P2 | 세션 로그(10절) 28건 → 20건 초과분 `docs/changelog-archive.md` 로 이관 | agent.md 11절 규칙 4번. 이번 작업에서는 diff 최소화를 위해 보류 |
 | 3 | P1 | 실기기(iOS/Android) 검증 결과 반영 | 원스크린 UI + 진입 카메라 미리보기가 iOS Safari/PWA에서도 동작하는지 확인 |
 | 4 | P1 | 실제 카메라 신호로 DSP 튜닝 | 디버그 콘솔 CSV 활용 |
 
@@ -270,7 +276,9 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
 - 새 파일은 `sw.js ASSETS` + `build-dist.js RUNTIME_FILES` **둘 다** 등록. 하나만 하면 오프라인/배포에서 404.
 - 개발 저장소 Pages가 `legacy`면 **테스트 실패 커밋도 화면에 배포**된다. `build_type` 확인.
 - 운영 저장소는 반대로 **브랜치 배포**를 써야 한다(설정을 개발/운영 혼동 주의).
-- **이관 ③(스모크) 실패 시**: 운영 저장소에 `release: ...` 커밋이 이미 생겼다면 이관 ②는 성공한 것 — Pages 전파 지연이므로 **Re-run failed jobs**로 ③만 재실행하면 된다(전체 재실행 불필요). 로그의 "현재 서빙 빌드 / README 감지"와 Summary 안내를 확인하라(8-1절).
+- **이관 ③(스모크) 실패 시**: **어느 스텝에서 실패했는지 먼저 본다.** `Wait for production URL`/자산 재시도 소진이면 Pages 전파 지연 → **Re-run failed jobs**(운영 저장소에 `release: ...` 커밋이 이미 있다면 ②는 성공). 반면 **`사전 점검`(`빌드 산출물 … 에 빌드 해시가 없습니다`)** 이면 빌드 문제이므로 **재실행은 무의미** — 코드를 고쳐 ②를 새로 실행한다(8-2절).
+- **자산 목록을 손으로 나열하지 마라**: 같은 목록이 `sw.js ASSETS` / `build-dist.js RUNTIME_FILES` / 해시 주입 / 스모크에 흩어져 있었다가 어긋나 2026-10-25 이관 ③이 거짓 실패했다. 지금은 주입 목록과 스모크 목록이 **자동 파생**이므로, 새 파일은 `RUNTIME_FILES`(+`sw.js ASSETS`)에만 넣으면 된다.
+- **"같은 해시 · 다른 내용" 주의**: 빌드 해시는 런타임 파일 + `build-dist.js` 자신으로 계산한다. 빌드 스크립트만 고쳤는데 해시가 그대로라면 산출물 동일성 판정이 흔들린다.
 
 ### DSP
 - 단위 테스트는 **합성 신호**다. 합성 생성기의 중첩파 진폭(1.4)은 실제와 다를 수 있으므로, 실측 튜닝 시 지표를 그대로 신뢰하지 말 것.
@@ -337,6 +345,8 @@ npm run build                         # 배포 산출물 + 경로/자산 검증
 | 2026-10-24 | **사용자 첨부 실측 CSV 점검 — 부정맥 오탐 수정** — 화면 파형은 안정적인데 결과가 부정맥으로 나온 사례. 원시 PPG CSV 2건(30초·~15Hz)을 앱 파이프라인(node)으로 재현: 첫 ~3초 자동노출 안정화 요동(5→255→190대)의 가짜 피크가 IBI를 394~503ms로 뒤틀려 CV 0.16~0.23 오판(안정화 구간 제외 시 CV 0.046~0.059 정상). 수정: 카메라 측정 시작 3초 기록 제외 + evaluateRhythm MAD 기반 IBI 2차 정제(±3.5×MAD, 하한 40ms, 불규칙 리듬 보존). 유닛테스트 16~18번 신규 | 사용자 CSV 2건 정상 판정 교정 검증(BPM 78/77, CV 0.050/0.059). lint/i18n 132키/unit 24/build 21파일(`62f060c9`) 통과 → 푸시(`a493d73`) CI 전부 통과(E2E 18/18), `/preview/` 배포. 중간 샌드박스 리셋+python 줄바꿈(CRLF) 변형 발생 → git 원본 대상 바이트 단위 재적용으로 최소 diff(+76/-2) 복구 | 브랜치 `arena/2644a98f-hearttune-test`, PR #6 |
 | 2026-10-22 | **PR #6 프리뷰 2차 피드백 9건 반영** — PWA 설치 반투명 배너(세션 1회 숨김)+설정 시트 '앱 설치' 버튼, SW 등록 `updateViaCache:'none'`(방문마다 갱신 확인·해시 변경 시에만 자산 재다운로드), 설정(측정 시간·카메라) localStorage 저장, 매니페스트 아이콘에 맥박 폴리라인 추가(타이틀 아이콘과 동일), [저장] 저장 중→완료 플로팅(모든 플로팅 반투명)+저장 이미지 새 탭 열기, 안내 3번 [공유]/[저장] 인라인 칩(하단 칩 줄 제거), 법적 고지 '앱 접속 이후…'부터 시작, 메인 두 번 뒤로가기=종료(첫 번째 2초 안내), 손가락 와이어를 사용자 제공 PNG(후면·전면)로 교체 — 둥근 테두리 프레임, 대기 상태 항상 표시(첫 방문 게이트 제거)+설정 시트 카메라 블록에도 표시. 전역 `[hidden]` display 우선 규칙 추가 | lint/i18n 135키/unit 21/build 15파일 통과. E2E 15개(신규 14번 설정 저장·스왑, 12번 두 번 뒤로 종료로 갱신, 1번 PNG img+설치 배너 숨김). 첫 푸시(`ab9b400`)에서 설정 시트에 와이어를 넣던 정규식이 전면 카메라 버튼 마크업을 지워 E2E 실패 → HTML 태그 스택 검증 후 복구(`1a92135`) → CI 전부 통과(E2E 15/15), `/preview/` 배포 `1a92135`(빌드 `c802742f`) | 브랜치 `arena/2644a98f-hearttune-test`, PR #6 |
 | 2026-10-22 | **Stitch(Vital Serenity) 디자인 선별 적용** — 팔레트(크림슨/네이비/틸)·카드/필 버튼·다크 파형 모니터·시트 손잡이·자세히 보기 BPM 히어로+지표 행 목록·이력 정상범위 밴드/최저·평균·최고/저장 건수·공유 PNG 색 교체. 레이아웃 치수·DSP·기능 동작은 불변. 제외 항목과 이유는 `docs/60` 7절 | lint/i18n 119/unit 18/build 로컬 통과. E2E는 샌드박스 브라우저 라이브러리 부재로 PR CI에서 실행 → 13/13 통과(통계 스트립으로 목록 가시 영역이 줄어 실패한 8번을 그래프 150→118px 축소로 수정). `/preview/` 배포 성공(빌드 `8b7250af`) | 브랜치 `arena/2644a98f-hearttune-test`, PR #6 |
+
+| 2026-10-25 | **운영 이관 ③ 거짓 실패 원인 분석·수정** — ② Promote([run 40172601954](https://github.com/zzexxous-pixel/HeartTune-test/actions/runs/40172601954))가 ⓪·①·② 모두 성공 후 **③에서만** 실패(`src/features/detail-view.js 자산이 60초 내 기대 빌드(62f060c9)를 서빙하지 않았습니다`). 실제 운영은 정상(운영 index.html 이 `62f060c9` 서빙, 자산 12종 200, release 커밋 `d2284ff`). 원인: `build-dist.js` 의 하드코딩 `textAssets` 에만 `detail-view.js` 가 빠져 **해시 주석이 주입되지 않았고**, 2026-10-24 스모크 자산 목록에 이 파일을 추가하면서 **구조적으로 통과 불가능한 검사**가 만들어짐(자산 목록 4중 관리가 근본 원인). 수정: ① 주입 목록을 `RUNTIME_FILES` 확장자로 자동 파생 ② 빌드가 `dist/` 를 실제로 훑는 자기검사(누락 시 실패) ③ manifest 주입 실패를 경고→오류 ④ 빌드 해시 입력에 `build-dist.js` 자신 포함(같은 해시·다른 내용 방지) ⑤ 스모크 자산 목록을 `dist/` 에서 자동 열거 ⑥ 원격 확인 전 사전 점검으로 "빌드 문제"를 즉시 판별 | 로컬 lint/i18n 132키/unit 24/build 21파일(`f5fa663d`, 해시 주입 12개) 통과. 원버그 재현 네거티브 테스트(빌드 exit 1) + 스모크 스텝을 추출해 로컬 서버로 실행(정상 12/12 exit 0, 해시 제거 시 0.04초 exit 1) 검증. E2E는 UI 무변경으로 CI에 위임 | 브랜치 `arena/dc990928-hearttune-test` |
 
 > **로그 규칙**: 최신이 아래. 항목이 20개를 넘으면 오래된 것은 `docs/changelog-archive.md` 로 옮긴다.
 
