@@ -194,7 +194,7 @@ jobs:
           # (2026-10-25 사고: 이 목록과 build-dist.js 주입 목록이 달라 detail-view.js 가 영구 실패)
           mapfile -t assets < <(
             cd ./dist || exit 1
-            { find . -type f \( -name '*.js' -o -name '*.css' \); echo './manifest.webmanifest'; } \
+            find . -type f \( -name '*.js' -o -name '*.css' -o -name '*.webmanifest' \) \
               | sed 's|^\./||' | sort
           )
           if [ "${#assets[@]}" -eq 0 ]; then

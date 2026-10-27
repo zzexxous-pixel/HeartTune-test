@@ -11,19 +11,19 @@
 - **1페이지 SPA**: 프레임워크 없이 **Vanilla JS + ES Modules** (파일 구조는 5-9)
   - 이유: 카메라 API·Canvas·WebAudio 등 브라우저 네이티브 API가 핵심이라 프레임워크 이득이 적음. 번들 최소화가 중장년 사용자 로딩 속도에 유리
 - 카메라: `getUserMedia` + `torch: true` + `requestVideoFrameCallback` + `<canvas>` 프레임 분석
-- 신호처리: FFT는 직접 구현 또는 `fft.js` 등 경량 라이브러리
+- 신호처리: FFT는 `src/dsp.js`에 직접 구현
 - **모든 처리는 브라우저 내에서만 수행** — 서버 전송 없음 (개인정보 신뢰도 + 서버 비용 0)
 
 ## 5-2. i18n 구조 (다국어 확장 전제)
 ```
 src/i18n.js
-  └ dictionaries = { ko: {...}, en: {...} }   ← 현재 구현 (키 132개)
+  └ dictionaries = { ko: {...}, en: {...} }   ← 현재 구현 (키 127개)
     t('key') 로더 · 언어 감지(navigator.language, 기본 ko) · 전환 · localStorage 저장
     validateI18nKeyParity()  ← ko/en 키 집합 일치 검증 (CI 필수 통과 항목)
 
-  ▸ 언어를 추가할 때: dictionaries 에 `ja: {...}` 를 추가하고 키 집합을 맞추면 된다.
+  ▸ 언어를 추가할 때: 사전 추가 외에 언어 감지·설정 UI·숫자/날짜 포맷·키 검증 대상을 함께 확장해야 한다.
 ```
-- **원칙**: 화면 텍스트를 코드에 하드코딩 금지. 전부 `ko.json`/`en.json` 키로 참조
+- **원칙**: 화면 텍스트를 코드에 하드코딩 금지. 전부 `src/i18n.js`의 ko/en 사전 키로 참조
 - **키 네이밍**: `result.normal.title`, `result.tachy.desc`, `error.pressHarder` 처럼 **화면.영역.항목** 3단 구조
 - **플래시보팅 방지**: `<html lang>` 초기화 후 언어 팩 로드 완료 시 `body` 표시 (FOUC 방지)
 - 언어 감지: `navigator.language` → 없으면 `ko` 기본값
@@ -62,14 +62,14 @@ HeartTune (main) → GitHub Pages 자동 배포
 - 운영 이관은 `production` environment 로 기록되며, 필요 시 필수 리뷰어를 붙여 승인 게이트를 추가할 수 있다.
 
 **보안 주의**
-- 크로스 리포 push에는 **fine-grained PAT** 또는 **deploy key** 필요 → GitHub Secrets(`ACTIONS_DEPLOY_KEY`)에 저장, 코드에 절대 하드코딩 금지
+- 크로스 리포 push에는 현재 워크플로는 **fine-grained PAT** 사용 → GitHub Secrets(`ACTIONS_DEPLOY_PAT`)에 저장, 코드에 절대 하드코딩 금지
 - `HeartTune-test`는 **private**, `HeartTune`(배포용)만 public 권장
 
 ## 5-4. CI 체크 항목 (구현 완료)
 - [x] i18n **키 집합 일치** 검증 (누락 시 실패)
 - [x] 구문·모듈 lint (ESLint/Prettier 미도입 — `node --check` 기반)
-- [x] 신호처리·표시 기준 단위 테스트 24개 (dsp 18: 합성 PPG → BPM 회귀, 하모닉 혼동, 리듬 판정, 안정화·아티팩트 방어 + 세부 6)
-- [x] Playwright E2E 18개 (원스크린·아이콘/매니페스트·3영역 기하 고정·측정 플로우·이력 스와이프 삭제+취소·시트 드래그 닫기·설정 저장·법적 고지·뒤로가기 종료·디버그 등)
+- [x] 단위 테스트 33개 (DSP 18 + 상세 뷰모델·표시 지표 6 + 환경 4 + 실시간 정책 4 + 공유 마크 1)
+- [x] Playwright E2E 20개 (원스크린·아이콘/매니페스트·3영역 기하 고정·측정 플로우·이력 스와이프 삭제+취소·시트 드래그 닫기·설정 저장·법적 고지·뒤로가기 종료·디버그 등)
 - [x] 빌드 산출물 생성 + 경로/자산 검증 + 캐시 버전 자동화
 
 ## 5-5. 배포 호스팅 — ✅ 확정: GitHub Pages
@@ -82,27 +82,17 @@ HeartTune (main) → GitHub Pages 자동 배포
 
 ## 5-6. 반응형 설계 — 휴대폰 전용 (PC는 2026-09-11 제외 결정)
 
-**브레이크포인트 (안)** — 휴대폰 세로가 기본, 가로 회전만 보조
-| 구간 | 대상 | 레이아웃 |
-|---|---|---|
-| 기본 | 휴대폰 세로 | 1열. 탭바 하단, 카메라 미리보기 상단 |
-| landscape + 저높이 | 휴대폰 가로 | 카메라 16:9로 압축, 가이드 3열 |
-
-> PC 제외 이유: 플래시(torch) 부재, 후면 카메라 부재, 웹캠 초점거리 문제 등
-> 손가락 PPG의 광학 조건을 PC가 만족시키기 어렵다. → 5-8 참조
-
-**원칙**
-- **모바일 퍼스트** CSS (`min-width` 미디어쿼리로 확장)
-- 길이 단위: `rem` + `clamp()` 사용 → `font-size: clamp(3rem, 12vw, 5rem)` 식으로 화면 크기 따라 자동 조절
-- 뷰포트: `<meta name="viewport" content="width=device-width, initial-scale=1">` 필수
-- **가로/세로 회전 대응**: `orientation` 미디어쿼리로 회전 시 레이아웃 재배치
-- PC에서 창 크기를 줄여도 깨지지 않도록 **유동적 그리드** (`grid-template-columns: repeat(auto-fit, minmax(...))`)
+현재 코드는 헤더 → 링 → 파형 → 고정 메시지 → 하단 CTA의 100dvh 원스크린 구조다.
+카메라 미리보기는 54px 원형이며 하단 탭바·16:9 미리보기·3열 가이드는 사용하지 않는다.
+`max-width`·`max-height` 조건으로 작은 화면의 간격·문자 크기·링을 조정한다.
+시트 내부는 필요한 영역만 스크롤하며, PC 측정은 지원하지 않지만 마우스·키보드 입력은 유지한다.
+현행 UI가 모든 접근성 목표 치수를 충족한다는 의미는 아니다(10-spec 4-10절).
 
 ## 5-7. 입력 방식 — 마우스 + 터치 동시 지원
 
-**핵심 규칙: 클릭 계열 이벤트만 사용**
-- ✅ **`click` 이벤트만 사용** — 브라우저가 마우스 클릭과 터치를 모두 `click`으로 정규화하므로 **자동으로 둘 다 지원됨**
-- ❌ `mousedown` / `touchstart` 직접 사용 금지 → **이중 발화(double fire)** 버그 발생
+**핵심 규칙: 일반 활성화는 click, 제스처는 별도 경로**
+- ✅ **일반 버튼 활성화는 `click` 사용** — 브라우저가 마우스 클릭과 터치를 모두 `click`으로 정규화하므로 **자동으로 둘 다 지원됨**
+- 일반 버튼에 click과 터치 활성화를 중복 등록하지 않는다. 드래그·스와이프는 아래 명시된 Pointer/Touch 이중 경로를 유지한다.
 - ❌ `:hover`만으로 상태 표현 금지 → 터치 기기에는 hover가 없어 상태가 안 보임. **`:focus-visible` 병행 필수**
 
 **적용 사항**
@@ -119,7 +109,7 @@ HeartTune (main) → GitHub Pages 자동 배포
 - 손가락 PPG는 **후면 카메라**를 사용하므로, 측정 중 화면을 보며 조작할 수 없음
 - → 측정은 **시작 버튼 한 번**으로 완결되게 설계. 중간 조작(취소 등)은 **음성/진동/큰 소리**로 피드백하거나, 화면 가장자리에 큰 취소 영역 배치
 
-## 5-8. ⚠️ 크로스 디바이스 기술 이슈 (PC 지원으로 신규 발생)
+## 5-8. 카메라·브라우저 호환성
 
 #### ① 플래시(torch) — 가장 큰 문제
 - 손가락 PPG는 **강한 광원**이 필요해 보통 후면 플래시를 켭니다 (`track.applyConstraints({ advanced: [{ torch: true }] })`)
@@ -131,14 +121,14 @@ HeartTune (main) → GitHub Pages 자동 배포
   if (caps.torch) await track.applyConstraints({ advanced: [{ torch: true }] });
   ```
   로 **지원 여부 확인 후 켜기** (실패해도 측정은 계속)
-- ⚠️ `getCapabilities().torch`는 **Chrome/Edge(모바일 포함)만 지원**, Safari/Firefox는 미지원 → 미지원 시 안내 문구 필요
+- 토치 지원은 브라우저·기기별로 capability를 확인한다. 미지원 또는 제약 적용 실패 시 토치 없이 진행한다.
 - **조명 UI 없음**: 화면 조명·상단 안내·토치 미지원 경고는 노출하지 않는다. 후면 카메라는 측정 시작 때 토치를 켜고, 전면 카메라는 토치를 요청하지 않는다.
 
 #### ② 카메라 방향
 - 휴대폰: 후면 카메라(`facingMode: 'environment'`) — 표준
 - **PC/태블릿: 전면 웹캠만 있는 경우가 대부분** → `environment` 요구 시 실패
 - ✅ **해결**: `facingMode: environment`로 브라우저의 후면 기본 카메라를 요청하고, 설정에서는 전면/후면만 선택 가능. 다중 후면 렌즈 목록/선택 UI는 추가하지 않는다.
-- ⚠️ PC 웹캠은 **초점거리가 멀어** 손가락을 가까이 대면 초점이 안 맞을 수 있음 → "카메라에 손가락을 살짝 떨어뜨려 대보세요" 안내 필요. **PC는 정확도가 낮을 수 있음을 고지**
+- PC 웹캠 측정은 지원 대상이 아니다. 브라우저별 전면/후면 카메라 선택과 실패 처리를 확인한다.
 
 #### ③ 프레임 수집 API
 - `requestVideoFrameCallback`은 **Chrome/Edge/Safari 15.4+ 지원, Firefox 미지원**
@@ -146,8 +136,8 @@ HeartTune (main) → GitHub Pages 자동 배포
 
 #### ④ iOS Safari 특이사항
 - `playsinline` 속성 없으면 **전체화면으로 강제 전환**됨 → `<video playsinline muted autoplay>` 필수
-- 자동재생 정책: **사용자 제스처(버튼 클릭) 이후**에 `getUserMedia` 호출해야 함 → "측정 시작" 버튼 흐름과 자연스럽게 일치
-- PWA 설치 프롬프트 자동 표시 안 됨 → 수동 안내 배너 필요
+- 진입 시 `getUserMedia`로 토치 OFF 미리보기를 시도한다. 권한·자동재생·인라인 재생은 브라우저 정책의 영향을 받으며 실패 경로를 처리한다.
+- 설정 설치 버튼은 `beforeinstallprompt` 수신 시에만 노출한다. iOS 수동 안내 배너는 없다.
 
 #### ⑤ GitHub Pages 경로(base path)
 - 저장소가 `https://<계정>.github.io/HeartTune/` 처럼 **하위 경로**로 배포됨
@@ -162,16 +152,17 @@ HeartTune (main) → GitHub Pages 자동 배포
 ## 5-9. 파일 구조 (2026-10-19 분리)
 
 기존에는 `index.html` 한 파일(약 2,000줄)에 CSS/앱 로직이 모두 들어 있었다.
-이제 마크업만 남기고 역할별로 분리했다.
+앱 로직·스타일은 역할별로 분리했다. HTML에는 환경별 매니페스트 선택을 위한 head 초기화도 있다.
 
 ```
-index.html                 ← 마크업만 (약 560줄, 원스크린 + 바텀시트 6종)
+index.html                 ← 마크업·환경 경로 초기화(원스크린 + 바텀시트 6종)
 src/
   main.css                 ← 원스크린 레이아웃·시트·디버그 리사이즈
   main.js                  ← 앱 상태·이벤트·측정 오케스트레이션·시트 연결
   dsp.js                   ← 신호처리 순수 로직 (DOM 비의존 → Node 테스트 가능)
   i18n.js                  ← ko/en 사전 (브라우저 언어 자동 감지)
   features/
+    measurement-policy.js  ← 실시간 첫 분석 시점·표시 품질 게이트(최종 DSP와 분리)
     camera.js              ← getUserMedia·torch·전/후면 전환·진입 미리보기
     sheets.js              ← 바텀시트 열기/닫기·포커스 트랩·ESC
     storage.js             ← 측정 이력·캘리브레이션 (localStorage 키 관리)
@@ -185,7 +176,10 @@ tests/
   dsp.test.js              ← DSP 단위·회귀 18개 (Node)
   detail-view.test.js      ← 상세 뷰모델 단위
   result-indicators.test.js ← 지표 플래그·문구 매핑 단위
-  e2e/hearttune.spec.js    ← Playwright E2E 18개
+  measurement-policy.test.js ← 실시간 시점·표시 게이트
+  share-brand.test.js     ← PNG 마크 기하·그라데이션
+  environment.test.js     ← 환경 경로·설치 메타데이터 단위 4개
+  e2e/hearttune.spec.js    ← Playwright E2E 20개
 ```
 
 **분리 기준**
@@ -197,8 +191,10 @@ tests/
 | 앱 상태·이벤트·화면 갱신 | `src/main.js` |
 
 **주의**
-- 새 파일을 추가하면 `sw.js` 의 `ASSETS` 와 `scripts/build-dist.js` 의 `RUNTIME_FILES` **양쪽**에 등록해야 한다. (빌드가 누락을 검사해 실패시켜 준다)
+- 새 파일을 추가하면 `sw.js` 의 `ASSETS` 와 `scripts/build-dist.js` 의 `RUNTIME_FILES` **양쪽**에 등록해야 한다. (빌드는 복사 대상 존재·HTML 상대경로/직접 참조·산출물 해시를 검사한다. JS import와 SW 캐시 목록의 상호 일치는 수동 확인 필요)
   - 등록은 **이 두 곳이면 끝**이다. 빌드 해시 주입 대상은 `RUNTIME_FILES` 에서 확장자로 자동 파생되고, 운영 스모크(이관 ③)의 자산 목록은 배포 산출물에서 자동 열거된다. 별도 목록을 손으로 만들지 말 것(2026-10-25 사고, `docs/40` 8-2절).
 - `index.html` 이 `./` 상대경로로만 자산을 참조해야 GitHub Pages 하위 경로에서 동작한다.
 
 ---
+
+환경별 설치용 매니페스트는 `manifest.webmanifest`(운영), `manifest-dev.webmanifest`, `manifest-pre.webmanifest`다. 선택·경로·브랜딩은 `40-deployment-guide.md` 10절 참조.

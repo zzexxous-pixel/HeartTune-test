@@ -3,7 +3,7 @@
  * 오늘심박 (HeartTune) — 브라우저 로컬 저장소 계층
  *
  * 서버가 없는 앱이므로 측정 이력과 캘리브레이션(기저 심박수) 학습 데이터를
- * localStorage 에만 보관한다. (개인정보 리스크 0 / 오프라인 동작)
+ * localStorage 에만 보관한다. (브라우저 로컬 저장 / 오프라인 동작)
  *
  *  · hearttune_history_v1     : 측정 이력 (최대 100건)
  *  · hearttune_calibration_v1 : 신뢰도 높은 측정의 필터 대역 (최근 30건)

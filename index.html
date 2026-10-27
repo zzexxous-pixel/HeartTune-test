@@ -11,6 +11,19 @@
   <meta name="apple-mobile-web-app-title" content="오늘심박" />
   <title>오늘심박 - 심박수 측정기 | HeartTune - Heart Rate Monitor</title>
   <link rel="manifest" href="./manifest.webmanifest" />
+  <script id="environment-config">
+    // The same verified artifact is deployed to dev, preview and production.
+    // Match path segments, not substrings, so /HeartTune/ stays unchanged.
+    (() => {
+      const parts = location.pathname.split('/').filter(Boolean);
+      if (parts[0] !== 'HeartTune-test') return;
+      const environment = parts[1] === 'preview' ? 'pre' : 'dev';
+      document.documentElement.dataset.environment = environment;
+      document.querySelector('link[rel="manifest"]').setAttribute('href', `./manifest-${environment}.webmanifest`);
+      document.querySelector('meta[name="apple-mobile-web-app-title"]').content = `하루심박 ${environment}`;
+      document.title += ` ${environment}`;
+    })();
+  </script>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%23FF1053'/><stop offset='1' stop-color='%23350020'/></linearGradient></defs><rect width='100' height='100' rx='24' fill='url(%23g)'/><g transform='translate(9.61 12.03) scale(.8078)'><path d='M50 78 C50 78 20 56 20 35 C20 23 30 16 40 16 C46 16 50 20 50 25 C50 20 54 16 60 16 C70 16 80 23 80 35 C80 56 50 78 50 78 Z' fill='%23FFFFFF'/><polyline points='24,48 40,48 46,34 54,62 60,48 76,48' fill='none' stroke='%23B61C32' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'/></g></svg>" />
   <link rel="icon" type="image/png" sizes="192x192" href="./assets/icon-192.png" />
   <link rel="apple-touch-icon" href="./assets/apple-touch-icon.png" />
@@ -28,6 +41,8 @@
       <div id="appTitleTrigger" class="brand-trigger">
         <span class="brand-heart" aria-hidden="true"><svg viewBox="0 0 100 100" width="36" height="36"><defs><linearGradient id="brandBg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FF1053"/><stop offset="1" stop-color="#350020"/></linearGradient></defs><rect width="100" height="100" rx="26" fill="url(#brandBg)"/><g transform="translate(3.67 6.45) scale(.9266)"><path d="M50 78 C50 78 20 56 20 35 C20 23 30 16 40 16 C46 16 50 20 50 25 C50 20 54 16 60 16 C70 16 80 23 80 35 C80 56 50 78 50 78 Z" fill="#FFFFFF"/><polyline points="24,48 40,48 46,34 54,62 60,48 76,48" fill="none" stroke="#B61C32" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></g></svg></span>
         <span class="brand-title" data-i18n="app.brand.name">오늘심박</span>
+        <span class="environment-badge environment-dev">dev</span>
+        <span class="environment-badge environment-pre">pre</span>
       </div>
 
       <div class="header-actions">
@@ -128,7 +143,7 @@
 
   <div id="liveAlertBox" class="toast" role="alert" aria-live="assertive"></div>
 
-  <!-- 확인 다이얼로그 (앱 톤): 앱 종료 확인·이력 전체 삭제 확인 -->
+  <!-- 확인 다이얼로그 (앱 톤): 이력 전체 삭제 확인 -->
   <div id="confirmBackdrop" class="confirm-backdrop" aria-hidden="true">
     <div id="confirmDialog" class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmMessage" aria-hidden="true">
       <h2 id="confirmTitle">확인</h2>

@@ -655,7 +655,6 @@ export function analyzePpgSignal(uniformSignal, fs = TARGET_FS, options = {}) {
   });
 
   let candidateBpm = wideEstimate.bpm;
-  const crossDiff = Math.abs(wideFft.bpm - wideAutocorr);
 
   // 품질 점수: 스펙트럼 신뢰도 + 추정치 합의도(consensus)를 함께 반영
   const consensusBonus = wideEstimate.agreement >= 2 ? 30 : 10;

@@ -28,6 +28,7 @@ import { getHistoryPresentation } from './features/result-indicators.js';
 import { createSheetController } from './features/sheets.js';
 import { shareResultAsImage, downloadResultAsImage } from './features/share.js';
 import { buildDetailViewModel } from './features/detail-view.js';
+import { CAMERA_SIGNAL_WARMUP_SEC, LIVE_ANALYSIS_START_SEC, LIVE_ANALYSIS_INTERVAL_SEC, shouldAnalyzeLive, canDisplayLiveBpm } from './features/measurement-policy.js';
 
 const RING_CIRCUMFERENCE = 2 * Math.PI * 106;
 const DEBUG_MIN_HEIGHT = 200;
@@ -46,6 +47,7 @@ const state = {
   startTimeMs: 0,
   lastSampleMs: 0,
   lastAdaptiveTickSec: 0,
+  hasLiveBpm: false,
   rawSamples: [],
   frameHandle: null,
   usingRVFC: false,
@@ -98,7 +100,6 @@ const els = {
   resultTitle: document.getElementById('resultTitle'),
   resultDesc: document.getElementById('resultDesc'),
   resultShortNote: document.getElementById('resultShortNote'),
-  indicatorQualityState: document.getElementById('indicatorQualityState'),
   btnDetails: document.getElementById('btnDetails'),
   btnPrimaryMeasure: document.getElementById('btnPrimaryMeasure'),
   btnShareImage: document.getElementById('btnShareImage'),
@@ -138,11 +139,6 @@ const els = {
   guideSheet: document.getElementById('guideSheet'),
   legalSheet: document.getElementById('legalSheet'),
   detailsSheet: document.getElementById('detailsSheet'),
-  detailsDate: document.getElementById('detailsDate'),
-  detailsDuration: document.getElementById('detailsDuration'),
-  detailsBpm: document.getElementById('detailsBpm'),
-  detailsBpmUnit: document.getElementById('detailsBpmUnit'),
-  detailsWaveformCanvas: document.getElementById('detailsWaveformCanvas'),
   debugConsole: document.getElementById('debugConsole'),
   debugResizeHandle: document.getElementById('debugResizeHandle'),
   btnCloseDebug: document.getElementById('btnCloseDebug'),
@@ -165,7 +161,6 @@ let toastTimer = null;
 // 카메라 자동노출/손가락 접촉 안정화 구간: 이 동안 신호값이 크게 요동하며
 // 가짜 박동을 만들어 정상 리듬을 부정맥으로 오탐하게 하므로 기록·분석에서 제외한다.
 // (경고 표시·타이머·진행 링은 정상 동작, 화면 파형은 안정화 후 그려진다)
-const CAMERA_SIGNAL_WARMUP_SEC = 3;
 
 function logDebug(msg) {
   const timeStr = new Date().toLocaleTimeString('ko-KR', { hour12: false });
@@ -198,7 +193,7 @@ function hideAlert() {
 
 /* --------------------------------------------------------------------------
    확인 다이얼로그 — 브라우저 기본 confirm 대신 앱 톤으로 통일
-   (앱 종료 확인·이력 전체 삭제 확인 등)
+   (이력 전체 삭제 확인)
    -------------------------------------------------------------------------- */
 const confirmState = { resolve: null };
 
@@ -375,7 +370,7 @@ function hideSignalNotice() {
   els.stageGuideText.classList.remove('is-warning');
   if (state.isMeasuring) {
     const elapsedSec = (performance.now() - state.startTimeMs) / 1000;
-    const key = elapsedSec < 5
+    const key = elapsedSec < LIVE_ANALYSIS_START_SEC
       ? (state.simMode === 'camera' ? 'measure.status.stabilizing' : 'measure.status.simulating')
       : 'measure.status.measuringLive';
     els.stageGuideText.setAttribute('data-i18n', key);
@@ -391,7 +386,7 @@ function syncCameraButtons() {
     btn.classList.toggle('active', active);
     btn.setAttribute('aria-pressed', String(active));
   });
-  // 첫 방문 손가락 와이어 이미지를 카메라 설정(전면/후면)에 맞게 바꾼다.
+  // 대기 화면 손가락 와이어 이미지를 카메라 설정(전면/후면)에 맞게 바꾼다.
   document.body.classList.toggle('cam-front', state.facingMode === 'user');
 }
 
@@ -600,19 +595,18 @@ function onFrameTick() {
   els.timerBadge.textContent = formatTimer(remainingSec);
   updateProgressRing(elapsedSec / state.durationSec);
 
-  // 5초 시점 고속 초기 캘리브레이션 + 이후 측정 종료까지 2초 주기로 지속적 적응형 트래킹(Throttled 2s)
-  if (elapsedSec < 5) {
+  // 3초 안정화 + 유효 샘플 약 5초: 경과 약 8초부터 분석, 이후 2초 주기
+  if (elapsedSec < LIVE_ANALYSIS_START_SEC) {
     if (!signalNoticeActive()) {
       setStageGuideText(state.simMode === 'camera' ? 'measure.status.stabilizing' : 'measure.status.simulating');
     }
   } else {
     const tickStep = Math.floor(elapsedSec);
-    // 5초에 첫 캘리브레이션 포착 후 매 2초(5, 7, 9, 11, 13, 15, ...)마다 필터 대역 추적 및 BPM 갱신
-    if (tickStep >= 5 && tickStep - state.lastAdaptiveTickSec >= 2 && elapsedSec < state.durationSec) {
-      const isFirstLock = state.lastAdaptiveTickSec === 0;
+    const uniform = tickStep - state.lastAdaptiveTickSec >= LIVE_ANALYSIS_INTERVAL_SEC
+      ? resampleUniform(state.rawSamples, TARGET_FS) : null;
+    if (uniform && shouldAnalyzeLive(elapsedSec, state.lastAdaptiveTickSec, uniform.length, TARGET_FS)
+      && elapsedSec < state.durationSec) {
       state.lastAdaptiveTickSec = tickStep;
-
-      const uniform = resampleUniform(state.rawSamples, TARGET_FS);
       const liveAnalysis = analyzePpgSignal(uniform, TARGET_FS, buildAnalysisOptions());
 
       if (liveAnalysis.filterState) {
@@ -621,12 +615,11 @@ function onFrameTick() {
         els.activeBandText.textContent = `Band: ${liveAnalysis.filterState.hp.toFixed(2)} ~ ${liveAnalysis.filterState.lp.toFixed(2)} Hz`;
       }
 
-      if (liveAnalysis.bpm > 0) {
+      if (!signalNoticeActive() && canDisplayLiveBpm(liveAnalysis)) {
         els.bpmNumber.textContent = formatNumber(liveAnalysis.bpm);
         if (!signalNoticeActive()) setStageGuideText('measure.status.measuringLive');
-        if (isFirstLock) {
-          playTone(660, 110);
-        }
+        if (!state.hasLiveBpm) playTone(660, 110);
+        state.hasLiveBpm = true;
         logDebug(
           `[@${tickStep}s] BPM=${liveAnalysis.bpm} | Mode=${liveAnalysis.filterState.mode} | Band=${liveAnalysis.filterState.hp}~${liveAnalysis.filterState.lp}Hz | Q=${liveAnalysis.qualityScore}%`
         );
@@ -651,6 +644,7 @@ async function openIdleCamera() {
   if (state.simMode !== 'camera') return;
   if (camera.isOpen) {
     state.cameraState = 'ready';
+    state.cameraErrorKey = null;
     updateIdleGuide();
     return;
   }
@@ -667,16 +661,15 @@ async function openIdleCamera() {
       return;
     }
     state.cameraState = 'ready';
+    state.cameraErrorKey = null;
     logDebug('Preview camera opened (torch off).');
   } catch (err) {
     if (token !== state.previewToken) return;
     state.cameraState = 'error';
     logDebug(`Idle camera error: ${err.name} - ${err.message}`);
-    if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-      showAlert(t('error.camera.denied'), 6000);
-    } else {
-      showAlert(t('error.camera.notFound'), 6000);
-    }
+    state.cameraErrorKey = err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError'
+      ? 'error.camera.denied'
+      : 'error.camera.notFound';
   }
   updateIdleGuide();
 }
@@ -701,6 +694,7 @@ async function startMeasurement() {
   state.rawSamples = [];
   drawLiveWaveform();
   state.lastAdaptiveTickSec = 0;
+  state.hasLiveBpm = false;
   state.lastResult = null;
   document.body.classList.remove('has-result');
   els.resultBanner.className = 'result-banner';
@@ -976,7 +970,6 @@ const TREND = {
   pointGap: 46      // 측정 1건당 X축 간격(px) → 많으면 가로 스크롤
 };
 const SWIPE_MAX_PX = 96;   // 삭제 버튼 폭
-const SWIPE_OPEN_PX = 48;  // 이 이상 밀면 삭제 버튼이 열린 상태로 고정
 
 /** 추세 선을 Catmull-Rom → 3차 베지어로 부드럽게 이어 그린다. (y는 플롯 영역을 벗어나지 않게 가둔다) */
 function smoothTrendPath(pts, minY, maxY) {
@@ -1090,12 +1083,6 @@ function drawTrendChart(records) {
   els.trendScroll.scrollLeft = els.trendScroll.scrollWidth;
 }
 
-function closeOpenHistoryRows(except = null) {
-  els.historyList.querySelectorAll('.history-item.is-open').forEach((node) => {
-    if (node !== except) node.classList.remove('is-open');
-  });
-}
-
 /* ── 측정이력: 목록 · 자세히 보기(같은 시트 안 화면 전환) · 삭제 대기(실행 취소) ── */
 
 const UNDO_DELETE_MS = 3000; // 삭제 후 이 시간 안에 취소하지 않으면 실제로 지운다
@@ -1182,7 +1169,7 @@ function buildHistoryItem(item) {
   }, { passive: false });
   row.addEventListener('pointerdown', (event) => {
     if (event.pointerType === 'mouse' && event.button !== 0) return;
-    drag = { id: event.pointerId, x: event.clientX, y: event.clientY, dx: 0, active: false, wasOpen: li.classList.contains('is-open') };
+    drag = { id: event.pointerId, x: event.clientX, y: event.clientY, dx: 0, active: false };
   });
   row.addEventListener('pointermove', (event) => {
     if (!drag || event.pointerId !== drag.id) return;
@@ -1192,18 +1179,16 @@ function buildHistoryItem(item) {
       if (Math.abs(dx) < 10 || Math.abs(dx) < Math.abs(dy)) return;
       drag.active = true;
       row.setPointerCapture(event.pointerId);
-      closeOpenHistoryRows(li);
       row.classList.add('is-dragging');
       li.classList.add('is-swiping'); // 드래그 중에도 빨간 삭제 버튼이 보이도록
     }
     drag.dx = dx;
-    const base = drag.wasOpen ? -SWIPE_MAX_PX : 0;
-    const offset = Math.max(-SWIPE_MAX_PX, Math.min(0, base + dx));
+    const offset = Math.max(-SWIPE_MAX_PX, Math.min(0, dx));
     row.style.transform = `translateX(${offset}px)`;
   });
   const endDrag = (event) => {
     if (!drag || (event && event.pointerId !== drag.id)) return;
-    const { active, dx, wasOpen } = drag;
+    const { active, dx } = drag;
     drag = null;
     row.classList.remove('is-dragging');
     row.style.transform = '';
@@ -1212,25 +1197,19 @@ function buildHistoryItem(item) {
     // 스와이프 직후 350ms 안의 클릭은 합성(잔여) 클릭으로 간주해 무시한다.
     // 재렌더로 행이 교체돼도 살아남도록 행별 플래그 대신 공유 시각을 쓴다.
     lastHistorySwipeAt = performance.now();
-    const position = (wasOpen ? -SWIPE_MAX_PX : 0) + dx;
+    const position = dx;
     if (position <= -SWIPE_MAX_PX + 1) {
       // 끝까지 밀었을 때만 삭제 대기 (중간에 놓으면 삭제하지 않는다)
-      li.classList.remove('is-open');
       scheduleDelete(item);
       return;
     }
     // 완전히 밀지 않고 놓으면 항상 닫힌다 (삭제 안 함, 삭제 버튼이 남지 않음)
-    li.classList.remove('is-open');
   };
   row.addEventListener('pointerup', endDrag);
   row.addEventListener('pointercancel', endDrag);
 
   row.addEventListener('click', () => {
     if (performance.now() - lastHistorySwipeAt < 350) return;
-    if (li.classList.contains('is-open')) {
-      li.classList.remove('is-open');
-      return;
-    }
     openHistoryDetail(item);
   });
   row.addEventListener('keydown', (event) => {
@@ -1473,7 +1452,10 @@ async function switchCamera(facing) {
   updateIdleGuide();
   try {
     await camera.open({ torch: false });
-    if (token === state.previewToken) state.cameraState = 'ready';
+    if (token === state.previewToken) {
+      state.cameraState = 'ready';
+      state.cameraErrorKey = null;
+    }
   } catch (err) {
     if (token === state.previewToken) {
       state.cameraState = 'error';

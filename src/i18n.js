@@ -6,14 +6,11 @@
 export const dictionaries = {
   ko: {
     'app.brand.name': '오늘심박',
-    'app.brand.sub': 'HeartTune · 심박수 측정기',
-    'app.brand.slogan': '오늘 내 심장, 30초면 충분해요',
     'app.header.langToggle': 'EN',
     'app.menu.title': '메뉴',
     'app.settings.title': '설정',
     'app.settings.language': '언어',
     'app.close': '닫기',
-    'app.nav.measure': '측정하기',
     'app.nav.history': '측정 이력',
     'app.nav.guide': '측정 안내',
 
@@ -46,7 +43,6 @@ export const dictionaries = {
 
     'measure.status.stabilizing': '신호 영점을 맞추고 있어요 (5초 내 첫 수치 표시)',
     'measure.status.measuringLive': '실시간 맞춤 추적 중… 최종값은 완료 후 확정됩니다',
-    'measure.status.holdingNoise': '손가락 흔들림 감지 — 직전 맞춤 필터를 유지합니다',
     'measure.status.completed': '측정이 완료되었습니다',
     'measure.status.simulating': '시뮬레이션 신호로 고속 캘리브레이션 중입니다',
     'measure.status.cameraStarting': '카메라를 준비하고 있어요…',
@@ -83,7 +79,7 @@ export const dictionaries = {
     'result.shortNote.text': '15초 측정 결과는 참고용입니다.',
 
     'error.camera.denied': '카메라 권한이 거부되었습니다. 브라우저 설정에서 카메라 권한을 허용해 주세요.',
-    'error.camera.notFound': '사용 가능한 카메라를 찾지 못했습니다. 디버그 콘솔에서 시뮬레이션 모드를 사용할 수 있습니다.',
+    'error.camera.notFound': '카메라를 열 수 없습니다. 카메라 연결 상태와 다른 앱의 사용 여부를 확인한 뒤 다시 시도해 주세요.',
     'error.signal.tooDark': '화면이 너무 어두워요. 플래시 또는 밝은 조명 아래에서 손가락을 대주세요.',
     'error.signal.tooBright': '주변 빛이 너무 강해요. 카메라 렌즈를 손가락으로 완전히 덮어주세요.',
     'error.signal.pressHarder': '손가락을 카메라 렌즈에 조금만 더 밀착해 대주세요.',
@@ -107,7 +103,6 @@ export const dictionaries = {
     'history.undo.button': '삭제 취소',
     'history.action.delete': '삭제',
     'history.item.replay': '이 측정 결과 자세히 보기',
-    'history.replay.busy': '측정이 끝난 뒤에 이력을 볼 수 있어요.',
     'history.status.normal': '정상',
     'history.status.suspected': '{signals} 의심',
     'history.ad.legal': '본 앱은 의료기기가 아니며, 측정 결과는 참고용 정보입니다. 의학적 판단이나 진료를 대체할 수 없습니다. 측정 기록은 이 기기(브라우저)에만 저장됩니다.',
@@ -151,14 +146,11 @@ export const dictionaries = {
 
   en: {
     'app.brand.name': 'HeartTune',
-    'app.brand.sub': 'HeartTune · Heart Rate Monitor',
-    'app.brand.slogan': 'Check your heart rhythm in just 30 seconds',
     'app.header.langToggle': '한국어',
     'app.menu.title': 'Menu',
     'app.settings.title': 'Settings',
     'app.settings.language': 'Language',
     'app.close': 'Close',
-    'app.nav.measure': 'Measure',
     'app.nav.history': 'History',
     'app.nav.guide': 'Guide',
 
@@ -191,7 +183,6 @@ export const dictionaries = {
 
     'measure.status.stabilizing': 'Calibrating signal (First reading appears within 5s)',
     'measure.status.measuringLive': 'Adaptive tracking active… Final result appears upon completion',
-    'measure.status.holdingNoise': 'Motion detected — Holding previous clean filter band',
     'measure.status.completed': 'Measurement Complete',
     'measure.status.simulating': 'Fast-calibrating with synthetic PPG signal',
     'measure.status.cameraStarting': 'Preparing camera…',
@@ -228,7 +219,7 @@ export const dictionaries = {
     'result.shortNote.text': '15s results are for reference.',
 
     'error.camera.denied': 'Camera permission denied. Please enable camera access in your browser settings.',
-    'error.camera.notFound': 'No camera found. You can use the Simulation Mode in the debug console.',
+    'error.camera.notFound': 'Unable to open the camera. Check the camera connection and whether another app is using it, then try again.',
     'error.signal.tooDark': 'Too dark. Please use the flash or measure in a well-lit area.',
     'error.signal.tooBright': 'Too much ambient light. Completely cover the camera lens with your fingertip.',
     'error.signal.pressHarder': 'Please place your fingertip slightly closer to the camera lens.',
@@ -252,7 +243,6 @@ export const dictionaries = {
     'history.undo.button': 'Undo',
     'history.action.delete': 'Delete',
     'history.item.replay': 'View details of this measurement',
-    'history.replay.busy': 'You can view history after the measurement finishes.',
     'history.status.normal': 'Normal',
     'history.status.suspected': 'Possible {signals}',
     'history.ad.legal': 'This app is NOT a medical device. Results are for reference only and do not replace professional medical advice. Records are saved only on this device (browser).',
