@@ -1,3 +1,5 @@
+import { MIN_TRACKING_BPM } from '../dsp.js';
+
 /** Live display policy only; does not change DSP estimates or final rhythm rules. */
 export const CAMERA_SIGNAL_WARMUP_SEC = 3;
 export const LIVE_SIGNAL_MIN_SEC = 5;
@@ -11,7 +13,7 @@ export function shouldAnalyzeLive(elapsedSec, lastTickSec, sampleCount, fs) {
 }
 
 export function canDisplayLiveBpm(result) {
-  return Number.isFinite(result?.bpm) && result.bpm > 0
+  return Number.isFinite(result?.bpm) && result.bpm >= MIN_TRACKING_BPM
     && result.qualityScore >= 50
     && result.estimator?.agreement >= 2
     && result.estimator.source !== 'prior'

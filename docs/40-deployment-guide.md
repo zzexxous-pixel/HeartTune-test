@@ -195,7 +195,7 @@ tests/
   measurement-policy.test.js ← 실시간 시점·표시 게이트
   share-brand.test.js     ← PNG 마크 기하·그라데이션
   environment.test.js     ← 환경 경로·설치 메타데이터 단위 4개
-  e2e/hearttune.spec.js    ← Playwright E2E 20개
+  e2e/hearttune.spec.js    ← Playwright E2E 23개
 scripts/
   build-dist.js            ← dist 빌드 + 버전 자동화
   serve.js                 ← 의존성 없는 정적 서버 (로컬/E2E)
@@ -219,8 +219,8 @@ sw.js, manifest*.webmanifest
 | :--- | :--- | :--- |
 | 구문·모듈 lint | `npm run lint` | 모든 JS/ESM 모듈 구문 검사 |
 | i18n 키 일치 | `npm run test:i18n` | ko/en 키 집합 100% 일치 (127키) |
-| 단위·회귀 | `npm run test:unit` | 33개 — 실시간 표시 정책·공유 마크·환경 경로·설치 메타데이터, BPM 정확도, 하모닉 혼동, 박동 검출, 리듬(안정화·아티팩트 방어), 적응형 캘리브레이션, 상세 뷰모델, 지표 매핑 |
-| E2E | `npm run test:e2e` | 20개 — 렌더링/아이콘·매니페스트/3영역 기하/측정 플로우/이력 스와이프 삭제·취소(터치 포함)/시트 드래그 닫기/설정 저장/법적 고지/뒤로가기 종료/디버그 샌드박스 |
+| 단위·회귀 | `npm run test:unit` | 41개 — 저심박 경계 784조합·실측 CSV 2개 추가; 실시간 표시 정책·공유 마크·환경 경로·설치 메타데이터, BPM 정확도, 하모닉 혼동, 박동 검출, 리듬(안정화·아티팩트 방어), 적응형 캘리브레이션, 상세 뷰모델, 지표 매핑 |
+| E2E | `npm run test:e2e` | 23개 — 실측 replay→이력/상세 2·합성 40 BPM 추적 1 추가; 렌더링/아이콘·매니페스트/3영역 기하/측정 플로우/이력 스와이프 삭제·취소(터치 포함)/시트 드래그 닫기/설정 저장/법적 고지/뒤로가기 종료/디버그 샌드박스 |
 | 산출물 빌드 | `npm run build` | dist 생성 + 경로/자산 검증 + **해시 주입 누락 자기검사** + 캐시 버전 자동화 |
 
 로컬에서 화면을 보고 싶을 때(카메라 테스트 포함):

@@ -17,3 +17,5 @@ playwright/.cache/
 # 5. OS 및 에디터 임시 파일 제외
 .DS_Store
 Thumbs.db
+# Explicitly approved, documented regression captures only
+!tests/fixtures/ppg/*.csv

@@ -9,6 +9,13 @@
  */
 
 export const TARGET_FS = 15; // 균일 재표본화 주파수 (15 Hz)
+// Supported tracking range differs from filter transition/search margins.
+export const MIN_TRACKING_BPM = 40;
+export const MAX_TRACKING_BPM = 195;
+export const DEFAULT_HP_HZ = 0.7;
+const MIN_ADAPTIVE_HP_HZ = 0.5;
+const MIN_SEARCH_BPM = MIN_TRACKING_BPM - 2; // margin for interpolation near the 40 BPM boundary
+
 
 /**
  * 1. 카메라 프레임 중앙 50% 영역에서 적응형 PPG 스칼라 값 추출
@@ -195,7 +202,7 @@ function filtfiltBiquad(signal, coeffs) {
 /**
  * 4. 대역통과 필터 (동적 차단 주파수 지원, 기본 0.7 ~ 4.0 Hz)
  */
-export function bandpassFilter(rawSignal, fs = TARGET_FS, hpCutoff = 0.7, lpCutoff = 4.0) {
+export function bandpassFilter(rawSignal, fs = TARGET_FS, hpCutoff = DEFAULT_HP_HZ, lpCutoff = 4.0) {
   const safeHp = Math.max(0.4, Math.min(2.2, hpCutoff));
   const safeLp = Math.max(safeHp + 0.5, Math.min(5.0, lpCutoff));
   const detrended = removeDCAndDetrend(rawSignal);
@@ -270,7 +277,7 @@ export function estimateBpmFFT(filteredSignal, fs = TARGET_FS) {
     }
   }
 
-  const minBin = Math.max(1, Math.floor((0.7 * fftSize) / fs));
+  const minBin = Math.max(1, Math.floor(((MIN_SEARCH_BPM / 60) * fftSize) / fs));
   const maxBin = Math.min((fftSize >> 1) - 2, Math.ceil((3.6 * fftSize) / fs));
 
   const mag = new Float64Array(fftSize >> 1);
@@ -314,7 +321,7 @@ export function estimateBpmFFT(filteredSignal, fs = TARGET_FS) {
 export function estimateBpmAutocorr(filteredSignal, fs = TARGET_FS) {
   const n = filteredSignal.length;
   const minLag = Math.max(2, Math.floor(fs * (60 / 210)));
-  const maxLag = Math.min(n - 2, Math.ceil(fs * (60 / 42)));
+  const maxLag = Math.min(n - 2, Math.ceil(fs * (60 / MIN_SEARCH_BPM)));
   if (maxLag <= minLag) return 0;
 
   let zeroLagEnergy = 0;
@@ -565,7 +572,7 @@ export function resolveBpmEstimate({
 
   // ① 10초 미만 초기 포착: 파형 주기가 아직 짧아 스펙트럼 해상도가 낮다.
   //    자기상관과 IBI 중앙값이 서로 일치하면 그 평균을 채택(기존 고속 포착 유지).
-  if (durationSec > 0 && durationSec < 10 && ac > 42 && median > 42 && same(ac, median)) {
+  if (durationSec > 0 && durationSec < 10 && ac >= MIN_SEARCH_BPM && median >= MIN_SEARCH_BPM && same(ac, median)) {
     return {
       bpm: (ac + median) / 2,
       source: 'early-time-domain',
@@ -628,10 +635,10 @@ export function resolveBpmEstimate({
 export function analyzePpgSignal(uniformSignal, fs = TARGET_FS, options = {}) {
   const durationSec = uniformSignal.length / fs;
   const priorBpm = options.priorBpm || 72;
-  const prevFilter = options.prevFilter || { hp: 0.7, lp: 4.0, centerBpm: priorBpm, locked: false };
+  const prevFilter = options.prevFilter || { hp: DEFAULT_HP_HZ, lp: 4.0, centerBpm: priorBpm, locked: false };
 
   // 1단계: 광대역(0.7~4.0Hz) 또는 수동 지정 대역으로 1차 스캔
-  const initialHp = options.manualHp || 0.7;
+  const initialHp = options.manualHp || DEFAULT_HP_HZ;
   const initialLp = options.manualLp || 4.0;
   const wideFiltered = bandpassFilter(uniformSignal, fs, initialHp, initialLp);
 
@@ -680,11 +687,12 @@ export function analyzePpgSignal(uniformSignal, fs = TARGET_FS, options = {}) {
     } else if (rawQuality < 45 && !prevFilter.locked) {
       // 초기 5초가 흔들려 포착 실패 시: 로컬 스토리지 기저 심박수(Prior HR)를 중심으로 구명조끼 대역 설정
       const priorHz = priorBpm / 60;
-      activeHp = Math.max(0.65, Number((priorHz - 0.45).toFixed(2)));
+      activeHp = Math.max(MIN_ADAPTIVE_HP_HZ, Number((priorHz - 0.45).toFixed(2)));
       activeLp = Math.min(3.8, Number((priorHz + 0.65).toFixed(2)));
       centerBpm = priorBpm;
       tuningMode = 'prior-fallback';
-    } else if (candidateBpm >= 45 && candidateBpm <= 195) {
+    } else if (Math.round(candidateBpm) >= MIN_TRACKING_BPM && candidateBpm <= MAX_TRACKING_BPM
+      && (candidateBpm >= 45 || wideEstimate.agreement >= 2)) {
       // 신호 양호: 포착된 심박수 주파수(centerHz)를 따라 필터 대역폭 이동 (Continuous Adaptive Tracking)
       // 단, 이전 중심 BPM과 3 BPM 이상 차이 날 때만 갱신하여 스로틀링
       const targetBpm =
@@ -693,7 +701,7 @@ export function analyzePpgSignal(uniformSignal, fs = TARGET_FS, options = {}) {
           : candidateBpm;
       const centerHz = targetBpm / 60;
       // 중첩파(dicrotic wave, 약 2배주파수 성분 일부) 보존 및 호흡(0.2~0.3Hz) 차단을 동시에 만족하는 비대칭 패스밴드
-      activeHp = Math.max(0.65, Number((centerHz * 0.62).toFixed(2)));
+      activeHp = Math.max(MIN_ADAPTIVE_HP_HZ, Number((centerHz * 0.62).toFixed(2)));
       activeLp = Math.min(4.0, Number(Math.max(centerHz * 2.15, centerHz + 0.85).toFixed(2)));
       centerBpm = targetBpm;
       tuningMode = 'tracking';
@@ -763,7 +771,8 @@ export function analyzePpgSignal(uniformSignal, fs = TARGET_FS, options = {}) {
       hp: activeHp,
       lp: activeLp,
       centerBpm: roundedBpm,
-      locked: qualityScore >= 50,
+      locked: qualityScore >= 50 && roundedBpm >= MIN_TRACKING_BPM
+        && (roundedBpm >= 45 || isCrossValidated),
       mode: tuningMode
     }
   };
