@@ -3,7 +3,7 @@
  * 오늘심박 (HeartTune) — 브라우저 로컬 저장소 계층
  *
  * 서버가 없는 앱이므로 측정 이력과 캘리브레이션(기저 심박수) 학습 데이터를
- * localStorage 에만 보관한다. (개인정보 리스크 0 / 오프라인 동작)
+ * localStorage 에만 보관한다. (브라우저 로컬 저장 / 오프라인 동작)
  *
  *  · hearttune_history_v1     : 측정 이력 (최대 100건)
  *  · hearttune_calibration_v1 : 신뢰도 높은 측정의 필터 대역 (최근 30건)
@@ -11,13 +11,15 @@
  *  · hearttune_settings_v1    : 사용자 설정 (측정 시간·카메라 방향) — 재접속 시 유지
  */
 
+import { DEFAULT_HP_HZ, MIN_TRACKING_BPM } from '../dsp.js';
+
 export const HISTORY_STORAGE_KEY = 'hearttune_history_v1';
 export const CALIB_STORAGE_KEY = 'hearttune_calibration_v1';
 export const SETTINGS_STORAGE_KEY = 'hearttune_settings_v1';
 export const MAX_HISTORY_ITEMS = 100;
 export const MAX_CALIB_ITEMS = 30;
 
-const DEFAULT_BASELINE = { priorBpm: 72, avgHp: 0.7, avgLp: 4.0, count: 0 };
+const DEFAULT_BASELINE = { priorBpm: 72, avgHp: DEFAULT_HP_HZ, avgLp: 4.0, count: 0 };
 
 /** localStorage 접근이 차단된 환경(사생활 보호 모드 등)에서도 앱이 죽지 않도록 방어 */
 function getStorage() {
@@ -97,7 +99,7 @@ export function loadCalibrationBaseline() {
   if (list.length === 0) return { ...DEFAULT_BASELINE };
 
   const sumBpm = list.reduce((acc, item) => acc + (item.bpm || 72), 0);
-  const sumHp = list.reduce((acc, item) => acc + (item.hp || 0.7), 0);
+  const sumHp = list.reduce((acc, item) => acc + (item.hp || DEFAULT_HP_HZ), 0);
   const sumLp = list.reduce((acc, item) => acc + (item.lp || 4.0), 0);
 
   return {
@@ -108,9 +110,9 @@ export function loadCalibrationBaseline() {
   };
 }
 
-/** 신뢰도(Quality) 50 이상, 42~200 BPM 인 측정만 학습 큐에 누적한다. */
+/** 신뢰도(Quality) 50 이상, 40~200 BPM 인 측정만 학습 큐에 누적한다. */
 export function saveCalibrationSample(bpm, filterState, quality) {
-  if (quality < 50 || bpm < 42 || bpm > 200 || !filterState) return;
+  if (quality < 50 || bpm < MIN_TRACKING_BPM || bpm > 200 || !filterState) return;
   const storage = getStorage();
   if (!storage) return;
 

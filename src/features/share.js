@@ -77,17 +77,20 @@ function wrapText(ctx, text, maxWidth) {
   return lines.length ? lines : [''];
 }
 
-/** 브랜드 마크(favicon·헤더와 동일 도형)를 캔버스에 그린다. */
+/** 앱 헤더와 같은 브랜드 마크(그라데이션·모서리·하트 크기/위치)를 캔버스에 그린다. */
 function drawBrandMark(ctx, x, y, size) {
   ctx.save();
   ctx.translate(x, y);
   ctx.scale(size / 100, size / 100);
   ctx.beginPath();
-  ctx.roundRect(0, 0, 100, 100, 24);
-  ctx.fillStyle = COLORS.brandBg;
+  ctx.roundRect(0, 0, 100, 100, 26);
+  const gradient = ctx.createLinearGradient(0, 0, 100, 100);
+  gradient.addColorStop(0, '#FF1053');
+  gradient.addColorStop(1, '#350020');
+  ctx.fillStyle = gradient;
   ctx.fill();
-  ctx.translate(14, 14);
-  ctx.scale(0.72, 0.72);
+  ctx.translate(3.67, 6.45);
+  ctx.scale(0.9266, 0.9266);
   const heart = new Path2D('M50 78 C50 78 20 56 20 35 C20 23 30 16 40 16 C46 16 50 20 50 25 C50 20 54 16 60 16 C70 16 80 23 80 35 C80 56 50 78 50 78 Z');
   ctx.fillStyle = '#FFFFFF';
   ctx.fill(heart);

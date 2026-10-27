@@ -46,9 +46,7 @@
   padding: 0;
 }
 
-[hidden] {
-  display: none !important;
-}
+
 
 html,
 body {
@@ -216,15 +214,7 @@ body.i18n-ready {
   font-weight: 800;
 }
 
-.btn-block {
-  width: 100%;
-}
 
-.btn-sm {
-  min-height: 40px;
-  padding: 0 12px;
-  font-size: 0.88rem;
-}
 
 /* --------------------------------------------------------------------------
    스테이지 — 남은 높이 전부, 스크롤 없음
@@ -387,7 +377,7 @@ body.i18n-ready {
 }
 
 /* --------------------------------------------------------------------------
-   결과 배너 (측정 완료 후에만 링 아래에 표시)
+   결과 배너 (측정 완료 후 메시지 영역에 표시)
    -------------------------------------------------------------------------- */
 .result-banner {
   display: none;
@@ -515,13 +505,6 @@ body.has-result .bpm-row {
   white-space: nowrap;
 }
 
-.cta-secondary {
-  flex: 0 0 auto;
-  min-height: 52px;
-  padding: 0 12px;
-  font-size: clamp(0.8rem, 3.5vw, 0.92rem);
-  white-space: nowrap;
-}
 
 /* --------------------------------------------------------------------------
    토스트 (경고/오류)
@@ -556,7 +539,7 @@ body.has-result .bpm-row {
 }
 
 /* --------------------------------------------------------------------------
-   확인 다이얼로그 (앱 톤) — 브라우저 confirm 대체: 앱 종료·이력 전체 삭제 확인
+   확인 다이얼로그 (앱 톤) — 브라우저 confirm 대체: 이력 전체 삭제 확인
    -------------------------------------------------------------------------- */
 .confirm-backdrop {
   position: fixed;
@@ -807,25 +790,8 @@ body.has-result .bpm-row {
   cursor: not-allowed;
 }
 
-.setting-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-height: 48px;
-  padding: 2px 0;
-}
 
-.setting-label {
-  font-size: 1rem;
-  font-weight: 600;
-}
 
-.setting-hint {
-  font-size: 0.82rem;
-  color: var(--text-sub);
-  line-height: 1.35;
-}
 
 /* --------------------------------------------------------------------------
    메뉴 시트
@@ -883,19 +849,7 @@ body.has-result .bpm-row {
   gap: 8px;
 }
 
-.trend-card-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
 
-.trend-summary-text {
-  font-size: 1rem;
-  font-weight: 800;
-  color: var(--primary);
-  line-height: 1.35;
-}
 
 #trendCanvas {
   width: 100%;
@@ -969,37 +923,12 @@ body.has-result .bpm-row {
   color: var(--text-main);
 }
 
-.sheet-note {
-  font-size: 0.8rem;
-  line-height: 1.4;
-  color: var(--text-sub);
-}
 
 /* 상세 지표 */
-.metrics-strip {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-}
 
-.metric-pill {
-  background: var(--bg-subtle);
-  border-radius: 12px;
-  padding: 10px 8px;
-  text-align: center;
-}
 
-.metric-pill-label {
-  font-size: 0.78rem;
-  color: var(--text-sub);
-  display: block;
-}
 
-.metric-pill-val {
-  font-size: 1.05rem;
-  font-weight: 800;
-  color: var(--text-main);
-}
+
 
 /* --------------------------------------------------------------------------
    스텔스 디버그 콘솔 — 상단 경계 드래그로 크기 조절 (--debug-height)
@@ -1175,9 +1104,7 @@ body.resizing-debug * {
     font-size: 0.92rem;
     min-height: 2.2em;
   }
-
-  .cta-primary,
-  .cta-secondary {
+  .cta-primary {
     min-height: 48px;
   }
 
@@ -1339,9 +1266,7 @@ body.resizing-debug * {
   gap: 10px;
   padding: 8px 16px calc(8px + env(safe-area-inset-bottom, 0px));
 }
-
-.cta-primary,
-.cta-secondary {
+.cta-primary {
   min-height: 60px;
   border-radius: 14px;
 }
@@ -1350,9 +1275,6 @@ body.resizing-debug * {
   font-size: clamp(1.06rem, 4.8vw, 1.3rem);
 }
 
-.cta-secondary {
-  font-size: clamp(0.92rem, 3.9vw, 1.04rem);
-}
 
 .toast {
   font-size: 1rem;
@@ -1378,38 +1300,20 @@ body.resizing-debug * {
   font-size: 1.05rem;
 }
 
-.setting-label {
-  font-size: 1.1rem;
-}
 
-.setting-hint {
-  font-size: 0.94rem;
-}
 
 .menu-row {
   min-height: 62px;
   font-size: 1.12rem;
 }
 
-.sheet-note {
-  font-size: 0.92rem;
-}
 
-.metric-pill-label {
-  font-size: 0.9rem;
-}
 
-.metric-pill-val {
-  font-size: 1.24rem;
-}
 
 .history-bpm {
   font-size: 1.72rem;
 }
 
-.trend-summary-text {
-  font-size: 1.1rem;
-}
 
 .guide-card h3 {
   font-size: 1.2rem;
@@ -1586,21 +1490,12 @@ body.has-result .bpm-row {
   gap: 8px;
 }
 
-.history-detail {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  overflow-wrap: anywhere;
-}
 
 .history-signals {
   font-size: 0.98rem;
   font-weight: 800;
   color: var(--text-main);
 }
-
-.history-quality,
 .history-meta {
   color: var(--text-sub);
   font-size: 0.82rem;
@@ -1945,8 +1840,6 @@ body.has-result .bpm-row {
 .history-bpm.is-abnormal-rate {
   color: #DC2626;
 }
-
-.history-quality,
 .history-meta {
   font-size: 0.92rem;
   line-height: 1.4;
@@ -2344,7 +2237,6 @@ body.has-result .waveform-box {
   transition: none;
 }
 
-.history-item.is-open .history-row,
 .history-item:has(.history-row:focus-visible) .history-row {
   transform: translateX(-96px);
 }
@@ -2392,7 +2284,6 @@ body.has-result .waveform-box {
   transition: opacity 0.15s ease;
 }
 
-.history-item.is-open .history-delete,
 .history-item:has(.history-row:focus-visible) .history-delete {
   opacity: 1;
   pointer-events: auto;
@@ -2787,12 +2678,6 @@ body.is-measuring .waveform-live-pill {
   box-shadow: none;
 }
 
-.cta-share-icon {
-  border: 2px solid #C9D5E8;
-  border-radius: 999px;
-  color: var(--primary);
-  box-shadow: 0 4px 14px rgba(18, 24, 41, 0.08);
-}
 
 /* ── 바텀시트 공통 ────────────────────────────────────────────────────── */
 .sheet {
@@ -3142,7 +3027,7 @@ body.is-measuring .waveform-live-pill {
 
 /* ==========================================================================
    사용자 피드백 개선 (2026-10-22, PR #6 프리뷰 테스트 반영)
-   · 시트 손잡이 드래그로 닫기 · 공유/저장 분리 · 첫 방문 손가락 와이어
+   · 시트 손잡이 드래그로 닫기 · 공유/저장 분리 · 대기 화면 손가락 와이어
    · 추세 차트 다크 카드 + 곡선 연결 · 카메라 버튼 아이콘 · 법적 고지 재구성
    ========================================================================== */
 
@@ -3490,3 +3375,13 @@ body.cam-front .finger-guide-art[data-facing-art="user"] {
 .install-btn {
   width: 100%;
 }
+
+/* Environment labels do not alter production branding or the translated title. */
+.environment-badge {
+  display: none;
+  flex: 0 0 auto;
+  font-size: 14px;
+  font-weight: 800;
+}
+html[data-environment="dev"] .environment-dev { display: inline; color: #1D4ED8; }
+html[data-environment="pre"] .environment-pre { display: inline; color: #7E22CE; }

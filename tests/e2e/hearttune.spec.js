@@ -145,14 +145,14 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     await page.locator('#settingsSheet [data-sheet-close]').click();
   });
 
-  test('4. 스텔스 디버그 + 5초 고속 캘리브레이션(TRACKING) + 결과/법적 고지/이력 저장 검증', async ({ page }) => {
+  test('4. 스텔스 디버그 + 8초 첫 분석(TRACKING) + 결과/법적 고지/이력 저장 검증', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 667 });
     // OS 공유 시트 지원 여부에 의존하지 않고 PNG 다운로드 폴백을 직접 검증한다.
     await page.addInitScript(() => {
       Object.defineProperty(navigator, 'canShare', { configurable: true, value: () => false });
       Object.defineProperty(navigator, 'share', { configurable: true, value: undefined });
     });
-    // 가상 클록 설치로 5초 초기 포착 및 15초 측정 완료를 고속 검증
+    // 가상 클록 설치로 8초 초기 포착 및 15초 측정 완료를 고속 검증
     await page.clock.install();
     await page.goto('./');
     // 공유 시트를 배제하고 fallback 분기에서 브라우저가 PNG를 만드는지 검사한다.
@@ -207,8 +207,10 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     }
     await expect(page.locator('#bpmNumber')).toHaveText('--');
 
-    // [구간 B] 5 ~ 6초 도달: 5초 고속 초기 캘리브레이션 발동 → 첫 BPM 수치 표시 및 TRACKING 모드 진입
-    await page.clock.runFor(2500);
+    // [구간 B] 8초 전까지 숫자를 표시하지 않고, 8초부터 합의·품질 조건 통과 시 첫 BPM 표시
+    await page.clock.runFor(3500);
+    await expect(page.locator('#bpmNumber')).toHaveText('--');
+    await page.clock.runFor(2000);
     const earlyBpmText = await page.locator('#bpmNumber').innerText();
     expect(earlyBpmText).not.toBe('--');
     const earlyBpm = Number(earlyBpmText);
@@ -217,7 +219,7 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     await expect(page.locator('#calibStatusText')).toContainText('TRACKING');
 
     // [구간 C] 15초 측정 종료까지 진행: 최종 BPM 확정 + 정상 배지 + 15초 단기 측정 안내 표시
-    for (let sec = 6; sec <= 16; sec++) {
+    for (let sec = 9; sec <= 16; sec++) {
       await page.clock.runFor(1000);
     }
 
@@ -391,7 +393,7 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     await expect(filterModeLabel).toContainText('AUTO');
   });
 
-  test('6. 기본값(브라우저 언어·후면 카메라·자동 시작 OFF)과 최소 화면 스크롤 없음 검증', async ({ page }) => {
+  test('6b. 기본값(브라우저 언어·후면 카메라·자동 시작 OFF)과 최소 화면 스크롤 없음 검증', async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 568 });
     await page.goto('./');
 
@@ -678,7 +680,7 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     await expect(sheet).not.toHaveClass(/open/);
   });
 
-  test('12. 브라우저 뒤로가기: 자세히 보기 → 목록 → 시트 닫기 → 메인 초기화 (앱 밖으로 나가지 않음)', async ({ page }) => {
+  test('12. 브라우저 뒤로가기: 자세히 보기 → 목록 → 시트 닫기 → 메인에서 앱 밖으로 이동', async ({ page }) => {
     await page.addInitScript(() => {
       localStorage.setItem('hearttune_history_v1', JSON.stringify([
         { id: 'ht_b', timestamp: new Date(2026, 9, 21, 14, 5, 3).getTime(), bpm: 80, status: 'normal', irregular: false, quality: 80, duration: 30, waveform: [0, 1, 0, -1] }
@@ -792,3 +794,21 @@ test.describe('오늘심박 (HeartTune) E2E 통합 검증', () => {
     await page.waitForURL('about:blank', { timeout: 5000 });
   });
 });
+
+for (const [name, message] of [
+  ['NotAllowedError', '카메라 권한이 거부되었습니다. 브라우저 설정에서 카메라 권한을 허용해 주세요.'],
+  ['NotReadableError', '카메라를 열 수 없습니다. 카메라 연결 상태와 다른 앱의 사용 여부를 확인한 뒤 다시 시도해 주세요.']
+]) {
+  test(`진입 카메라 ${name}: 원인별 메시지 영역 표시, 오류 토스트 없음`, async ({ page }) => {
+    await page.addInitScript((errorName) => {
+      navigator.mediaDevices.getUserMedia = async () => { throw new DOMException('test failure', errorName); };
+    }, name);
+    await page.goto('./');
+    await expect(page.locator('#stageGuideText')).toHaveText(message);
+    await expect(page.locator('#stageGuideText')).toHaveClass(/is-warning/);
+    await expect(page.locator('#liveAlertBox')).not.toHaveClass(/visible/);
+    await page.locator('#btnPrimaryMeasure').click();
+    await expect(page.locator('#stageGuideText')).toHaveText(message);
+    await expect(page.locator('#liveAlertBox')).not.toHaveClass(/visible/);
+  });
+}

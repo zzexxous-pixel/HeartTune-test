@@ -28,12 +28,15 @@ const RUNTIME_FILES = [
   'assets/apple-touch-icon.png',
   'index.html',
   'manifest.webmanifest',
+  'manifest-dev.webmanifest',
+  'manifest-pre.webmanifest',
   'sw.js',
   'src/main.css',
   'src/main.js',
   'src/dsp.js',
   'src/i18n.js',
   'src/features/camera.js',
+  'src/features/measurement-policy.js',
   'src/features/detail-view.js',
   'src/features/result-indicators.js',
   'src/features/sheets.js',
@@ -57,8 +60,8 @@ function getTextAssets() {
   return RUNTIME_FILES.filter((relPath) => TEXT_ASSET_PATTERN.test(relPath));
 }
 
-/** manifest.webmanifest 는 JSON 이라 주석 대신 _build 필드로 해시를 넣는다. */
-const MANIFEST_FILE = 'manifest.webmanifest';
+/** 매니페스트는 JSON 이라 주석 대신 _build 필드로 해시를 넣는다. */
+const MANIFEST_FILES = RUNTIME_FILES.filter((file) => file.endsWith('.webmanifest'));
 
 function ensureCleanDir(dirPath) {
   if (fs.existsSync(dirPath)) {
@@ -162,7 +165,7 @@ function injectBuildVersion(buildHash) {
 /**
  * 모든 텍스트 자산에 빌드 해시를 주입해 지속 가능한 스모크 체계를 만든다.
  * - JS/CSS/sw.js: 맨 앞에 /* hearttune-build: <해시> *\/ 주석
- * - manifest.webmanifest: JSON에 _build 필드 추가 (PWA가 무시하는 커스텀 필드)
+ * - *.webmanifest: JSON에 _build 필드 추가 (PWA가 무시하는 커스텀 필드)
  * 이렇게 하면 운영에서 서빙 중인 각 파일이 기대 빌드를 포함하는지로 신/구버전을 판별할 수 있다.
  * 파일 시간(Last-Modified)이나 1회용 심볼(createCameraController) 대신 내용 기반 판별로 지속 가능.
  */
@@ -178,17 +181,19 @@ function injectBuildHashIntoAssets(buildHash) {
     }
   }
 
-  // manifest.webmanifest는 JSON이므로 주석을 쓸 수 없어 필드로 주입.
+  // 매니페스트는 JSON이므로 주석을 쓸 수 없어 필드로 주입.
   // 주입에 실패하면 운영 스모크가 영구 실패하므로 경고로 넘기지 않고 빌드를 중단한다.
-  const manifestPath = path.join(DIST_DIR, MANIFEST_FILE);
-  let data;
-  try {
-    data = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-  } catch (e) {
-    throw new Error(`${MANIFEST_FILE} 를 JSON 으로 읽지 못해 빌드 해시를 주입할 수 없습니다: ${e.message}`);
+  for (const manifestFile of MANIFEST_FILES) {
+    const manifestPath = path.join(DIST_DIR, manifestFile);
+    let data;
+    try {
+      data = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    } catch (e) {
+      throw new Error(`${manifestFile} 를 JSON 으로 읽지 못해 빌드 해시를 주입할 수 없습니다: ${e.message}`);
+    }
+    data._build = buildHash;
+    fs.writeFileSync(manifestPath, JSON.stringify(data, null, 2) + '\n', 'utf8');
   }
-  data._build = buildHash;
-  fs.writeFileSync(manifestPath, JSON.stringify(data, null, 2) + '\n', 'utf8');
 }
 
 /**
@@ -202,7 +207,7 @@ function listDistTextAssets(dir = DIST_DIR, prefix = '') {
     const relPath = prefix ? `${prefix}/${entry.name}` : entry.name;
     if (entry.isDirectory()) {
       found.push(...listDistTextAssets(path.join(dir, entry.name), relPath));
-    } else if (TEXT_ASSET_PATTERN.test(entry.name) || relPath === MANIFEST_FILE) {
+    } else if (TEXT_ASSET_PATTERN.test(entry.name) || MANIFEST_FILES.includes(relPath)) {
       found.push(relPath);
     }
   }
@@ -221,7 +226,7 @@ function verifyBuildHashInjection(buildHash) {
   const marker = `hearttune-build: ${buildHash}`;
   const distAssets = listDistTextAssets();
   // manifest 는 주석을 쓸 수 없어 _build 필드로 넣으므로 아래에서 따로 검사한다.
-  const codeAssets = distAssets.filter((relPath) => relPath !== MANIFEST_FILE);
+  const codeAssets = distAssets.filter((relPath) => !MANIFEST_FILES.includes(relPath));
 
   const missing = codeAssets.filter(
     (relPath) => !fs.readFileSync(path.join(DIST_DIR, relPath), 'utf8').includes(marker)
@@ -233,11 +238,12 @@ function verifyBuildHashInjection(buildHash) {
     );
   }
 
-  const manifest = JSON.parse(fs.readFileSync(path.join(DIST_DIR, MANIFEST_FILE), 'utf8'));
-  if (manifest._build !== buildHash) {
-    throw new Error(`${MANIFEST_FILE} 의 _build 가 기대 빌드 해시(${buildHash})와 다릅니다.`);
+  for (const manifestFile of MANIFEST_FILES) {
+    const manifest = JSON.parse(fs.readFileSync(path.join(DIST_DIR, manifestFile), 'utf8'));
+    if (manifest._build !== buildHash) {
+      throw new Error(`${manifestFile} 의 _build 가 기대 빌드 해시(${buildHash})와 다릅니다.`);
+    }
   }
-
   return distAssets.length;
 }
 
