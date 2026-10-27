@@ -6,10 +6,11 @@ import vm from 'node:vm';
 const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const script = html.match(/<script id="environment-config">([\s\S]*?)<\/script>/)[1];
 const productionTitle = html.match(/<title>(.*?)<\/title>/)[1];
+const productionAppleTitle = html.match(/<meta name="apple-mobile-web-app-title" content="([^"]+)"/)[1];
 
 function configure(pathname) {
   const manifest = { href: './manifest.webmanifest', setAttribute(key, value) { this[key] = value; } };
-  const apple = { content: '오늘심박' };
+  const apple = { content: productionAppleTitle };
   const document = {
     title: productionTitle,
     documentElement: { dataset: {} },
@@ -21,9 +22,9 @@ function configure(pathname) {
   return { document, manifest, apple };
 }
 
-for (const [environment, paths] of Object.entries({
-  dev: ['/HeartTune-test/', '/HeartTune-test/index.html'],
-  pre: ['/HeartTune-test/preview/', '/HeartTune-test/preview/index.html']
+for (const [environment, { paths, installName }] of Object.entries({
+  dev: { paths: ['/HeartTune-test/', '/HeartTune-test/index.html'], installName: '오늘심박 dev' },
+  pre: { paths: ['/HeartTune-test/preview/', '/HeartTune-test/preview/index.html'], installName: '오늘심박 pre' }
 })) {
   test(`environment ${environment}: path, title and static install manifest`, () => {
     for (const pathname of paths) {
@@ -31,7 +32,7 @@ for (const [environment, paths] of Object.entries({
       assert.equal(document.documentElement.dataset.environment, environment);
       assert.equal(document.title, `${productionTitle} ${environment}`);
       assert.equal(manifest.href, `./manifest-${environment}.webmanifest`);
-      assert.equal(apple.content, `하루심박 ${environment}`);
+      assert.equal(apple.content, installName);
       const data = JSON.parse(fs.readFileSync(new URL(`../manifest-${environment}.webmanifest`, import.meta.url), 'utf8'));
       assert.equal(data.name, apple.content);
       assert.equal(data.short_name, apple.content);

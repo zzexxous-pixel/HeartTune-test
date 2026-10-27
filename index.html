@@ -20,7 +20,7 @@
       const environment = parts[1] === 'preview' ? 'pre' : 'dev';
       document.documentElement.dataset.environment = environment;
       document.querySelector('link[rel="manifest"]').setAttribute('href', `./manifest-${environment}.webmanifest`);
-      document.querySelector('meta[name="apple-mobile-web-app-title"]').content = `하루심박 ${environment}`;
+      document.querySelector('meta[name="apple-mobile-web-app-title"]').content = `오늘심박 ${environment}`;
       document.title += ` ${environment}`;
     })();
   </script>
