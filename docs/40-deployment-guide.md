@@ -195,7 +195,11 @@ tests/
   measurement-policy.test.js ← 실시간 시점·표시 게이트
   share-brand.test.js     ← PNG 마크 기하·그라데이션
   environment.test.js     ← 환경 경로·설치 메타데이터 단위 4개
-  e2e/hearttune.spec.js    ← Playwright E2E 23개
+  low-bpm.test.js          ← 저심박 경계·784조합·위상/아티팩트 회귀 6개
+  recorded-ppg.test.js     ← 실측 CSV 무결성·DSP 회귀 2개
+  fixtures/ppg/            ← 사용자 승인 실측 원본·보관 범위 README
+  e2e/hearttune.spec.js    ← 기존 Playwright E2E 20개
+  e2e/ppg-replay.spec.js   ← 실측 브라우저 replay 2 + 합성 40 BPM 1
 scripts/
   build-dist.js            ← dist 빌드 + 버전 자동화
   serve.js                 ← 의존성 없는 정적 서버 (로컬/E2E)

@@ -66,7 +66,7 @@
 ## 4. 실행 및 성능
 
 - `npm run lint`, `npm run test:i18n`(127키), `npm run test:unit` **41/41**, `npm run build` 통과.
-- Playwright 신규 3개 포함 총 23개: PR의 GitHub Actions에서 확인(실행 상태는 해당 SHA의 Checks 참조). 로컬 Chromium의 기존 시스템 라이브러리 부재를 실기기 결함으로 해석하지 않는다.
+- 구현 커밋 `7cdf215`: GitHub Actions [Dev CI 40431711336](https://github.com/zzexxous-pixel/HeartTune-test/actions/runs/40431711336) 및 [PR preview 40431711536](https://github.com/zzexxous-pixel/HeartTune-test/actions/runs/40431711536)의 lint·단위·빌드·Playwright 23개 통과, 미리보기 배포 성공. 로컬 Chromium의 기존 시스템 라이브러리 부재를 실기기 결함으로 해석하지 않는다.
 - 동일 Node v22.22.3에서 미리 생성한 288개 장기 신호를 전·후 코드로 분석: 3회 예열 후 순서를 번갈아 9회, 배치 중앙값 **50.49→51.53ms(+2.05%)**. 단일 분석 평균 약 .18ms. 서버 마이크로벤치마크이며 실제 휴대폰 프레임·배터리 성능 보장은 아님.
 - 사용자 완료 보고가 있는 기존 E2E·실기기·운영 확인을 미완료로 되돌리지 않는다. 이번 저심박 변경의 CI 회귀와 실측 정확도 검증은 별도 범위다.
 
