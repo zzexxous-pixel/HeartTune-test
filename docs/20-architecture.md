@@ -69,7 +69,7 @@ HeartTune (main) → GitHub Pages 자동 배포
 - [x] i18n **키 집합 일치** 검증 (누락 시 실패)
 - [x] 구문·모듈 lint (ESLint/Prettier 미도입 — `node --check` 기반)
 - [x] 단위 테스트 41개 (기존 33 + 저심박 6 + 실측 CSV 2; 정확도 한계는 70번 문서)
-- [x] Playwright E2E 23개 (원스크린·아이콘/매니페스트·3영역 기하 고정·측정 플로우·이력 스와이프 삭제+취소·시트 드래그 닫기·설정 저장·법적 고지·뒤로가기 종료·디버그 등)
+- [x] Playwright E2E 26개 (환경별 설치 이름·표식·언어 전환, 원스크린·아이콘/매니페스트·3영역 기하 고정·측정 플로우·이력 스와이프 삭제+취소·시트 드래그 닫기·설정 저장·법적 고지·뒤로가기 종료·디버그 등)
 - [x] 빌드 산출물 생성 + 경로/자산 검증 + 캐시 버전 자동화
 
 ## 5-5. 배포 호스팅 — ✅ 확정: GitHub Pages
@@ -184,6 +184,7 @@ tests/
   fixtures/ppg/            ← 사용자 승인 실측 원본·보관 범위 README
   e2e/hearttune.spec.js    ← 기존 Playwright E2E 20개
   e2e/ppg-replay.spec.js   ← 실측 브라우저 replay 2 + 합성 40 BPM 1
+  e2e/environment.spec.js  ← 개발·프리뷰·운영 설치 이름과 표식 회귀 3개
 ```
 
 **분리 기준**

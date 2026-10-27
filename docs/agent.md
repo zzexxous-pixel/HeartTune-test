@@ -23,7 +23,7 @@
 - 공유 PNG는 `detail-view.js` 단일 뷰모델을 사용한다. 동기 `toDataURL()` 인코딩으로 사용자 활성화를 유지한다. 파일 공유 조건 미충족 시 다운로드, 공유 시트 취소·실패 시 미저장. 저장 버튼은 항상 다운로드.
 - 설치는 `beforeinstallprompt`를 수신한 경우 설정 버튼을 노출한다. 설치 배너·설치 완료 토스트·저장 진행 토스트·새 탭은 없다.
 - 언어는 ko/en. `i18n.js` 인라인 사전, 브라우저 언어 감지·설정 저장·날짜 포맷을 담당한다. `setLang()`은 방어적으로 HTML lang도 변경한다.
-- 개발/프리뷰 환경 표식 및 설치 이름은 `40-deployment-guide.md` 10절. 운영 이름·번역·공유 PNG는 유지한다.
+- 개발/프리뷰 설치 이름은 각각 `오늘심박 dev`/`오늘심박 pre`. 환경 표식과 매니페스트 경로는 `40-deployment-guide.md` 10절. 운영 이름·번역·공유 PNG는 유지한다.
 
 ## 2. 유지할 원칙
 
@@ -50,6 +50,7 @@
 | `features/share.js` | PNG 렌더링·파일 공유·다운로드 |
 | `tests/*.test.js` | DSP·상세 뷰모델·표시 지표·환경 식별 단위 테스트 |
 | `tests/e2e/hearttune.spec.js` | 브라우저 플로우 회귀 |
+| `tests/e2e/environment.spec.js` | 환경별 설치 이름·화면 표식·언어 전환 회귀 |
 | `manifest*.webmanifest`, `sw.js` | 환경별 설치 메타데이터·캐시 |
 | `scripts/build-dist.js`, `serve.js` | 정적 산출물·해시 검사 / 정적 서버 |
 
@@ -73,13 +74,14 @@
 
 ## 5. 확인 상태 (2026-10-27)
 
+- 설치 이름 정정 후 로컬 lint·i18n 127키·단위 41/41·빌드와 Chromium E2E 26/26 통과. E2E는 가상 카메라와 경로별 정적 파일을 사용했으며 실기기 설치·운영 배포는 확인하지 않았다.
 - 사용자가 기존 앱의 E2E·실기기 카메라·운영 배포 확인 완료를 알렸다. 임상 검증 완료를 뜻하지 않는다.
-- 이번 변경: 문서 1~20 현행화·폐기 정책 정리, 승인된 미참조 선언/사전 키/선택자/주석 정리, old 디렉터리 삭제, dev/pre 표식·설치 이름 추가.
+- 이전 PR #8 변경: 문서 1~20 현행화·폐기 정책 정리, 승인된 미참조 선언/사전 키/선택자/주석 정리, old 디렉터리 삭제, dev/pre 표식·설치 이름 추가.
 - 27번 변경 후 로컬 lint, ko/en 127키 일치, 단위 41/41(기존 33 + 저심박 6 + 실측 2), dist 빌드 24파일·해시 검사 15개 통과. Playwright는 신규 실측 2 + 합성 40 BPM 1을 더해 23개. 해당 SHA의 CI 상태를 확인한다.
-- PR #8의 코드 커밋 `b0c341d`에 대해 GitHub Actions의 lint·단위·빌드·E2E 및 PR 미리보기 배포가 모두 성공했다([run 40427347109](https://github.com/zzexxous-pixel/HeartTune-test/actions/runs/40427347109)). 실기기 설치·운영 배포는 이번 변경 후 수행하지 않았다. 로컬 Chromium은 시스템 라이브러리 부재로 실행 불가하며, 환경 경로/설치 메타데이터는 VM 단위·매니페스트 해시로 검증했다.
+- PR #8의 코드 커밋 `b0c341d`에 대해 GitHub Actions의 lint·단위·빌드·E2E 및 PR 미리보기 배포가 모두 성공했다([run 40427347109](https://github.com/zzexxous-pixel/HeartTune-test/actions/runs/40427347109)). 당시 실기기 설치·운영 배포는 수행하지 않았다. 당시 로컬 Chromium은 시스템 라이브러리 부재로 실행 불가하여, 환경 경로/설치 메타데이터를 VM 단위·매니페스트 해시로 검증했다.
 - 1차 잔재 정리 때 CSS 파서로 미사용 선택자·첫 중복 hidden 규칙·새 환경 표식을 제외한 기존 선택자/선언/순서/미디어 조건을 비교했다. 이후 승인된 is-open 선택자만 추가 제거했으며 키보드 focus-visible 규칙은 유지했다.
 - 27번 구현 `7cdf215`는 [Dev CI 40431711336](https://github.com/zzexxous-pixel/HeartTune-test/actions/runs/40431711336)와 [PR preview 40431711536](https://github.com/zzexxous-pixel/HeartTune-test/actions/runs/40431711536)의 단위 41개·Playwright 23개·빌드 통과 및 미리보기 배포 성공. 실제 저심박/임상 검증은 별개이며 한계는 70번 문서를 참조한다.
-- PR #8: https://github.com/zzexxous-pixel/HeartTune-test/pull/8 (열림, 병합하지 않음). 미리보기: https://zzexxous-pixel.github.io/HeartTune-test/preview/ . 운영은 변경하지 않는다. 이후 커밋은 해당 SHA의 Checks/배포 상태로 다시 확인한다.
+- PR #8: https://github.com/zzexxous-pixel/HeartTune-test/pull/8 . 현재 기준 커밋 `06c46da`는 해당 PR의 병합 커밋이다. 이후 작업의 Checks/배포는 해당 SHA로 다시 확인하며, 운영 이관은 별도 승인 없이 실행하지 않는다.
 
 ## 6. 결정 및 보류 (2026-10-27)
 
@@ -92,7 +94,7 @@
 - **31 유지:** 기존 글자·버튼 크기 유지. 접근성 목표 완전 충족으로 표시하지 않는다.
 - **32·34 보류:** 활성 CSS 통합·잠금파일 정리는 하지 않는다.
 - **33 완료:** old 디렉터리 삭제.
-- 이번 변경은 작업 브랜치 PR의 `/preview/` 배포까지만 승인됨. 병합·운영 이관은 실행하지 않는다.
+- 이전 작업의 당시 승인 범위는 PR의 `/preview/` 배포까지였다. 현재 세션의 병합·운영 이관은 별도 승인 없이 실행하지 않는다.
 
 ## 7. 문서 운영
 

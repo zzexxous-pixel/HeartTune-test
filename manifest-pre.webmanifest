@@ -1,6 +1,6 @@
 {
-  "name": "하루심박 pre",
-  "short_name": "하루심박 pre",
+  "name": "오늘심박 pre",
+  "short_name": "오늘심박 pre",
   "description": "스마트폰 카메라로 30초 만에 심박수와 맥박 리듬을 확인하는 간편 심박수 측정기",
   "start_url": "./index.html",
   "scope": "./",
